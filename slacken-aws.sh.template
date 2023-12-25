@@ -23,6 +23,8 @@ aws s3 cp $DISCOUNT_HOME/target/scala-2.12/Hypercut-assembly-0.1.0.jar $BUCKET/
 #partitions for the first stage. If this variable is unset, Spark's default of 128 MB will be used.
 #SPLIT="spark.hadoop.mapreduce.input.fileinputformat.split.maxsize=$((64 * 1024 * 1024))"
 
+#To run slacken 1, change the main class to ...slacken.Slacken
+
 #To set SPLIT, uncomment below.
 #Usually, the default values are fine.
 COMMAND=( \
