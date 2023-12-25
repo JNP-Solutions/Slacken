@@ -1,5 +1,5 @@
 Slacken is an implementation of Kraken on Spark, provided as-is for evaluation purposes only.
-Copyright (c) Johan Nyström-Persson 2022.
+Copyright (c) Johan Nyström-Persson 2019-2023.
 
 First, configure by editing submit-slacken.sh.
 To run locally, the Spark distribution (3.0 or later) needs to be available and its location must be configured. The location of scratch space (temporary shuffle files) should also be configured.
