@@ -1,10 +1,52 @@
-import com.typesafe.sbt.SbtStartScript
-seq(SbtStartScript.startScriptForClassesSettings: _*)
+name := "Hypercut"
 
-name := "DBPart"
+version := "0.1.0"
 
-scalaVersion := "2.12.3"
+scalaVersion := "2.12.17"
 
-libraryDependencies += "com.fallabs" % "kyotocabinet-java" % "latest.integration"
+val sparkVersion = "3.3.0"
 
+//If compiling on JDK 8, the --release 8 flag can be safely removed (needed for backwards compatibility on later JDKs).
+//Also applies to javacOptions below.
+scalacOptions ++= Seq("--feature", "-release", "8")
 
+javacOptions ++= Seq("--release=8")
+
+ThisBuild / scapegoatVersion := "2.1.0"
+
+resolvers += "Spark Packages Repo" at "https://dl.bintray.com/spark-packages/maven"
+
+libraryDependencies += "org.rogach" %% "scallop" % "latest.integration"
+
+libraryDependencies += "it.unimi.dsi" % "fastutil" % "latest.integration"
+
+libraryDependencies += "org.scalatest" %% "scalatest" % "latest.integration" % "test"
+
+libraryDependencies += "org.scalatestplus" %% "scalacheck-1-15" % "latest.integration" % "test"
+
+//The "provided" configuration prevents sbt-assembly from including spark in the packaged jar.
+libraryDependencies += "org.apache.spark" %% "spark-sql" % sparkVersion % "provided"
+
+libraryDependencies += "org.apache.spark" %% "spark-mllib" % sparkVersion % "provided"
+
+Compile / unmanagedResourceDirectories += { baseDirectory.value / "resources" }
+
+//Do not run tests during the assembly task
+//(Running tests manually is still recommended)
+assembly / test := {}
+
+//Do not include scala library JARs in assembly (provided by Spark)
+assembly / assemblyOption ~= {
+  _.withIncludeScala(false)
+}
+
+//Run tests in a separate JVM
+Test / fork := true
+
+Test / javaOptions += "-Xmx4G"
+
+//This option required when running tests on Java 17, as of Spark 3.3.0.
+//Can safely be commented out on Java 8 or 11.
+Test / javaOptions += "--add-exports=java.base/sun.nio.ch=ALL-UNNAMED"
+
+Test / testOptions += Tests.Argument(TestFrameworks.ScalaCheck, "-verbosity", "1")

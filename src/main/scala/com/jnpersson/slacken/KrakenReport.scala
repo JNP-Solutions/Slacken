@@ -1,0 +1,108 @@
+/*
+ * This file is part of Discount. Copyright (c) 2019-2023 Johan Nyström-Persson.
+ *
+ * Discount is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Discount is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Discount.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package com.jnpersson.slacken
+
+import com.jnpersson.slacken.Taxonomy.{NONE, ROOT}
+
+import java.io.PrintWriter
+import scala.annotation.tailrec
+import scala.collection.mutable
+import scala.collection.mutable.{Map => MMap}
+
+/** A Kraken 1/2 style taxonomic report with a tree structure.
+ * @param taxonomy The taxonomy
+ * @param counts Number of hits (reads) for each taxon
+ */
+final class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
+  lazy val cladeCounts = aggregateCounts()
+  lazy val countMap = MMap.empty ++ counts
+  lazy val totalSequences = counts.iterator.map(_._2).sum
+
+  @tailrec
+  def addParents(to: MMap[Taxon, Long], from: Taxon, count: Long): Unit = {
+    val parent = taxonomy.parents(from)
+    if (parent != NONE) {
+      to += (parent -> (to.getOrElse(parent, 0L) + count))
+      addParents(to, parent, count)
+    }
+  }
+
+  /** Build a lookup map for taxon hit counts. Includes ancestors to build recursive aggregate counts. */
+  def aggregateCounts(): MMap[Taxon, Long] = {
+    val r = MMap[Taxon, Long]()
+    for {
+      (taxid, count) <- counts
+    } {
+      r += (taxid -> (r.getOrElse(taxid, 0L) + count))
+      addParents(r, taxid, count)
+    }
+    r
+  }
+
+  def reportLine(taxid: Taxon, rankCode: String, rankDepth: Int, depth: Int): String = {
+    val r = new mutable.StringBuilder
+    val cladeCount = cladeCounts.getOrElse(taxid, 0L)
+    r append "%6.2f\t".format(100.0 * cladeCount / totalSequences)
+    r append cladeCount
+    r append "\t"
+    r append countMap.getOrElse(taxid, 0L)
+    if (rankDepth == 0) {
+      r append s"\t$rankCode\t$taxid\t"
+    } else {
+      r append s"\t$rankCode$rankDepth\t$taxid\t"
+    }
+    r append ("  " * depth)
+    r.append(taxonomy.getName(taxid).getOrElse(""))
+    r.result()
+  }
+
+  /** Depth-first search to generate report lines and print them.
+   *  Mostly adapted from kraken 2's reports.cc.
+   */
+  def reportDFS(output: PrintWriter, reportZeros: Boolean, taxid: Taxon, rankCode: String, rankDepth: Int,
+                depth: Int): Unit = {
+    val (rankCodeNext, rankDepthNext) = taxonomy.getRank(taxid) match {
+      case Some(r) => (r, 0)
+      case _ => (rankCode, rankDepth + 1)
+    }
+
+    output.println(reportLine(taxid, rankCodeNext, rankDepthNext, depth))
+
+    //sort by descending clade count
+    //Because counts have already been aggregated upward, filtering > 0 will not remove any intermediate nodes
+    val sortedChildren = taxonomy.children(taxid).toArray.
+      map(c => (c, cladeCounts.getOrElse(c, 0L))).sortWith((a, b) => a._2 > b._2)
+    for {
+      (child, count) <- sortedChildren
+      if reportZeros || count > 0
+    } {
+      reportDFS(output, reportZeros, child, rankCodeNext, rankDepthNext, depth + 1)
+    }
+  }
+
+  def reportDFS(output: PrintWriter, reportZeros: Boolean): Unit = {
+    val totalUnclassified = countMap.getOrElse(NONE, 0)
+    if (totalUnclassified != 0 || reportZeros) {
+      output.println(reportLine(NONE, "U", 0, 0))
+    }
+    reportDFS(output, reportZeros, ROOT, "R", 0, 0)
+  }
+
+  def print(output: PrintWriter, reportZeros: Boolean = false): Unit =
+    reportDFS(output, reportZeros)
+}

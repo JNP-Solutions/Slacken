@@ -1,5 +1,3 @@
-addSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.5.0")
+addSbtPlugin("com.sksamuel.scapegoat" %% "sbt-scapegoat" % "1.1.1")
+addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "2.1.0")
 
-addSbtPlugin("org.scala-sbt.plugins" % "sbt-onejar" % "0.8")
-
-addSbtPlugin("com.typesafe.sbt" % "sbt-start-script" % "0.10.0")

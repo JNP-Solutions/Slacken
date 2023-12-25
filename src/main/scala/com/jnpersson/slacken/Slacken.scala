@@ -1,0 +1,89 @@
+/*
+ * This file is part of Discount. Copyright (c) 2019-2023 Johan Nyström-Persson.
+ *
+ * Discount is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Discount is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Discount.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package com.jnpersson.slacken
+
+import com.jnpersson.discount.spark.{Commands, Configuration, RunCmd, SparkTool}
+import org.apache.spark.sql.SparkSession
+import org.rogach.scallop.Subcommand
+
+class SlackenConf(args: Array[String]) extends Configuration(args) {
+  version(s"Slacken ${getClass.getPackage.getImplementationVersion} beta (c) 2019-2023 Johan Nyström-Persson")
+  banner("Usage:")
+
+  val taxonIndex = new Subcommand("taxonIndex") {
+    val location = opt[String](required = true, descr = "Path to location where index is stored")
+    val taxonomy = opt[String](descr = "Path to taxonomy directory (nodes.dmp and names.dmp)", required = true)
+
+    def index(implicit spark: SparkSession): SupermerIndex =
+      SupermerIndex.load(location(), taxonomy())
+
+    def histogram = new RunCmd("histogram") {
+      val output = opt[String](descr = "Output location", required = true)
+
+      def run(implicit spark: SparkSession): Unit = {
+        index.writeDepthHistogram(output())
+      }
+    }
+    addSubcommand(histogram)
+
+    val build = new RunCmd("build") {
+      val inFiles = trailArg[List[String]](required = true, descr = "Input sequence files")
+      val labels = opt[String](descr = "Path to sequence taxonomic label file", required = true)
+
+      def run(implicit spark: SparkSession): Unit = {
+        val dc = discount
+        val bkts = index.makeBuckets(dc, inFiles(), labels(), true)
+        index.writeBuckets(bkts, location())
+      }
+    }
+    addSubcommand(build)
+
+    val classify = new RunCmd("classify") {
+      val inFiles = trailArg[List[String]](required = true, descr = "Input sequence files")
+      val paired = opt[Boolean](descr = "Inputs are paired-end reads", default = Some(false))
+      val unclassified = toggle(descrYes = "Output unclassified reads", default = Some(true))
+      val output = opt[String](descr = "Output location", required = true)
+
+      def run(implicit spark: SparkSession): Unit = {
+        val i = index
+        val d = discount(i.params)
+        val input = d.inputReader(paired(), inFiles(): _*).getInputFragments(withRC = false, withAmbiguous = true)
+        i.classifyAndWrite(input, output(), unclassified(), 2)
+      }
+    }
+    addSubcommand(classify)
+
+    val stats = new RunCmd("stats") {
+      def run(implicit spark: SparkSession): Unit = {
+        index.showIndexStats()
+      }
+    }
+    addSubcommand(stats)
+  }
+  addSubcommand(taxonIndex)
+
+  verify()
+}
+
+/** Implements the Kraken 1 method for taxonomic classification. */
+object Slacken extends SparkTool("Slacken") {
+  def main(args: Array[String]): Unit = {
+    val conf = new SlackenConf(args)
+    Commands.run(new SlackenConf(args))(sparkSession(conf))
+  }
+}
