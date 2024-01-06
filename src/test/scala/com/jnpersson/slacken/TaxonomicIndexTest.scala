@@ -95,11 +95,11 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     }
   }
 
-  test("Kraken 1 method") {
+  test("Supermer method") {
     testIndexType((p, t) => new SupermerIndex(p, t), 31)
   }
 
-  test("Kraken 2 method") {
+  test("KeyValue method") {
     testIndexType((p, t) => new KeyValueIndex(p, t), 63)
   }
 }

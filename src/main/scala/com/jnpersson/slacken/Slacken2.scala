@@ -5,9 +5,9 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, Extended, MinSplitter, RandomXOR, SpacedSeed}
-import com.jnpersson.discount.spark.{All, AnyMinSplitter, Commands, Configuration, Discount, Generated,
-  IndexParams, MinimizerSource, RunCmd, SparkTool}
-import com.jnpersson.discount.{Frequency, Given}
+import com.jnpersson.discount.spark.{All, AnyMinSplitter, Commands, Configuration, Discount, Generated, IndexParams, MinimizerSource, RunCmd, SparkTool}
+import com.jnpersson.discount.{Frequency, Given, Lexicographic}
+import com.jnpersson.slacken.TaxonomicIndex.getTaxonLabels
 import org.apache.spark.sql.SparkSession
 import org.rogach.scallop.Subcommand
 
@@ -28,16 +28,23 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
 
   def minimizerOrderingByTaxonDepth(inFiles: List[String], taxonomyLocation: String,
                                     seqLabelLocation: String)(implicit spark: SparkSession): MinimizerSource = {
-    val innerM = minimizerWidth() - 4
-    assert(innerM >= 1)
     assert(minimizerWidth() <= 15)
 
-    val d = discount.copy(k = minimizerWidth(), minimizers = All, m = innerM, normalize = true)
-    //Construct a temporary Slacken 1 style m-mer index to create a minimizer ordering for Slacken 2.
-    //This will determine the taxon depth of each m-mer. The minimizer ordering of the inner Slacken 1 index
-    //is not biologically significant.
+    //Construct a temporary m-mer index to create a minimizer ordering.
+    //The ordering will be based on the taxon depth of each m-mer. The minimizer ordering and sample fraction
+    // of this inner index is not biologically significant.
 
-    val idx = SupermerIndex.empty(d, taxonomyLocation, inFiles, None)
+    //1. supermer method
+    val innerM = minimizerWidth() - 6
+    assert(innerM >= 1)
+    val d = discount.copy(k = minimizerWidth(), minimizers = All, m = innerM, normalize = false, sample = 0.1)
+    val idx = SupermerIndex.empty(d, taxonomyLocation, inFiles)
+
+//    2. KeyValue method
+//    val d = discount.copy(k = minimizerWidth(), minimizers = All, ordering = Given,
+//      m = minimizerWidth(), normalize = false)
+//    val idx = KeyValueIndex.empty(d, taxonomyLocation, inFiles)
+
     val bkts = idx.makeBuckets(d, inFiles, seqLabelLocation, addRC = true)
     Generated(idx.minimizerDepthOrdering(bkts, complete = true))
   }

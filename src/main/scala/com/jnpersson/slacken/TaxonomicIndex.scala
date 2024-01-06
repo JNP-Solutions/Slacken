@@ -8,10 +8,11 @@ package com.jnpersson.slacken
 import com.jnpersson.discount.{NTSeq, SeqTitle}
 import com.jnpersson.discount.hash.{BucketId, InputFragment}
 import com.jnpersson.discount.spark.{AnyMinSplitter, Discount, HDFSUtil, IndexParams}
+import com.jnpersson.discount.util.NTBitArray
 import com.jnpersson.slacken.TaxonomicIndex.{ClassifiedRead, getTaxonLabels}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
-import org.apache.spark.sql.functions.{count, desc}
+import org.apache.spark.sql.functions.{count, desc, udf}
 
 import scala.collection.mutable
 
@@ -108,6 +109,52 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
       writer.close()
     } finally {
       reads.unpersist()
+    }
+  }
+
+  /** K-mers or minimizers in this index (keys) sorted by taxon depth from deep to shallow */
+  def kmersDepths(buckets: Dataset[Record]): Dataset[(BucketId, BucketId, Int)]
+
+  def depthHistogram(): Dataset[(Int, Long)] = {
+    val indexBuckets = loadBuckets()
+    kmersDepths(indexBuckets).select("depth").groupBy("depth").count().
+      sort("depth").as[(Int, Long)]
+  }
+
+  /**
+   * Write the histogram of this data to HDFS.
+   * @param output Directory to write to (prefix name)
+   */
+  def writeDepthHistogram(output: String): Unit =
+    depthHistogram().
+      write.mode(SaveMode.Overwrite).option("sep", "\t").csv(s"${output}_taxonDepths")
+
+  def writeKmerDepthOrdering(buckets: Dataset[Record], location: String): Unit = {
+    val k = this.k
+    kmersDepths(buckets).map(x => (NTBitArray.fromLong(x._1, k).toString, x._3)).
+      write.option("sep", "\t").csv(s"${location}_minimizers")
+  }
+
+  /** Construct a taxon depth-based minimizer ordering of k-mers (here, k is assumed to equal m for the
+   * new minimizer ordering). Deep (more specific) minimizers will appear first, having higher priority.
+   * The resulting minimizer ordering is encoded as integers, so only k <= 15 is supported.
+   * @param buckets Taxon bucket index to construct from
+   * @param complete Whether to extend the set with k-mers that were not seen in the index, so as to
+   *                 include all k-mers (4<sup>m</sup> values)
+   */
+  def minimizerDepthOrdering(buckets: Dataset[Record], complete: Boolean): Array[Int] = {
+    assert(this.k <= 15)
+
+    val k = this.k
+    val decodeToInt = udf((x: Long) => (x >>> (64 - k * 2)).toInt)
+    val counted = kmersDepths(buckets).select(decodeToInt($"id1")).as[Int].
+      collect()
+    if (!complete) {
+      counted
+    } else {
+      val asSet = scala.collection.mutable.BitSet.empty ++ counted
+      val notInSet = Iterator.range(0, 1 << (2 * k)).filter(x => !asSet.contains(x)).toArray
+      counted ++ notInSet
     }
   }
 }

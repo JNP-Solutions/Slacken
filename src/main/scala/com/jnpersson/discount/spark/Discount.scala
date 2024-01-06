@@ -53,8 +53,8 @@ final case class Discount(k: Int, minimizers: MinimizerSource = Bundled, m: Int 
   private def sampling = new Sampling
 
   //Validate configuration
-  if (m >= k) {
-    throw new Exception("m must be < k")
+  if (m > k) {
+    throw new Exception("m must be <= k")
   }
 
   if (normalize && k % 2 == 0) {

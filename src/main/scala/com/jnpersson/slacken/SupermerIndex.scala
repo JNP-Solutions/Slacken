@@ -15,7 +15,7 @@ import com.jnpersson.slacken.TaxonomicIndex.ClassifiedRead
 import com.jnpersson.slacken.Taxonomy.NONE
 import it.unimi.dsi.fastutil.longs.LongArrays
 import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
-import org.apache.spark.sql.functions.{broadcast, collect_list, desc, struct, udf}
+import org.apache.spark.sql.functions.{broadcast, collect_list, desc, first, struct, udaf, udf}
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -27,12 +27,11 @@ object SupermerIndex {
 
   /** Build an empty SupermerIndex.
    * @param inFiles Input files used for minimizer ordering construction only
-   * @param location Location used to store minimizer orderings only
    */
-  def empty(discount: Discount, taxonomyLocation: String, inFiles: List[String],
-            location: Option[String] = None)(implicit spark: SparkSession): SupermerIndex = {
-    val spl = discount.getSplitter(Some(inFiles), location)
-    val params = IndexParams(spark.sparkContext.broadcast(spl), discount.partitions, location.getOrElse(""))
+  def empty(discount: Discount, taxonomyLocation: String, inFiles: List[String])
+           (implicit spark: SparkSession): SupermerIndex = {
+    val spl = discount.getSplitter(Some(inFiles))
+    val params = IndexParams(spark.sparkContext.broadcast(spl), discount.partitions, "")
     new SupermerIndex(params, TaxonomicIndex.getTaxonomy(taxonomyLocation))
   }
 }
@@ -62,10 +61,16 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   }
 
   def segmentsToBuckets(segments: Dataset[(discount.spark.HashSegment, Taxon)], k: Int): Dataset[ReducibleBucket] = {
-    val grouped = segments.groupBy($"_1.hash")
-    val byHash = grouped.agg(collect_list(struct($"_1.segment", $"_2"))).
+    val bcPar = this.bcTaxonomy
+    val udafLca = udaf(TaxonLCA(bcPar))
+
+    val byHash = segments.toDF("segment", "taxon").groupBy($"segment")
+    //Aggregate distinct supermers to remove any skew from repetitive data
+    val pregrouped = byHash.agg(udafLca($"taxon").as("taxon"))
+    val collected = pregrouped.groupBy($"segment.hash").
+      agg(collect_list(struct($"segment.segment", $"taxon"))).
       as[(BucketId, Array[(NTBitArray, Taxon)])]
-    taggedToBuckets(byHash, k)
+    taggedToBuckets(collected, k)
   }
 
   def makeBuckets(idsSequences: Dataset[(SeqTitle, NTSeq)],
@@ -147,64 +152,15 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     Output.showStats(i.stats())
   }
 
-  def depthHistogram(): Dataset[(Int, Long)] = {
-    val indexBuckets = loadBuckets()
-    val parentMap = bcTaxonomy
-    val k = this.k
-
-    indexBuckets.flatMap(b => {
-      b.depths(k, parentMap.value)
-    }).toDF("depth").groupBy("depth").count().
-      sort("depth").as[(Int, Long)]
-  }
-
-  def kmerDepthTable(): Dataset[(NTSeq, BucketId)] =
-    kmerDepthTable(loadBuckets())
-
-  def kmerDepthTable(buckets: Dataset[TaxonBucket]): Dataset[(NTSeq, BucketId)] = {
+  override def kmersDepths(buckets: Dataset[TaxonBucket]): Dataset[(BucketId, BucketId, Int)] = {
     val parentMap = bcTaxonomy
     val k = this.k
 
     buckets.flatMap(b => {
-      b.kmersDepths(k, parentMap.value).map(x => (x._1.toString, x._2))
-    }).toDF("kmer", "depth").
-      sort(desc("depth")).as[(NTSeq, Long)]
+      b.kmersDepths(k, parentMap.value).map(x => (x._1.data(0), x._1.dataOrBlank(1), x._2))
+    }).toDF("id1", "id2", "depth").
+      sort(desc("depth")).as[(BucketId, BucketId, Int)]
   }
-
-  def writeKmerDepthOrdering(buckets: Dataset[TaxonBucket], location: String): Unit =
-    kmerDepthTable(buckets).
-      write.option("sep", "\t").csv(s"${location}_minimizers")
-
-  /** Construct a taxon depth-based minimizer ordering of k-mers (here, k is assumed to equal m for the
-   * new minimizer ordering). Deep (more specific) minimizers will appear first, having higher priority.
-   * The resulting minimizer ordering is encoded as integers, so only k <= 15 is supported.
-   * @param buckets Taxon bucket index to construct from
-   * @param complete Whether to extend the set with k-mers that were not seen in the index, so as to
-   *                 include all k-mers (4<sup>m</sup> values)
-   */
-  def minimizerDepthOrdering(buckets: Dataset[TaxonBucket], complete: Boolean): Array[Int] = {
-    assert(k <= 15)
-    val encToInt = udf((x: String) => NTBitArray.encode(x).toInt)
-
-    val counted = kmerDepthTable(buckets).select(encToInt($"kmer")).as[Int].
-      collect()
-    if (!complete) {
-      counted
-    } else {
-      val asSet = scala.collection.mutable.BitSet.empty ++ counted
-      val notInSet = Iterator.range(0, 1 << (2 * k)).filter(x => !asSet.contains(x)).toArray
-      counted ++ notInSet
-    }
-  }
-
-  /**
-   * Write the histogram of this data to HDFS.
-   * @param output Directory to write to (prefix name)
-   */
-  def writeDepthHistogram(output: String): Unit =
-    depthHistogram().
-      write.mode(SaveMode.Overwrite).option("sep", "\t").csv(s"${output}_taxonDepths")
-
 }
 
 /**
@@ -219,19 +175,6 @@ final case class TaxonBucket(id: BucketId, supermers: Array[NTBitArray], taxa: A
 
   def kmerTable(k: Int): KmerTable =
     ReducibleBucket(id, supermers, taxa).writeToSortedTableNoRowCol(k, forwardOnly = false)
-
-  //potential improvement: only read the necessary column off disk when computing this
-  def depths(k: Int, taxonomy: Taxonomy): Iterator[Int] = {
-    for {
-      i <- Iterator.range(0, supermers.length)
-      sm = supermers(i)
-      tx = taxa(i)
-      offset <- Iterator.range(0, sm.size - k + 1)
-      tax = tx(offset)
-      if tax != NONE
-      depth = taxonomy.depth(tax)
-    } yield depth
-  }
 
   /** An iterator of (k-mer, taxonomic depth) pairs where the root level has depth zero. */
   def kmersDepths(k: Int, taxonomy: Taxonomy): Iterator[(NTBitArray, Int)] = {
