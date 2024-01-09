@@ -19,11 +19,10 @@ LOCAL_DIR="spark.local.dir=/tmp/"
 
 #On Windows: Change bin/spark-submit to bin/spark-submit.cmd.
 
-#To run Slacken2, change the main class to ...slacken.Slacken2
 exec $SPARK/bin/spark-submit \
   --conf spark.driver.maxResultSize=2g \
   --driver-java-options -Dlog4j.configuration="file:$DISCOUNT_HOME/log4j.properties" \
   --conf $MEMORY \
   --conf $LOCAL_DIR \
   --master $MASTER \
-  --class com.jnpersson.slacken.Slacken $DISCOUNT_HOME/target/scala-2.12/Slacken-assembly-0.1.0.jar $*
+  --class com.jnpersson.slacken.Slacken2 $DISCOUNT_HOME/target/scala-2.12/Slacken-assembly-0.1.0.jar $*
