@@ -30,18 +30,18 @@ Prerequisites:
 * 16 GB or more of RAM (32 GB or more recommended).
 * A fast SSD drive is very helpful if running locally. The amount of space required depends on the size of the libraries.
 
-Copy `submit-slacken.sh.template` to `submit-slacken.sh`. Edit this file. Set the path to the unzipped Spark installation.
+Copy `submit-slacken.sh.template` to `submit-slacken2.sh`. Edit this file. Set the path to the unzipped Spark installation.
 Set the path to temporary disk space (e.g. an SSD drive and the maximum allowed memory). 
 Change any other flags that may be necessary.
 
 Check that it works: 
-`./submit-slacken.sh --help`
+`./submit-slacken2.sh --help`
 
 ## Building a library
 
 ### Obtaining reference genomes
 
-Genomes compatible with the NCBI taxonomy (names.dmp and nodes.dmp) are expected.
+Genomes compatible with the NCBI taxonomy are expected.
 
 The build scripts from [Kraken 2](https://github.com/DerrickWood/kraken2) can automatically download the taxonomy and 
 genomes. For example, after installing kraken 2:
@@ -103,3 +103,8 @@ To classify mate pairs, the `-p` flag may be used. Input files are then expected
 ./submit-slacken2.sh taxonIndex -l mySlackenLib -t k2/taxonomy classify -p sample01.1.fq sample01.2.fq \
   sample02.1.fq sample02.2.fq -o test_class
 ```
+
+While the process is running, the Spark UI may be inspected at [http://localhost:4040](http://localhost:4040) if the process is running
+locally.
+
+More help: `./submit-slacken2.sh --help`
