@@ -52,10 +52,11 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
   /** Configure a splitter for a new index */
   def configureNewSplitter(inFiles: Option[List[String]], taxonomyLocation: String,
                            seqLabelLocation: String)(implicit spark: SparkSession): AnyMinSplitter = {
-    validateMAndKOptions()
-
     val (ord, minSource) = ordering() match {
       case Frequency(true) =>
+        if (minimizerWidth() > 15) {
+          throw new Exception("For the frequency ordering, m must be <= 15")
+        }
         //Construct the special taxon depth-based minimizer ordering
         val inner = minimizerOrderingByTaxonDepth(inFiles.getOrElse(List()), taxonomyLocation, seqLabelLocation)
         (Given, extendMinimizersIfConfigured(inner))
