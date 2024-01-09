@@ -61,6 +61,11 @@ After the genomes have been downloaded, it is necessary to generate faidx index 
 This generates the index file `library.fna.fai`, which Slacken needs. This step must be repeated for every fasta/fna file
 that will be indexed.
 
+### Minimal demo data
+
+For testing purposes, as an alternative to using kraken2-build above, a minimal demo library is available in Amazon S3 at `s3://jnp-public/slackenTestLib`.
+This is a small selection of bacterial genomes.
+
 ### Building the index
 
 ```
