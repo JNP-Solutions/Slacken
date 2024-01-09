@@ -16,7 +16,7 @@ BUCKET=s3://path/to/slacken
 DISCOUNT_HOME="$(dirname -- "$(readlink -f "${BASH_SOURCE}")")"
 
 #Copy jars and data files the first time only, after which the following lines can safely be commented out
-aws s3 cp $DISCOUNT_HOME/target/scala-2.12/Hypercut-assembly-0.1.0.jar $BUCKET/
+aws s3 cp $DISCOUNT_HOME/target/scala-2.12/Slacken-assembly-0.1.0.jar $BUCKET/
 #aws s3 sync $DISCOUNT_HOME/PASHA $BUCKET/PASHA/
 
 #Max size of input splits in bytes. A smaller number reduces memory usage but increases the number of 
@@ -30,7 +30,7 @@ aws s3 cp $DISCOUNT_HOME/target/scala-2.12/Hypercut-assembly-0.1.0.jar $BUCKET/
 COMMAND=( \
 #  --conf $SPLIT \
   --conf spark.driver.memory=24g \
-  --class com.jnpersson.slacken.Slacken2 $BUCKET/Hypercut-assembly-0.1.0.jar $*)
+  --class com.jnpersson.slacken.Slacken2 $BUCKET/Slacken-assembly-0.1.0.jar $*)
 
 
 #Turn off paging for output

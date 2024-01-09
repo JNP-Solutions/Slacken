@@ -1,4 +1,4 @@
-name := "Hypercut"
+name := "Slacken"
 
 version := "0.1.0"
 

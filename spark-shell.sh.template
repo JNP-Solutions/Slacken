@@ -25,4 +25,4 @@ exec $SPARK/bin/spark-shell \
   --master $MASTER \
   --conf $MEMORY \
   --conf $LOCAL_DIR \
-  --jars "$DISCOUNT_HOME/target/scala-2.12/Hypercut-assembly-0.1.0.jar"
+  --jars "$DISCOUNT_HOME/target/scala-2.12/Slacken-assembly-0.1.0.jar"
