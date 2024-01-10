@@ -14,18 +14,26 @@ import scala.annotation.{switch, tailrec}
 import scala.collection.mutable.ArrayBuffer
 import scala.util.Random
 
+/** A segment (super-mer) with a single minimizer.
+ * @param id1 First part of the minimizer
+ * @param id2 Second part of the minimizer
+ * @param segment Sequence data
+ */
 final case class HashSegment(id1: BucketId, id2: BucketId, segment: NTBitArray)
 
 object HashSegments {
 
+  /**
+   * Split a fragment into segments (by minimizer).
+   * Ambiguous segments get a random minimizer. They will not be processed during classification,
+   * but are needed at the end to create complete output
+   * @return Pairs of (segment, flag) where flag indicates whether the segment was ambiguous.
+   */
   def splitFragment(sequence: NTSeq, splitter: AnyMinSplitter): Iterator[(HashSegment, SegmentFlag)] = {
     splitByAmbiguity(sequence, splitter.k).flatMap { case (ntseq, flag) =>
       flag match {
         case AMBIGUOUS_FLAG =>
           val numKmers = ntseq.length - (splitter.k - 1)
-
-          //ambiguous segments get a random hash value. They will not be processed during classification,
-          //but are needed at the end to create complete output lines
           Iterator((HashSegment(Random.nextLong(), 0, NTBitArray(Array(), numKmers)), AMBIGUOUS_FLAG))
         case SEQUENCE_FLAG =>
           for {
@@ -38,7 +46,7 @@ object HashSegments {
     * Splits reads by hash (minimizer), including an ordinal, so that the ordering of a read can be reconstructed later,
     * after shuffling.
     * Also includes ambiguous segments at the correct location.
-    * If we are processing a mate pair, a pseudo sequence will indicate this at the correct location.
+    * If we are processing a mate pair, a pseudo-sequence will indicate this at the correct location.
     */
   def splitFragment(f: InputFragment, splitter: AnyMinSplitter): Iterator[OrdinalSegmentWithSequence] = {
     val tag = f.header
@@ -78,15 +86,15 @@ object HashSegments {
       filter(_._1.length >= k)
 
   /**
-   * Progressively split a read.
+   * Split a read into fragments overlapping by (k-1 bases)
    *
    * @param r             Remaining subject to be classified. First character has not yet been judged to be
    *                      ambiguous/nonambiguous
-   * @param k
+   * @param k             Length of k-mers
    * @param building      Fragment currently being built (prior to 'r')
    * @param buildingAmbig Whether currently built fragment is ambiguous
-   * @param acc
-   * @return
+   * @param acc           Result accumulator
+   * @return Pairs of (sequence, ambiguous flag)
    */
   @tailrec
   def splitByAmbiguity(r: NTSeq, k: Int, building: NTSeq, buildingAmbig: Boolean,

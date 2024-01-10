@@ -35,8 +35,9 @@ class SlackenConf(args: Array[String]) extends Configuration(args) {
 
       def run(implicit spark: SparkSession): Unit = {
         val dc = discount
-        val bkts = index.makeBuckets(dc, inFiles(), labels(), true)
-        index.writeBuckets(bkts, location())
+        val i = SupermerIndex.empty(dc, taxonomy(), inFiles())
+        val bkts = i.makeBuckets(dc, inFiles(), labels(), true)
+        i.writeBuckets(bkts, location())
       }
     }
     addSubcommand(build)

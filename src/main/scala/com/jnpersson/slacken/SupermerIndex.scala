@@ -86,7 +86,7 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   }
 
   def writeBuckets(buckets: Dataset[TaxonBucket], location: String): Unit = {
-    val bkts = buckets.toDF("id", "supermers", "taxons").as[ReducibleBucket]
+    val bkts = buckets.toDF("id", "supermers", "tags").as[ReducibleBucket]
     val idx = new Index(params, bkts)
     idx.write(location)
   }

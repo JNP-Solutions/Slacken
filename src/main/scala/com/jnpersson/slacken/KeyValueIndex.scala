@@ -116,7 +116,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       val splitter = bcSplit.value
       HashSegments.splitFragment(s, splitter).map(x => {
         //Drop the sequence data
-        S2OrdinalSegment(x.segment.id1, x.segment.id2,
+        OrdinalSegment(x.segment.id1, x.segment.id2,
           x.segment.segment.size - (k - 1), x.flag, x.ordinal, x.seqTitle)
       })
     }).
@@ -180,7 +180,7 @@ object KeyValueIndex {
    * @param taxon The minimizer's LCA taxon
    * @param x The super-mer from the original sequence
    * */
-  def setTaxon(taxon: Option[Taxon], x: S2OrdinalSegment): TaxonHit = {
+  def setTaxon(taxon: Option[Taxon], x: OrdinalSegment): TaxonHit = {
     val reportTaxon =
       if (x.flag == AMBIGUOUS_FLAG) AMBIGUOUS
       else if (x.flag == MATE_PAIR_BORDER_FLAG) MATE_PAIR_BORDER
