@@ -234,14 +234,21 @@ abstract class PairedInputReader[R <: AnyRef](file1: String, k: Int, file2: Opti
   import spark.sqlContext.implicits._
 
   override protected def getFragments(): Dataset[InputFragment] = {
+
+    def removeSuffix(f: InputFragment, suffix: String) =
+      f.copy(header = f.header.replaceAll(suffix + "$", ""))
+
+
     val p = parser
     /* As we currently have no input format that correctly handles paired reads, joining the reads by
-       header is the best we can do (and inexpensive in the big picture)
+       header is the best we can do (and still inexpensive in the big picture).
+       Otherwise it is hard to guarantee that they would be paired up correctly.
+       We remove the /1 and /2 suffixes from the headers if they are present, as they would break the join.
      */
     file2 match {
       case Some(f2) =>
-        val fr1 = rdd.map(p.toFragment).toDS()
-        val fr2 = loadFile(f2).map(p.toFragment).toDS()
+        val fr1 = rdd.map(x => removeSuffix(p.toFragment(x), "/1")).toDS()
+        val fr2 = loadFile(f2).map(x => removeSuffix(p.toFragment(x), "/2")).toDS()
         fr1.joinWith(fr2, fr1("header") === fr2("header")).map(pair =>
           pair._1.copy(nucleotides2 = Some(pair._2.nucleotides)))
       case None => rdd.map(p.toFragment).toDS()

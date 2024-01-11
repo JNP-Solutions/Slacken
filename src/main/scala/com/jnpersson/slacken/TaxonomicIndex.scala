@@ -219,7 +219,7 @@ object TaxonomicIndex {
    * @param sufficientHits Whether there are sufficient hits to classify the sequence
    * @param k Length of k-mers
    */
-  def classify(taxonomy: Taxonomy, title: SeqTitle, hitMap: mutable.Map[Taxon, Int], summary: TaxonSummary,
+  def classify(taxonomy: Taxonomy, title: SeqTitle, hitMap: mutable.Map[Taxon, Int], summary: TaxonCounts,
                sufficientHits: Boolean, k: Int): ClassifiedRead = {
     val taxon = taxonomy.resolveTree(hitMap)
     val classified = taxon != Taxonomy.NONE && sufficientHits

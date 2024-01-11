@@ -8,11 +8,11 @@ package com.jnpersson.slacken
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-object TaxonSummary {
+object TaxonCounts {
 
   /** Convert a collection of TaxonSummaries to a lookup map that maps each taxon to its
    * total hit count. */
-  def hitCountsToMap(summaries: Iterable[TaxonSummary]): mutable.Map[Taxon, Int] = {
+  def hitCountsToMap(summaries: Iterable[TaxonCounts]): mutable.Map[Taxon, Int] = {
     val r = mutable.Map.empty[Taxon, Int]
     for {
       x <- summaries
@@ -27,10 +27,10 @@ object TaxonSummary {
     r
   }
 
-  /** Concatenate adjacent TaxonSummaries (in order corresponding to the subject sequence)
-   * into a single TaxonSummary object
+  /** Concatenate adjacent TaxonCounts (in order corresponding to the subject sequence)
+   * into a single TaxonCounts object
    */
-  def concatenate(summaries: Iterable[TaxonSummary]): TaxonSummary = {
+  def concatenate(summaries: Iterable[TaxonCounts]): TaxonCounts = {
     val maxSize = summaries.map(_.counts.size).sum
     val taxonRet = new ArrayBuffer[Taxon]()
     taxonRet.sizeHint(maxSize)
@@ -42,6 +42,7 @@ object TaxonSummary {
       if s.taxa.nonEmpty
     } {
       if (taxonRet.nonEmpty && taxonRet(taxonRet.size - 1) == s.taxa(0)) {
+        //Overlap between two TaxonCounts
         countRet(countRet.size - 1) += s.counts(0)
       } else {
         taxonRet += s.taxa(0)
@@ -52,11 +53,11 @@ object TaxonSummary {
         countRet += s.counts(i)
       }
     }
-    new TaxonSummary(summaries.head.ordinal, taxonRet, countRet)
+    new TaxonCounts(summaries.head.ordinal, taxonRet, countRet)
   }
 
-  def forTaxon(ordinal: Int, taxon: Taxon, kmers: Int): TaxonSummary =
-    TaxonSummary(ordinal, Array(taxon), Array(kmers))
+  def forTaxon(ordinal: Int, taxon: Taxon, kmers: Int): TaxonCounts =
+    TaxonCounts(ordinal, Array(taxon), Array(kmers))
 
   def taxonRepr(t: Taxon): String =
     if (t == AMBIGUOUS) "A" else s"$t"
@@ -82,16 +83,16 @@ object TaxonSummary {
 /**
  * Information about classified k-mers for a consecutive segment of a subject sequence.
  *
- * @param ordinal the position of this summary in a list of summaries for a subject sequence
+ * @param ordinal the relative position of this summary in a list of summaries for a subject sequence
  *              (not same as position in the query sequence)
- * @param taxa taxa for each classified region (may be repeated)
- * @param counts counts for each taxon
+ * @param taxa taxa for each classified region (may be repeated, but two consecutive taxa should not be the same)
+ * @param counts k-mer counts for each taxon in the taxa array
  *
  */
-final case class TaxonSummary(ordinal: Int, taxa: mutable.IndexedSeq[Taxon], counts: mutable.IndexedSeq[Int]) {
+final case class TaxonCounts(ordinal: Int, taxa: mutable.IndexedSeq[Taxon], counts: mutable.IndexedSeq[Int]) {
 
-   def groupsInOrder: String =
-    TaxonSummary.stringFromPairs(taxa.iterator zip counts.iterator)
+  def groupsInOrder: String =
+    TaxonCounts.stringFromPairs(asPairs)
 
   def lengthString(k: Int): String = {
     val border = taxa.indexOf(MATE_PAIR_BORDER)
@@ -102,5 +103,6 @@ final case class TaxonSummary(ordinal: Int, taxa: mutable.IndexedSeq[Taxon], cou
     }
   }
 
-  def asPairs: Iterator[(Taxon, Int)] = taxa.iterator zip counts.iterator
+  def asPairs: Iterator[(Taxon, Int)] =
+    taxa.iterator zip counts.iterator
 }

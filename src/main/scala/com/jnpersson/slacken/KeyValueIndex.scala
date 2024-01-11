@@ -138,8 +138,8 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       val sortedHits = hits.sortBy(_.ordinal)
 
       val sufficientHits = sufficientHitGroups(sortedHits, minHitGroups)
-      val summariesInOrder = TaxonSummary.concatenate(sortedHits.map(_.summary)) //TODO rewrite
-      val allHits = TaxonSummary.hitCountsToMap(List(summariesInOrder))
+      val summariesInOrder = TaxonCounts.concatenate(sortedHits.map(_.summary)) //TODO rewrite
+      val allHits = TaxonCounts.hitCountsToMap(List(summariesInOrder))
 
       //More detailed output format for debugging purposes, may be passed instead of summariesInOrder below to
       //see it in the final output
@@ -231,8 +231,8 @@ object KeyValueIndex {
  * @param count the number of k-mer hits
  * */
 final case class TaxonHit(id1: BucketId, id2: BucketId, ordinal: Int, taxon: Taxon, count: Int) {
-  def summary: TaxonSummary =
-    TaxonSummary(ordinal, Array(taxon), Array(count))
+  def summary: TaxonCounts =
+    TaxonCounts(ordinal, Array(taxon), Array(count))
 }
 
 

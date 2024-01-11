@@ -135,10 +135,10 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
 
     //Group by sequence ID
     taxonSummaries.groupBy("_1").agg(collect_list($"_2")).
-      as[(String, Array[TaxonSummary])].map(x => {
-      val summariesInOrder = TaxonSummary.concatenate(x._2.sortBy(_.ordinal))
+      as[(String, Array[TaxonCounts])].map(x => {
+      val summariesInOrder = TaxonCounts.concatenate(x._2.sortBy(_.ordinal))
 
-      val allHits = TaxonSummary.hitCountsToMap(Seq(summariesInOrder))
+      val allHits = TaxonCounts.hitCountsToMap(Seq(summariesInOrder))
 
       //Useful alternative for debugging
       //x._2.sortBy(_.order).mkString(" ")
@@ -201,7 +201,7 @@ final case class TaxonBucket(id: BucketId, supermers: Array[NTBitArray], taxa: A
     TaxonBucketStats(splitter.humanReadable(id), kmerTable(splitter.k).size, allTaxa.distinct.length, avgDepth)
   }
 
-  def classifyKmers(k: Int, subjects: Array[OrdinalSegmentWithSequence]): Iterator[(SeqTitle, TaxonSummary)] = {
+  def classifyKmers(k: Int, subjects: Array[OrdinalSegmentWithSequence]): Iterator[(SeqTitle, TaxonCounts)] = {
     val (sequence, ambiguousOrGap) = subjects.partition(_.flag == SEQUENCE_FLAG)
 
     val provider = new TagProvider {
@@ -222,11 +222,11 @@ final case class TaxonBucket(id: BucketId, supermers: Array[NTBitArray], taxa: A
     val taxonRows = jointTags(0).indices.iterator.buffered
     //note jointTags is column-major
 
-    new Iterator[(SeqTitle, TaxonSummary)] {
+    new Iterator[(SeqTitle, TaxonCounts)] {
       def hasNext: Boolean =
         taxonRows.hasNext
 
-      def next: (SeqTitle, TaxonSummary) = {
+      def next: (SeqTitle, TaxonCounts) = {
         val row = taxonRows.head
         val keys = jointTags(0)(row)
 
@@ -244,7 +244,7 @@ final case class TaxonBucket(id: BucketId, supermers: Array[NTBitArray], taxa: A
         case _ => ???
       }
       val numKmers = x.segment.segment.size - (k - 1)
-      (x.seqTitle, TaxonSummary.forTaxon(x.ordinal, taxon, numKmers))
+      (x.seqTitle, TaxonCounts.forTaxon(x.ordinal, taxon, numKmers))
     })
   }
 
@@ -254,7 +254,7 @@ final case class TaxonBucket(id: BucketId, supermers: Array[NTBitArray], taxa: A
    * Since the rows (tag data) have been sorted, each taxon will only be encountered once while traversing.
    */
   private def getTaxonSummary(indices: BufferedIterator[Int], rows: Array[Array[Long]],
-                              subjRow: Int, ordinal: Short): TaxonSummary = {
+                              subjRow: Int, ordinal: Short): TaxonCounts = {
     val taxBuffer = new ArrayBuffer[Taxon](20)
     val countBuffer = new ArrayBuffer[Taxon](20)
     var taxon = rows(1)(indices.head)
@@ -275,7 +275,7 @@ final case class TaxonBucket(id: BucketId, supermers: Array[NTBitArray], taxa: A
     }
     taxBuffer += taxon.toInt
     countBuffer += count
-    TaxonSummary(ordinal.toInt, taxBuffer, countBuffer)
+    TaxonCounts(ordinal.toInt, taxBuffer, countBuffer)
   }
 }
 
