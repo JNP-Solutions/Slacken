@@ -42,4 +42,4 @@ do
   RUNNER_ARGS="$RUNNER_ARGS,$PARAM"
 done
 
-aws emr add-steps --cluster $AWS_EMR_CLUSTER --steps Type=CUSTOM_JAR,Name=Hypercut,ActionOnFailure=CONTINUE,Jar=command-runner.jar,Args=\[$RUNNER_ARGS\]
+aws emr add-steps --cluster $AWS_EMR_CLUSTER --steps Type=CUSTOM_JAR,Name=Slacken,ActionOnFailure=CONTINUE,Jar=command-runner.jar,Args=\[$RUNNER_ARGS\]
