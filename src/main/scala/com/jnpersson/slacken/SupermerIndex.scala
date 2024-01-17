@@ -78,7 +78,7 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     val bcSplit = this.bcSplit
     val idSeqDF = idsSequences.toDF("seqId", "seq")
     val labels = taxonLabels.toDF("seqId", "taxon")
-    val idSeqLabels = idSeqDF.join(broadcast(labels), idSeqDF("seqId") === labels("seqId")).
+    val idSeqLabels = idSeqDF.join(labels, idSeqDF("seqId") === labels("seqId")).
       select("seq", "taxon").as[(String, Taxon)]
 
     val segments = idSeqLabels.flatMap(r => GroupedSegments.hashSegments(r._1, bcSplit.value).map(s => (s, r._2)))

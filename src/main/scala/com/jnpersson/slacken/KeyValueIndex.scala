@@ -37,10 +37,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     val idSeqDF = idsSequences.toDF("seqId", "seq")
     val labels = seqLabels.toDF("seqId", "taxon")
 
-    //Materialize labels before broadcasting it
-    labels.count()
-
-    val idSeqLabels = idSeqDF.join(broadcast(labels), idSeqDF("seqId") === labels("seqId")).
+    val idSeqLabels = idSeqDF.join(labels, idSeqDF("seqId") === labels("seqId")).
       select("seq", "taxon").as[(String, Taxon)]
 
     val LCAs = idSeqLabels.flatMap(r => {
