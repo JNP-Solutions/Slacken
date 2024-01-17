@@ -145,45 +145,26 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[String],
     false
   }
 
-  private val PATH_MAX_LENGTH = 256
-  def newPathBuffer: Array[Taxon] = Array.fill(PATH_MAX_LENGTH)(NONE)
-
   /**
-   * Lowest common ancestor of two taxa.
-   * Algorithm from Kraken's krakenutil.cpp. This algorithm (no longer used in Kraken2)
-   * has the advantage that parents do not need to have a taxid smaller than their children.
-   * @param buffer Reusable buffer, created by the newPathBuffer method above
+   * Lowest common ancestor of two taxa. From taxonomy.cc in kraken2.
+   * Logic here depends on higher nodes having smaller IDs
+   * Idea: track two nodes, advance lower tracker up tree, trackers meet @ LCA
    * @param tax1
    * @param tax2
-   * @return
+   * @return lca(tax1, tax2)
    */
-  def lca(buffer: Array[Taxon])(tax1: Taxon, tax2: Taxon): Taxon = {
+  def lca(tax1: Taxon, tax2: Taxon): Taxon = {
     if (tax1 == NONE || tax2 == NONE) {
       return if (tax2 == NONE) tax1 else tax2
     }
 
     var a = tax1
-
-    var i = 0
-    while (a != NONE) {
-      //The path length must never exceed the buffer size - if it does, increase PATH_MAX_LENGTH above
-      buffer(i) = a
-      i += 1
-      a = parents(a)
-    }
-    buffer(i) = NONE // mark end
-    val path1 = buffer
-
-    //Note: this algorithm is quadratic in the average path length and would not scale well to deep
-    //hierarchies
     var b = tax2
-    while (b != NONE) {
-      if (pathContains(path1, b)) {
-        return b
-      }
-      b = parents(b)
+    while (a != b) {
+      if (a > b) a = parents(a)
+      else b = parents(b)
     }
-    NONE
+    a
   }
 
   /**
@@ -192,7 +173,6 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[String],
    * @param hitCounts
    */
   def resolveTree(hitCounts: collection.Map[Taxon, Int]): Taxon = {
-    val buffer = newPathBuffer
     var maxTaxon = 0
     var maxScore = 0
     val it = hitCounts.iterator
@@ -211,7 +191,7 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[String],
           maxTaxon = taxon
           maxScore = score
         } else if (score == maxScore) {
-          maxTaxon = lca(buffer)(maxTaxon, taxon)
+          maxTaxon = lca(maxTaxon, taxon)
         }
       }
     }

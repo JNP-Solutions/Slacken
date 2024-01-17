@@ -241,12 +241,11 @@ final case class TaxonLCA(bcTaxonomy: Broadcast[Taxonomy]) extends Aggregator[Ta
 
   @transient
   lazy val taxonomy = bcTaxonomy.value
-  @transient
-  private lazy val buffer = taxonomy.newPathBuffer
 
-  override def reduce(b: Taxon, a: Taxon): Taxon = taxonomy.lca(buffer)(b, a)
 
-  override def merge(b1: Taxon, b2: Taxon): Taxon = taxonomy.lca(buffer)(b1, b2)
+  override def reduce(b: Taxon, a: Taxon): Taxon = taxonomy.lca(b, a)
+
+  override def merge(b1: Taxon, b2: Taxon): Taxon = taxonomy.lca(b1, b2)
 
   override def finish(reduction: Taxon): Taxon = reduction
 
