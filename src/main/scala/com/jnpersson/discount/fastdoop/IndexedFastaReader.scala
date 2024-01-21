@@ -245,20 +245,24 @@ class IndexedFastaReader extends RecordReader[Text, PartialSequence] {
  * @param fullSize total size of the fasta file
  */
 class FAIUtils(path: Path, job: Configuration, startByte: Long, fullSize: Long) {
+
   def fileSize: Long =
     path.getFileSystem(job).getFileStatus(path).getLen
 
   /** Stream data from the current offset in the fai file */
   private def sourceAtOffset: Source = {
     val is = path.getFileSystem(job).open(path)
-    is.skip(startOffset)
+    is.seek(startOffset)
     Source.fromInputStream(is)
   }
 
-  /** Stream FAI records from the current offset in the fai file.
-   * The iterator can only be used once.
+  /**
+   * Stream FAI records from the current offset in the fai file.
+   * After use, the close() method must be called to close the underlying source.
    */
   def recordsAtOffset: BufferedIterator[FAIRecord] = {
+    faiSource = sourceAtOffset
+
     val lines = faiSource.getLines()
     if (startOffset > 0 && lines.hasNext) {
       lines.next() //ensure we start from a complete line as we might have seeked to the middle of one
@@ -277,12 +281,11 @@ class FAIUtils(path: Path, job: Configuration, startByte: Long, fullSize: Long) 
 
   //initial guess
   private var startOffset = (fileSize * (startByte.toDouble / fullSize)).toLong
-  private var faiSource = sourceAtOffset
+  private var faiSource: Source = null
   seekToStart
 
   //seek backwards if we have gone too far
   private def seekToStart(): Unit = {
-    faiSource = sourceAtOffset
     val seekAmount = 1024 * 1024 * 10
 
     var firstRecordStart = recordsAtOffset.headOption.map(_.start).getOrElse(fileSize)
@@ -291,13 +294,12 @@ class FAIUtils(path: Path, job: Configuration, startByte: Long, fullSize: Long) 
       startOffset -= seekAmount
       if (startOffset < 0) startOffset = 0
       faiSource.close()
-      faiSource = sourceAtOffset
       firstRecordStart = recordsAtOffset.headOption.map(_.start).getOrElse(fileSize)
     }
-  }
-
-  def close(): Unit = {
     faiSource.close()
   }
+
+  def close(): Unit =
+    faiSource.close()
 
 }
