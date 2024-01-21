@@ -44,12 +44,12 @@ private final case class FragmentParser(k: Int) {
   val FIRST_LOCATION = 1
 
   def toFragment(record: AnyRef): InputFragment = record match {
-      case record: Record =>
-        makeInputFragment(record.getKey.split(" ")(0), FIRST_LOCATION, record.getBuffer,
-          record.getStartValue, record.getEndValue)
-      case record: QRecord =>
-        makeInputFragment(record.getKey.split(" ")(0), FIRST_LOCATION, record.getBuffer,
-          record.getStartValue, record.getEndValue)
+      case rec: Record =>
+        makeInputFragment(rec.getKey.split(" ")(0), FIRST_LOCATION, rec.getBuffer,
+          rec.getStartValue, rec.getEndValue)
+      case qrec: QRecord =>
+        makeInputFragment(qrec.getKey.split(" ")(0), FIRST_LOCATION, qrec.getBuffer,
+          qrec.getStartValue, qrec.getEndValue)
       case partialSeq: PartialSequence =>
         val kmers = partialSeq.getBytesToProcess
         val start = partialSeq.getStartValue
@@ -169,7 +169,7 @@ abstract class InputReader[R <: AnyRef](file: String, k: Int)(implicit spark: Sp
   //Fastdoop parameter for correct overlap between partial sequences
   conf.set("k", k.toString)
 
-  protected def loadFile(file: String): RDD[R]
+  protected def loadFile(input: String): RDD[R]
   protected def rdd: RDD[R] = loadFile(file)
   protected[spark] val parser = FragmentParser(k)
 
@@ -273,8 +273,8 @@ class FastaShortInput(file: String, k: Int, maxReadLength: Int, file2: Option[St
     1000 //ID string and separator characters
   conf.set("look_ahead_buffer_size", bufsiz.toString)
 
-  protected def loadFile(file: String): RDD[Record] =
-    sc.newAPIHadoopFile(file, classOf[FASTAshortInputFileFormat], classOf[Text], classOf[Record], conf).values
+  protected def loadFile(input: String): RDD[Record] =
+    sc.newAPIHadoopFile(input, classOf[FASTAshortInputFileFormat], classOf[Text], classOf[Record], conf).values
 
   def getSequenceTitles: Dataset[SeqTitle] =
     rdd.map(_.getKey).toDS().distinct
@@ -296,8 +296,8 @@ class FastqShortInput(file: String, k: Int, maxReadLength: Int, file2: Option[St
     1000 //ID string and separator characters
   conf.set("look_ahead_buffer_size", bufsiz.toString)
 
-  protected def loadFile(file: String): RDD[QRecord] =
-    sc.newAPIHadoopFile(file, classOf[FASTQInputFileFormat], classOf[Text], classOf[QRecord], conf).values
+  protected def loadFile(input: String): RDD[QRecord] =
+    sc.newAPIHadoopFile(input, classOf[FASTQInputFileFormat], classOf[Text], classOf[QRecord], conf).values
 
   def getSequenceTitles: Dataset[SeqTitle] =
     rdd.map(_.getKey).toDS.distinct
@@ -316,8 +316,8 @@ class IndexedFastaInput(file: String, k: Int)(implicit spark: SparkSession)
   extends InputReader[PartialSequence](file, k) {
   import spark.sqlContext.implicits._
 
-  protected def loadFile(file: String): RDD[PartialSequence] =
-    sc.newAPIHadoopFile(file, classOf[IndexedFastaFormat], classOf[Text], classOf[PartialSequence], conf).values
+  protected def loadFile(input: String): RDD[PartialSequence] =
+    sc.newAPIHadoopFile(input, classOf[IndexedFastaFormat], classOf[Text], classOf[PartialSequence], conf).values
 
   def getSequenceTitles: Dataset[SeqTitle] =
     rdd.map(_.getKey).toDS.distinct

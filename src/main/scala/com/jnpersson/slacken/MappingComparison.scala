@@ -12,13 +12,13 @@ import org.apache.spark.sql.{Dataset, SparkSession}
 class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
                         refIdCol: Int, refTaxonCol: Int, skipHeader: Boolean)(implicit spark: SparkSession) {
   import MappingComparison._
-  val referenceData = readCustomFormat(reference, refIdCol, refTaxonCol, skipHeader).
+  import spark.sqlContext.implicits._
+
+  val referenceData = readCustomFormat(reference, refIdCol, refTaxonCol).
     toDF("id", "refTaxon").
     cache()
 
   def compare(dataFile: String): Unit = {
-    import spark.sqlContext.implicits._
-
     val cmpData = readKrakenFormat(dataFile).toDF("id", "testTaxon")
     val joint = referenceData.join(cmpData, referenceData("id") === cmpData("id"), "outer").
       select("refTaxon", "testTaxon").as[(Option[Taxon], Option[Taxon])]
@@ -34,7 +34,6 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
 
   /** Comparison at a specific taxonomic level */
   def levelComparison(refCmp: Dataset[(Option[Taxon], Option[Taxon])], level: String, totalReads: Long) = {
-    import spark.sqlContext.implicits._
     val bctax = this.tax
     val categoryBreakdown = refCmp.mapPartitions(p => {
       val tv = bctax.value
@@ -50,16 +49,14 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     println(s"PPV ${formatPerc(ppv)} Sensitivity ${formatPerc(sensitivity)}")
   }
 
-  def readKrakenFormat(location: String)(implicit spark: SparkSession): Dataset[(SeqTitle, Taxon)] = {
-    import spark.sqlContext.implicits._
+  def readKrakenFormat(location: String): Dataset[(SeqTitle, Taxon)] = {
     spark.read.option("sep", "\t").csv(location).
       filter(x => x.getString(0) == "C"). //keep only classified reads
       map(x => (x.getString(1), x.getString(2).toInt))
   }
 
-  def readCustomFormat(location: String, idCol: Int, taxonCol: Int, skipHeader: Boolean)(implicit spark: SparkSession):
+  def readCustomFormat(location: String, idCol: Int, taxonCol: Int):
     Dataset[(SeqTitle, Taxon)] = {
-    import spark.sqlContext.implicits._
     spark.read.option("sep", "\t").option("header", skipHeader.toString).csv(location).
       map(x => (x.getString(idCol - 1), x.getString(taxonCol - 1).toInt))
   }

@@ -53,7 +53,7 @@ object TaxonCounts {
         countRet += s.counts(i)
       }
     }
-    new TaxonCounts(summaries.head.ordinal, taxonRet, countRet)
+    new TaxonCounts(summaries.headOption.map(_.ordinal).getOrElse(0), taxonRet, countRet)
   }
 
   def forTaxon(ordinal: Int, taxon: Taxon, kmers: Int): TaxonCounts =

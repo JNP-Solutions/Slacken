@@ -37,17 +37,17 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   }
 
   @tailrec
-  private def simulateReads(genomes: Seq[(SeqTitle, NTSeq)], length: Int = 101, n: Int,
-                    acc: List[InputFragment] = Nil): List[InputFragment] = {
-    if (n == 0) {
+  private def simulateReads(genomes: Seq[(SeqTitle, NTSeq)], length: Int, id: Int,
+                            acc: List[InputFragment] = Nil): List[InputFragment] = {
+    if (id == 0) {
       acc
     } else {
-      val g = Random.nextInt(genomes.size)
-      val r = simulatedRead(genomes(g)._2, length)
-      val taxon = (g + 2)
-      val title = s"$n:$taxon"
-      val f = InputFragment(title, 0, r, None)
-      simulateReads(genomes, length, n - 1, f :: acc)
+      val genome = Random.nextInt(genomes.size)
+      val read = simulatedRead(genomes(genome)._2, length)
+      val taxon = (genome + 2)
+      val title = s"$id:$taxon"
+      val f = InputFragment(title, 0, read, None)
+      simulateReads(genomes, length, id - 1, f :: acc)
     }
   }
 
@@ -74,8 +74,9 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
 
           val minimizers = idx.makeBuckets(genomesDS, labels)
 
+          val cpar = ClassifyParams(2, true)
           //The property of known reads classifying correctly.
-          idx.classify(minimizers, reads, 2).filter(r => {
+          idx.classify(minimizers, reads, cpar).filter(r => {
             //Check that each read got classified to the expected taxon. In the generated reads
             //the title contains the taxon, as a bookkeeping trick.
             val expTaxon = r.title.split(":")(1).toInt
@@ -86,7 +87,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
           //the property of noise reads not classifying. Hard to check with random data for
           //small m. In the future we could generate better test data to get around this.
           if (m >= 25) {
-            idx.classify(minimizers, noiseReads, 2).filter(r =>
+            idx.classify(minimizers, noiseReads, cpar).filter(r =>
               r.classified
             ).isEmpty should be(true)
           }
@@ -96,10 +97,10 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   }
 
   test("Supermer method") {
-    testIndexType((p, t) => new SupermerIndex(p, t), 31)
+    testIndexType((params, taxonomy) => new SupermerIndex(params, taxonomy), 31)
   }
 
   test("KeyValue method") {
-    testIndexType((p, t) => new KeyValueIndex(p, t), 63)
+    testIndexType((params, taxonomy) => new KeyValueIndex(params, taxonomy), 63)
   }
 }
