@@ -88,20 +88,20 @@ object HashSegments {
   /**
    * Split a read into fragments overlapping by (k-1 bases)
    *
-   * @param r             Remaining subject to be classified. First character has not yet been judged to be
-   *                      ambiguous/nonambiguous
-   * @param k             Length of k-mers
-   * @param building      Fragment currently being built (prior to 'r')
-   * @param buildingAmbig Whether currently built fragment is ambiguous
-   * @param acc           Result accumulator
+   * @param r         Remaining subject to be classified. First character has not yet been judged to be
+   *                  ambiguous/nonambiguous
+   * @param k         Length of k-mers
+   * @param building  Fragment currently being built (prior to 'r')
+   * @param ambiguous Whether currently built fragment is ambiguous
+   * @param acc       Result accumulator
    * @return Pairs of (sequence, ambiguous flag)
    */
   @tailrec
-  def splitByAmbiguity(r: NTSeq, k: Int, building: NTSeq, buildingAmbig: Boolean,
+  def splitByAmbiguity(r: NTSeq, k: Int, building: NTSeq, ambiguous: Boolean,
                        acc: ArrayBuffer[(NTSeq, SegmentFlag)] = ArrayBuffer.empty): ArrayBuffer[(NTSeq, SegmentFlag)] = {
     if (r.isEmpty) {
       if (building.nonEmpty) {
-        val flag = if (buildingAmbig) AMBIGUOUS_FLAG else SEQUENCE_FLAG
+        val flag = if (ambiguous) AMBIGUOUS_FLAG else SEQUENCE_FLAG
         acc += ((building, flag))
       } else {
         acc
@@ -111,7 +111,7 @@ object HashSegments {
       if (i < k && i != -1) {
         //Enter / stay in ambiguous mode
         splitByAmbiguity(r.substring(i + 1), k, building + r.substring(0, i + 1), true, acc)
-      } else if (buildingAmbig) {
+      } else if (ambiguous) {
         //we have i >= k || i == -1
         val endPart = (if (r.length >= (k - 1)) r.substring(0, k - 1) else r)
         //Yield and switch to unambiguous

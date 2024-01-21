@@ -77,9 +77,9 @@ class IndexedFastaReader extends RecordReader[Text, PartialSequence] {
   //Last byte of this split
   private var endByte = 0L
 
-  private var currKey: Text = null
+  private var currKey: Text = _
 
-  private var currValue: PartialSequence = null
+  private var currValue: PartialSequence = _
 
   private var myInputSplitBuffer = Array[Byte]()
 
@@ -89,7 +89,7 @@ class IndexedFastaReader extends RecordReader[Text, PartialSequence] {
    * FAIRecords corresponding to sequences that we have yet to read
    */
   private var faiRecords: Iterator[FAIRecord] = Iterator.empty
-  private var faiUtils: FAIUtils = null
+  private var faiUtils: FAIUtils = _
 
   private var sizeBuffer1 = 0
   private var sizeBuffer2 = 0
@@ -261,9 +261,9 @@ class FAIUtils(path: Path, job: Configuration, startByte: Long, fullSize: Long) 
    * After use, the close() method must be called to close the underlying source.
    */
   def recordsAtOffset: BufferedIterator[FAIRecord] = {
-    faiSource = sourceAtOffset
+    faiSource = Some(sourceAtOffset)
 
-    val lines = faiSource.getLines()
+    val lines = faiSource.get.getLines()
     if (startOffset > 0 && lines.hasNext) {
       lines.next() //ensure we start from a complete line as we might have seeked to the middle of one
     }
@@ -272,7 +272,7 @@ class FAIUtils(path: Path, job: Configuration, startByte: Long, fullSize: Long) 
         val spl = line.split("\t")
         FAIRecord(spl(0), spl(1).toLong, spl(2).toLong, spl(3).toInt, spl(4).toInt)
       } catch {
-        case e: Exception =>
+        case e @ (_: NumberFormatException | _: ArrayIndexOutOfBoundsException) =>
           println(s"Exception while parsing FAI file: record $line")
           throw e
       }
@@ -281,7 +281,7 @@ class FAIUtils(path: Path, job: Configuration, startByte: Long, fullSize: Long) 
 
   //initial guess
   private var startOffset = (fileSize * (startByte.toDouble / fullSize)).toLong
-  private var faiSource: Source = null
+  private var faiSource: Option[Source] = None
   seekToStart
 
   //seek backwards if we have gone too far
@@ -293,13 +293,13 @@ class FAIUtils(path: Path, job: Configuration, startByte: Long, fullSize: Long) 
       //seek back
       startOffset -= seekAmount
       if (startOffset < 0) startOffset = 0
-      faiSource.close()
+      close()
       firstRecordStart = recordsAtOffset.headOption.map(_.start).getOrElse(fileSize)
     }
-    faiSource.close()
+    close()
   }
 
   def close(): Unit =
-    faiSource.close()
+    for { s <- faiSource } s.close()
 
 }

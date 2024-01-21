@@ -61,7 +61,7 @@ object MinTable {
    * @return The new motif table
    */
   def using(mers: Seq[NTBitArray]): MinTable =
-    MinTable(mers.iterator.map(_.toInt).toArray, mers.head.size)
+    MinTable(mers.iterator.map(_.toInt).toArray, mers.headOption.map(_.size).getOrElse(0))
 
   def usingRaw(mers: Array[Int], width: Int): MinTable =
     MinTable(mers, width)

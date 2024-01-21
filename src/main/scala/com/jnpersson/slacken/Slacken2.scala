@@ -121,12 +121,13 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
       val paired = opt[Boolean](descr = "Inputs are paired-end reads", default = Some(false))
       val unclassified = toggle(descrYes = "Output unclassified reads", default = Some(true))
       val output = opt[String](descr = "Output location", required = true)
+      def cpar = ClassifyParams(minHitGroups(), unclassified())
 
       def run(implicit spark: SparkSession): Unit = {
         val i = index
         val d = discount(i.params)
         val input = d.inputReader(paired(), inFiles(): _*).getInputFragments(withRC = false, withAmbiguous = true)
-        i.classifyAndWrite(input, output(), unclassified(), minHitGroups())
+        i.classifyAndWrite(input, output(), cpar)
       }
     }
     addSubcommand(classify)

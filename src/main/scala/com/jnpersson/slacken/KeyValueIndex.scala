@@ -103,7 +103,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
 
   /** Classify subject sequences using the supplied index (as a dataset) */
   def classify(buckets: Dataset[(BucketId, BucketId, Taxon)], subjects: Dataset[InputFragment],
-               minHitGroups: Int): Dataset[ClassifiedRead] = {
+               cpar: ClassifyParams): Dataset[ClassifiedRead] = {
     val bcSplit = this.bcSplit
     val k = this.k
     val bcPar = this.bcTaxonomy
@@ -134,7 +134,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       as[(SeqTitle, Array[TaxonHit])].map { case (title, hits) =>
       val sortedHits = hits.sortBy(_.ordinal)
 
-      val sufficientHits = sufficientHitGroups(sortedHits, minHitGroups)
+      val sufficientHits = sufficientHitGroups(sortedHits, cpar.minHitGroups)
       val summariesInOrder = TaxonCounts.concatenate(sortedHits.map(_.summary)) //TODO rewrite
       val allHits = TaxonCounts.hitCountsToMap(List(summariesInOrder))
 
@@ -175,19 +175,19 @@ object KeyValueIndex {
 
   /** For a super-mer with a given minimizer, assign a taxon hit, handling ambiguity flags correctly
    * @param taxon The minimizer's LCA taxon
-   * @param x The super-mer from the original sequence
+   * @param segment The super-mer from the original sequence
    * */
-  def setTaxon(taxon: Option[Taxon], x: OrdinalSegment): TaxonHit = {
+  def setTaxon(taxon: Option[Taxon], segment: OrdinalSegment): TaxonHit = {
     val reportTaxon =
-      if (x.flag == AMBIGUOUS_FLAG) AMBIGUOUS
-      else if (x.flag == MATE_PAIR_BORDER_FLAG) MATE_PAIR_BORDER
+      if (segment.flag == AMBIGUOUS_FLAG) AMBIGUOUS
+      else if (segment.flag == MATE_PAIR_BORDER_FLAG) MATE_PAIR_BORDER
       else {
         taxon match {
           case Some(taxon) => taxon
           case None => Taxonomy.NONE
         }
       }
-    TaxonHit(x.id1, x.id2, x.ordinal, reportTaxon, x.kmers)
+    TaxonHit(segment.id1, segment.id2, segment.ordinal, reportTaxon, segment.kmers)
   }
 
   /** For the given set of sorted hits, was there a sufficient number of hit groups wrt the given minimum? */

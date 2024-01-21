@@ -16,6 +16,12 @@ import org.apache.spark.sql.functions.{count, desc, udf}
 
 import scala.collection.mutable
 
+/** Parameters for classification of reads
+ * @param minHitGroups min number of hit groups
+ * @param withUnclassified whether to include unclassified reads in the output
+ */
+case class ClassifyParams(minHitGroups: Int, withUnclassified: Boolean)
+
 /** Parameters for a Kraken1/2 compatible taxonomic index for read classification. Associates k-mers with LCA taxons.
  * @param params Parameters for k-mers, index bucketing and persistence
  * @param taxonomy The taxonomy
@@ -66,35 +72,34 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
 
   /** Classify subject sequences using the index configured at the IndexParams location */
   def classify(buckets: Dataset[Record], subjects: Dataset[InputFragment],
-               minHitGroups: Int): Dataset[ClassifiedRead]
+               cpar: ClassifyParams): Dataset[ClassifiedRead]
 
   /** Classify subject sequences using the index configured at the IndexParams location,
    * writing the results to a designated output location */
-  def classifyAndWrite(subjects: Dataset[InputFragment], outputLocation: String, withUnclassified: Boolean,
-                       minHitGroups: Int): Unit = {
-    val cs = classify(loadBuckets(), subjects, minHitGroups)
-    writeOutput(cs, outputLocation, withUnclassified)
+  def classifyAndWrite(subjects: Dataset[InputFragment], outputLocation: String, cpar: ClassifyParams): Unit = {
+    val cs = classify(loadBuckets(), subjects, cpar)
+    writeOutput(cs, outputLocation, cpar)
   }
 
   /** Classify subject sequences using the given buckets, writing the results to a designated output location */
   def classifyAndWrite(buckets: Dataset[Record], subjects: Dataset[InputFragment], output: String,
-                       withUnclassified: Boolean, minHitGroups: Int): Unit =
-    writeOutput(classify(buckets, subjects, minHitGroups), output, withUnclassified)
+                       cpar: ClassifyParams): Unit =
+    writeOutput(classify(buckets, subjects, cpar), output, cpar)
 
   /**
    * Write classified reads to a directory, with the _classified suffix, as well as a kraken-style kreport.txt
    * @param reads classified reads
    * @param location directory/prefix to write to
-   * @param withUnclassified whether to include unclassified reads in the output
+   * @param cpar
    */
-  def writeOutput(reads: Dataset[ClassifiedRead], location: String, withUnclassified: Boolean): Unit = {
+  def writeOutput(reads: Dataset[ClassifiedRead], location: String, cpar: ClassifyParams): Unit = {
     reads.cache
     val bcPar = bcTaxonomy
     try {
-      val outputRows = if (withUnclassified) {
-        reads.map(c => c.outputLine)
+      val outputRows = if (cpar.withUnclassified) {
+        reads.map(r => r.outputLine)
       } else {
-        reads.where($"classified" === true).map(c => c.outputLine)
+        reads.where($"classified" === true).map(r => r.outputLine)
       }
       val countByTaxon = reads.groupBy("taxon").agg(count("*").as("count")).
         sort(desc("count")).as[(Taxon, Long)].collect()

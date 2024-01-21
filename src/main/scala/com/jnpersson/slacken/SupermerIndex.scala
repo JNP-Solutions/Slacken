@@ -10,6 +10,7 @@ import com.jnpersson.discount.bucket.{Reducer, ReducibleBucket}
 import com.jnpersson.discount.{NTSeq, SeqTitle}
 import com.jnpersson.discount.hash.{BucketId, InputFragment}
 import com.jnpersson.discount.spark.{AnyMinSplitter, Discount, GroupedSegments, Index, IndexParams, Output}
+import com.jnpersson.discount.util.KmerTable.BuildParams
 import com.jnpersson.discount.util.{KmerTable, KmerTableBuilder, NTBitArray, TagProvider}
 import com.jnpersson.slacken.TaxonomicIndex.ClassifiedRead
 import com.jnpersson.slacken.Taxonomy.NONE
@@ -95,20 +96,21 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     //Does not delete the table itself, only removes it from the hive catalog
     //This is to ensure that we get the one in the expected location
     spark.sql("DROP TABLE IF EXISTS taxidx")
-    spark.sql(s"""|CREATE TABLE taxidx(id long, supermers array<struct<data: array<long>, size: int>>, tags array<array<int>>)
-                  |USING PARQUET CLUSTERED BY (id) INTO ${params.buckets} BUCKETS
-                  |LOCATION '$location'
-                  |""".stripMargin)
-    spark.sql(s"SELECT id, supermers, tags as taxa FROM taxidx").as[TaxonBucket]
+    spark.sql(
+      """|CREATE TABLE taxidx(id long, supermers array<struct<data: array<long>, size: int>>, tags array<array<int>>)
+         |USING PARQUET CLUSTERED BY (id) INTO ${params.buckets} BUCKETS
+         |LOCATION '$location'
+         |""".stripMargin)
+    spark.sql("SELECT id, supermers, tags as taxa FROM taxidx").as[TaxonBucket]
   }
 
   def classify(buckets: Dataset[TaxonBucket], subjects: Dataset[InputFragment],
-               minHitGroups: Int): Dataset[ClassifiedRead] = {
+               cpar: ClassifyParams): Dataset[ClassifiedRead] = {
     val bcSplit = this.bcSplit
     val bcPar = this.bcTaxonomy
     val k = this.k
 
-    println(s"Warning: SupermerIndex does not yet respect minHitGroups (to be implemented)")
+    println("Warning: SupermerIndex does not yet respect minHitGroups (to be implemented)")
 
     //Segments will be tagged with sequence ID
     val taggedSegments = subjects.flatMap(s => splitFragment(s, bcSplit.value)).
@@ -125,7 +127,6 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     val subjectWithIndex = taggedSegments.join(buckets, List("id"), "left").
       select("id", "subjects", "supermers", "taxa").
       as[(BucketId, Array[OrdinalSegmentWithSequence], Array[NTBitArray], Array[Array[Taxon]])]
-
 
     val taxonSummaries = subjectWithIndex.flatMap { data =>
       val tbkt = if (data._3 != null) TaxonBucket(data._1, data._3, data._4)
@@ -212,8 +213,8 @@ final case class TaxonBucket(id: BucketId, supermers: Array[NTBitArray], taxa: A
       }
     }
     //tags layout after left join: [subj row, subj ordinal, subj col], [0 const], [taxon]
-    val subjectTable = KmerTable.fromSupermers(sequence.map(_.segment.segment), k, forwardOnly = false,
-      sort = true, provider)
+    val subjectTable = KmerTable.fromSupermers(sequence.map(_.segment.segment),
+      BuildParams(k, forwardOnly = false, sort = true), provider)
 
     val joint = KmerTableOps.leftJoinTables(subjectTable, kmerTable(k), 0, Taxonomy.NONE)
     val jointTags = joint.kmers.drop(joint.kmerWidth) //tag columns only

@@ -29,11 +29,13 @@ object SampledFrequencies {
    * @return Frequencies of all valid motifs
    */
   def fromReads(scanner: ShiftScanner, inputs: Iterator[NTSeq]): SampledFrequencies = {
-    if (scanner.priorities.numMinimizers.isEmpty) {
-      throw new Exception("Sampling based on these minimizer priorities is not possible: numMinimizers is undefined.")
+    val counts = scanner.priorities.numMinimizers match {
+      case None =>
+        throw new Exception("Sampling based on these minimizer priorities is not possible: numMinimizers is undefined.")
+      case Some(n) =>
+        assert(n < Int.MaxValue)
+        new Array[Int](n.toInt)
     }
-    assert (scanner.priorities.numMinimizers.get < Int.MaxValue)
-    val counts = new Array[Int](scanner.priorities.numMinimizers.get.toInt)
 
     for {
       read <- inputs
