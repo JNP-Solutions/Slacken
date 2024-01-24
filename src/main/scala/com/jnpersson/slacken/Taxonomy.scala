@@ -58,18 +58,18 @@ object Taxonomy {
     }
 
     val parents = new Array[Taxon](numEntries)
-    val ranks = new Array[Rank](numEntries)
+    val taxonRanks = new Array[Rank](numEntries)
     for { (taxon, parent, rankTitle) <- nodes } {
       parents(taxon) = parent
-      ranks(taxon) = rank(rankTitle).orNull
+      taxonRanks(taxon) = rank(rankTitle).orNull
     }
 
     parents(ROOT) = Taxonomy.NONE
-    ranks(NONE) = Unclassified
-    ranks(ROOT) = Root
+    taxonRanks(NONE) = Unclassified
+    taxonRanks(ROOT) = Root
     scientificNames(NONE) = Unclassified.title
 
-    new Taxonomy(parents, ranks, scientificNames)
+    new Taxonomy(parents, taxonRanks, scientificNames)
   }
 }
 

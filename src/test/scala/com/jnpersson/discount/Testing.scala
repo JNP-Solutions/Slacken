@@ -18,7 +18,7 @@
 package com.jnpersson.discount
 
 import com.jnpersson.discount.spark.Rule.Sum
-import com.jnpersson.discount.bucket.{BucketStats, Reducer, ReducibleBucket, Tag}
+import com.jnpersson.discount.bucket.{BucketStats, ReduceParams, Reducer, ReducibleBucket, Tag}
 
 import scala.collection.{immutable, mutable}
 import com.jnpersson.discount.hash.{MinSplitter, MinTable, MinimizerPriorities, RandomXOR, SpacedSeed}
@@ -123,7 +123,8 @@ object TestGenerators {
     Gen.sequence(sms.map(sm => kmerTags(sm, k)))(Buildable.buildableSeq)
 
   def reducibleBucket(k: Int): Gen[ReducibleBucket] = {
-    val sumReducer = Reducer.configure(k, forwardOnly = false, intersect = false, Sum)
+    val sumReducer = Reducer.configure(
+      ReduceParams(k, forwardOnly = false, intersect = false), Sum)
     for {
       nSupermers <- Gen.choose(1, 10)
       supermers <- Gen.listOfN(nSupermers, encodedSupermers(k)).map(_.toArray)
@@ -135,7 +136,7 @@ object TestGenerators {
   //Generate a pair of buckets that have distinct super-mers and also common super-mers.
   //For the common super-mers, the tags (counts) need not be the same for the two buckets.
   def bucketPairWithCommonKmers(k: Int): Gen[(ReducibleBucket, ReducibleBucket)] = {
-    val sumReducer = Reducer.configure(k, forwardOnly = false, intersect = false, Sum)
+    val sumReducer = Reducer.configure(ReduceParams(k, forwardOnly = false, intersect = false), Sum)
     for {
       bucket1 <- reducibleBucket(k)
       bucket2 <- reducibleBucket(k)

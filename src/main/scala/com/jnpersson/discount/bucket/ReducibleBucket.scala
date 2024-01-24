@@ -102,7 +102,7 @@ object ReducibleBucket {
    * @return
    */
   def intersectCompact(b1: ReducibleBucket, b2: ReducibleBucket, k: Int, rule: Rule): ReducibleBucket = {
-    val reducer = Reducer.configure(k, false, true, rule)
+    val reducer = Reducer.configure(ReduceParams(k, false, true), rule)
     val first = reducer.preprocessFirst(b1)
     val second = reducer.preprocessSecond(b2)
     first.appendAndCompact(second, reducer)
