@@ -238,7 +238,7 @@ final case class TaxonBucket(id: BucketId, supermers: Array[NTBitArray], taxa: A
       }
     } ++ ambiguousOrGap.iterator.map(x => {
       val taxon = x.flag match {
-        case AMBIGUOUS_FLAG => AMBIGUOUS
+        case AMBIGUOUS_FLAG => AMBIGUOUS_SPAN
         case MATE_PAIR_BORDER_FLAG => MATE_PAIR_BORDER
         case _ => ???
       }

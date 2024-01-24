@@ -178,7 +178,7 @@ object KeyValueIndex {
    * */
   def setTaxon(taxon: Option[Taxon], segment: OrdinalSegment): TaxonHit = {
     val reportTaxon =
-      if (segment.flag == AMBIGUOUS_FLAG) AMBIGUOUS
+      if (segment.flag == AMBIGUOUS_FLAG) AMBIGUOUS_SPAN
       else if (segment.flag == MATE_PAIR_BORDER_FLAG) MATE_PAIR_BORDER
       else {
         taxon match {
@@ -197,7 +197,7 @@ object KeyValueIndex {
 
     //count separate hit groups (adjacent but with different minimizers) for each sequence, imitating kraken2 classify.cc
     for { hit <- sortedHits } {
-      if (hit.taxon != AMBIGUOUS && hit.taxon != Taxonomy.NONE && hit.taxon != MATE_PAIR_BORDER &&
+      if (hit.taxon != AMBIGUOUS_SPAN && hit.taxon != Taxonomy.NONE && hit.taxon != MATE_PAIR_BORDER &&
         (hitCount == 0 || (hit.id1 != lastHash1 || hit.id2 != lastHash2))) {
         hitCount += 1
       }

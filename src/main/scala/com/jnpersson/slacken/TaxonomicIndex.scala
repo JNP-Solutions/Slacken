@@ -228,8 +228,7 @@ object TaxonomicIndex {
    */
   def classify(taxonomy: Taxonomy, title: SeqTitle, summary: TaxonCounts,
                sufficientHits: Boolean, confidenceThreshold: Double, k: Int): ClassifiedRead = {
-    val hitMap = summary.toMap
-    val taxon = taxonomy.resolveTree(hitMap, confidenceThreshold)
+    val taxon = taxonomy.resolveTree(summary, confidenceThreshold)
     val classified = taxon != Taxonomy.NONE && sufficientHits
 
     val reportTaxon = if (classified) taxon else Taxonomy.NONE

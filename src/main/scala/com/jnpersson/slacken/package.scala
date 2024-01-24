@@ -15,7 +15,7 @@ package object slacken {
   type Taxon = Int
   type SegmentFlag = Int
 
-  val AMBIGUOUS: Taxon = -1
+  val AMBIGUOUS_SPAN: Taxon = -1
   val MATE_PAIR_BORDER: Taxon = -2
 
   //Special information about a segment, whether it is normal (sequence), ambiguous sequence,
