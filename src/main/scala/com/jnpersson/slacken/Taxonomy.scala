@@ -194,14 +194,14 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
   def resolveTree(hitCounts: collection.Map[Taxon, Int], confidenceThreshold: Double): Taxon = {
     var maxTaxon = 0
     var maxScore = 0
-    val it = hitCounts.iterator
+
     val totalMinimizers = hitCounts.valuesIterator.sum
     val requiredScore = Math.ceil(confidenceThreshold * totalMinimizers)
 
-    while (it.hasNext) {
-      val taxon = it.next._1
+    for { (taxon, _) <- hitCounts } {
       var node = taxon
       var score = 0
+      //Accumulate score across this path to the root
       while (node != NONE) {
         score += hitCounts.getOrElse(node, 0)
         node = parents(node)
@@ -215,6 +215,7 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
       }
     }
 
+    //Gradually lift maxTaxon to try to achieve the required score
     maxScore = hitCounts.getOrElse(maxTaxon, 0)
     while (maxTaxon != NONE && maxScore < requiredScore) {
       maxScore = 0
