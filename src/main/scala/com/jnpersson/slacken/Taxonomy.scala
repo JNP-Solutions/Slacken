@@ -187,16 +187,17 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
    * increase the score of that clade.
    *
    * Based on the algorithm in Kraken 2 classify.cc.
-   * @param hitCounts the number of times each taxon was seen in a read
+   * @param hitSummary taxon hit counts
    * @param confidenceThreshold the minimum fraction of minimizers that must be included below the clade of the
    *                            matching taxon (if not, the taxon will move up in the tree)
    */
-  def resolveTree(hitCounts: collection.Map[Taxon, Int], confidenceThreshold: Double): Taxon = {
+  def resolveTree(hitSummary: TaxonCounts, confidenceThreshold: Double): Taxon = {
     var maxTaxon = 0
     var maxScore = 0
 
-    val totalMinimizers = hitCounts.valuesIterator.sum
-    val requiredScore = Math.ceil(confidenceThreshold * totalMinimizers)
+    //the number of times each taxon was seen in a read, excluding ambiguous
+    val hitCounts = hitSummary.toMap
+    val requiredScore = Math.ceil(confidenceThreshold * hitSummary.totalTaxa)
 
     for { (taxon, _) <- hitCounts } {
       var node = taxon

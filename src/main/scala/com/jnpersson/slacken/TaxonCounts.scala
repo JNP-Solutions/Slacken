@@ -43,7 +43,7 @@ object TaxonCounts {
     TaxonCounts(ordinal, Array(taxon), Array(kmers))
 
   def taxonRepr(t: Taxon): String =
-    if (t == AMBIGUOUS) "A" else s"$t"
+    if (t == AMBIGUOUS_SPAN) "A" else s"$t"
 
   def stringFromPairs(pairs: Iterator[(Taxon, Int)]): String = {
     val sb = new StringBuilder
@@ -97,7 +97,7 @@ final case class TaxonCounts(ordinal: Int, taxa: mutable.IndexedSeq[Taxon], coun
     val r = mutable.Map.empty[Taxon, Int]
     for {
       (taxon, count) <- asPairs
-      if taxon != AMBIGUOUS && taxon != MATE_PAIR_BORDER
+      if taxon != AMBIGUOUS_SPAN && taxon != MATE_PAIR_BORDER
     } {
       if (r.contains(taxon)) {
         r(taxon) = r(taxon) + count
@@ -107,4 +107,10 @@ final case class TaxonCounts(ordinal: Int, taxa: mutable.IndexedSeq[Taxon], coun
     }
     r
   }
+
+  /** The total number of taxa counted here, including ambiguous spans, but not including any mate pair border. */
+  def totalTaxa: Int =
+    asPairs.
+      filter(_._1 != MATE_PAIR_BORDER).
+      map(_._2).sum
 }
