@@ -184,7 +184,8 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
       for { t <- testFiles() } {
         println(t)
         val compareLevel = Taxonomy.rank(level()).getOrElse(Genus)
-        mc.compare(t, compareLevel)
+        mc.perReadComparison(t, compareLevel)
+        mc.perTaxonComparison(t, 10)
       }
     }
   }

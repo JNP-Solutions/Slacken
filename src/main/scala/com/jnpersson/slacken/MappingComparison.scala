@@ -8,7 +8,9 @@ package com.jnpersson.slacken
 import com.jnpersson.discount.SeqTitle
 import com.jnpersson.slacken.Taxonomy.Rank
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.sql.{Dataset, SparkSession}
+import org.apache.spark.sql.{Dataset, SparkSession, functions}
+
+import scala.collection.mutable
 
 class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
                         refIdCol: Int, refTaxonCol: Int, skipHeader: Boolean)(implicit spark: SparkSession) {
@@ -19,7 +21,30 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     toDF("id", "refTaxon").
     cache()
 
-  def compare(dataFile: String, level: Rank): Unit = {
+  def perTaxonComparison(dataFile: String, minCount: Long): Unit = {
+    val cmpData = readKrakenFormat(dataFile).toDF("id", "testTaxon")
+    val refTaxa = mutable.BitSet.empty ++ referenceData.
+      groupBy("refTaxon").agg(functions.count("*").as("count")).
+      filter(s"count >= $minCount").select("refTaxon").
+      as[Taxon].collect()
+    val cmpTaxa = mutable.BitSet.empty ++ cmpData.
+      groupBy("testTaxon").agg(functions.count("*").as("count")).
+      filter(s"count >= $minCount").select("testTaxon").
+      as[Taxon].collect()
+
+    val truePos = refTaxa.intersect(cmpTaxa).size
+    val falsePos = (cmpTaxa -- refTaxa).size
+    val falseNeg = (refTaxa -- cmpTaxa).size
+    val precision = truePos.toDouble / cmpTaxa.size
+    val recall = truePos.toDouble / refTaxa.size
+
+    println(s"*** Per taxon comparison (minimum $minCount)")
+    println(s"Total ref taxa ${refTaxa.size}, total classified taxa ${cmpTaxa.size}")
+    println(s"TP $truePos, FP $falsePos, FN $falseNeg")
+    println(s"Precision ${formatPerc(precision)} recall ${formatPerc(recall)}")
+  }
+
+  def perReadComparison(dataFile: String, level: Rank): Unit = {
     val cmpData = readKrakenFormat(dataFile).toDF("id", "testTaxon")
     val joint = referenceData.join(cmpData, referenceData("id") === cmpData("id"), "outer").
       select("refTaxon", "testTaxon").as[(Option[Taxon], Option[Taxon])]
@@ -30,11 +55,12 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     println(s"Total reads $totalReads")
     println(s"Classified $classified ${formatPerc(classified.toDouble/totalReads)}")
 
-    levelComparison(joint, level, totalReads)
+    perReadComparison(joint, level, totalReads)
   }
 
-  /** Comparison at a specific taxonomic level */
-  def levelComparison(refCmp: Dataset[(Option[Taxon], Option[Taxon])], level: Rank, totalReads: Long) = {
+  /** Per read comparison at a specific taxonomic level */
+  def perReadComparison(refCmp: Dataset[(Option[Taxon], Option[Taxon])], level: Rank, totalReads: Long) = {
+    println(s"*** Per-read comparison at level $level")
     val bctax = this.tax
     val categoryBreakdown = refCmp.mapPartitions(p => {
       val tv = bctax.value
