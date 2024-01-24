@@ -8,6 +8,7 @@ import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, Extended, MinSplitter, 
 import com.jnpersson.discount.spark.{All, AnyMinSplitter, Commands, Configuration, Discount, Generated, IndexParams, MinimizerSource, RunCmd, SparkTool}
 import com.jnpersson.discount.{Frequency, Given, Lexicographic}
 import com.jnpersson.slacken.TaxonomicIndex.getTaxonLabels
+import com.jnpersson.slacken.Taxonomy.Genus
 import org.apache.spark.sql.SparkSession
 import org.rogach.scallop.Subcommand
 
@@ -173,7 +174,7 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
     val output = opt[String](descr = "Output location") //TODO implement this
     val skipHeader = toggle(name = "header", descrYes = "Skip header in reference data", default = Some(false))
 
-    val level = choice(Taxonomy.ranks, default = Some("genus"))
+    val level = choice(Taxonomy.ranks.map(_.title), default = Some("genus"))
     val testFiles = trailArg[List[String]]("testFiles", descr = "Mappings to compare (Slacken/Kraken format)",
       required = true)
 
@@ -182,7 +183,7 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
       val mc = new MappingComparison(t, reference(), idCol(), taxonCol(), skipHeader())
       for { t <- testFiles() } {
         println(t)
-        val compareLevel = Taxonomy.rankCode(level()).getOrElse("G")
+        val compareLevel = Taxonomy.rank(level()).getOrElse(Genus)
         mc.compare(t, compareLevel)
       }
     }

@@ -6,6 +6,7 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.discount.SeqTitle
+import com.jnpersson.slacken.Taxonomy.Rank
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.{Dataset, SparkSession}
 
@@ -18,7 +19,7 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     toDF("id", "refTaxon").
     cache()
 
-  def compare(dataFile: String, level: String): Unit = {
+  def compare(dataFile: String, level: Rank): Unit = {
     val cmpData = readKrakenFormat(dataFile).toDF("id", "testTaxon")
     val joint = referenceData.join(cmpData, referenceData("id") === cmpData("id"), "outer").
       select("refTaxon", "testTaxon").as[(Option[Taxon], Option[Taxon])]
@@ -33,7 +34,7 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
   }
 
   /** Comparison at a specific taxonomic level */
-  def levelComparison(refCmp: Dataset[(Option[Taxon], Option[Taxon])], level: String, totalReads: Long) = {
+  def levelComparison(refCmp: Dataset[(Option[Taxon], Option[Taxon])], level: Rank, totalReads: Long) = {
     val bctax = this.tax
     val categoryBreakdown = refCmp.mapPartitions(p => {
       val tv = bctax.value
@@ -81,7 +82,7 @@ object MappingComparison {
   /** Wrongly classified */
   case object FalsePos extends HitCategory
 
-  def hitCategory(tax: Taxonomy, refTaxon: Option[Taxon], testTaxon: Option[Taxon], level: String): HitCategory = {
+  def hitCategory(tax: Taxonomy, refTaxon: Option[Taxon], testTaxon: Option[Taxon], level: Rank): HitCategory = {
     (refTaxon, testTaxon) match {
       case (Some(ref), Some(test)) =>
         val levelAncestor = tax.ancestorAtLevel(ref, level)
