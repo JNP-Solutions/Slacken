@@ -12,6 +12,9 @@ object Taxonomy {
   val NONE = 0
   val ROOT = 1
 
+  val ranks = List("superkingdom", "kingdom", "phylum", "class", "order",
+    "family", "genus", "species")
+
   //See kraken2 reports.cc
   def rankCode(rank: String): Option[String] = rank match {
     case "superkingdom" => Some("D")

@@ -170,9 +170,10 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
     val reference = opt[String](descr = "Reference mapping to compare (TSV format)", required = true)
     val idCol = opt[Int](descr = "Read ID column in reference", default = Some(2))
     val taxonCol = opt[Int](descr = "Taxon column in reference", short = 'T', default = Some(3))
-    val output = opt[String](descr = "Output location", required = true) //TODO implement this
+    val output = opt[String](descr = "Output location") //TODO implement this
     val skipHeader = toggle(name = "header", descrYes = "Skip header in reference data", default = Some(false))
 
+    val level = choice(Taxonomy.ranks, default = Some("genus"))
     val testFiles = trailArg[List[String]]("testFiles", descr = "Mappings to compare (Slacken/Kraken format)",
       required = true)
 
@@ -181,7 +182,8 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
       val mc = new MappingComparison(t, reference(), idCol(), taxonCol(), skipHeader())
       for { t <- testFiles() } {
         println(t)
-        mc.compare(t)
+        val compareLevel = Taxonomy.rankCode(level()).getOrElse("G")
+        mc.compare(t, compareLevel)
       }
     }
   }

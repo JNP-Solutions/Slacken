@@ -18,7 +18,7 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     toDF("id", "refTaxon").
     cache()
 
-  def compare(dataFile: String): Unit = {
+  def compare(dataFile: String, level: String): Unit = {
     val cmpData = readKrakenFormat(dataFile).toDF("id", "testTaxon")
     val joint = referenceData.join(cmpData, referenceData("id") === cmpData("id"), "outer").
       select("refTaxon", "testTaxon").as[(Option[Taxon], Option[Taxon])]
@@ -29,7 +29,7 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     println(s"Total reads $totalReads")
     println(s"Classified $classified ${formatPerc(classified.toDouble/totalReads)}")
 
-    levelComparison(joint, "G", totalReads)
+    levelComparison(joint, level, totalReads)
   }
 
   /** Comparison at a specific taxonomic level */
