@@ -5,26 +5,43 @@
 
 package com.jnpersson.slacken
 
+import com.jnpersson.slacken.Taxonomy.Rank
+
 import scala.annotation.tailrec
 import scala.collection.mutable
 
 object Taxonomy {
-  val NONE = 0
-  val ROOT = 1
+  val NONE: Taxon = 0
+  val ROOT: Taxon = 1
 
-  val ranks = List("superkingdom", "kingdom", "phylum", "class", "order",
-    "family", "genus", "species")
+  /** Levels in the taxonomic hierarchy, from general (higher) to specific (lower) */
+  sealed abstract class Rank(val title: String, val code: String) extends Serializable
+  case object Unclassified extends Rank("unclassified", "U")
+  case object Root extends Rank("root", "R")
+  case object Superkingdom extends Rank("superkingdom", "D")
+  case object Kingdom extends Rank("kingdom", "K")
+  case object Phylum extends Rank("phylum", "P")
+  case object Class extends Rank("class", "C")
+  case object Order extends Rank("order", "O")
+  case object Family extends Rank("family", "F")
+  case object Genus extends Rank("genus", "G")
+  case object Species extends Rank("species", "S")
+
+  /** All Rank values except Unclassified. */
+  val ranks = List(Root, Superkingdom, Kingdom, Phylum, Class, Order, Family, Genus, Species)
 
   //See kraken2 reports.cc
-  def rankCode(rank: String): Option[String] = rank match {
-    case "superkingdom" => Some("D")
-    case "kingdom" => Some("K")
-    case "phylum" => Some("P")
-    case "class" => Some("C")
-    case "order" => Some("O")
-    case "family" => Some("F")
-    case "genus" => Some("G")
-    case "species" => Some("S")
+  def rank(title: String): Option[Rank] = title match {
+    case "unclassified" => Some(Unclassified)
+    case "root" => Some(Root)
+    case "superkingdom" => Some(Superkingdom)
+    case "kingdom" => Some(Kingdom)
+    case "phylum" => Some(Phylum)
+    case "class" => Some(Class)
+    case "order" => Some(Order)
+    case "family" => Some(Family)
+    case "genus" => Some(Genus)
+    case "species" => Some(Species)
     case _ => None
   }
 
@@ -41,16 +58,16 @@ object Taxonomy {
     }
 
     val parents = new Array[Taxon](numEntries)
-    val ranks = new Array[String](numEntries)
-    for { (taxon, parent, rank) <- nodes } {
+    val ranks = new Array[Rank](numEntries)
+    for { (taxon, parent, rankTitle) <- nodes } {
       parents(taxon) = parent
-      ranks(taxon) = rankCode(rank).orNull
+      ranks(taxon) = rank(rankTitle).orNull
     }
 
     parents(ROOT) = Taxonomy.NONE
-    ranks(NONE) = "U"
-    ranks(ROOT) = "R"
-    scientificNames(NONE) = "unclassified"
+    ranks(NONE) = Unclassified
+    ranks(ROOT) = Root
+    scientificNames(NONE) = Unclassified.title
 
     new Taxonomy(parents, ranks, scientificNames)
   }
@@ -59,14 +76,13 @@ object Taxonomy {
 /**
  * Maps each taxon to its parent.
  * @param parents Lookup array mapping taxon ID (offset) to parent taxon ID
- * @param taxonRanks Lookup array mapping taxon ID to rank code. May be null.
+ * @param taxonRanks Lookup array mapping taxon ID to rank. May be null.
  * @param scientificNames Lookup array mapping taxon ID to scientific names. May be null.
  */
-final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[String],
-                          scientificNames: Array[String]) {
+final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scientificNames: Array[String]) {
   import Taxonomy._
 
-  def getRank(taxon: Taxon): Option[String] = Option(taxonRanks(taxon))
+  def getRank(taxon: Taxon): Option[Rank] = Option(taxonRanks(taxon))
   def getName(taxon: Taxon): Option[String] = Option(scientificNames(taxon))
 
   /** Lookup array mapping taxon ID to taxon IDs of children */
@@ -117,11 +133,11 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[String],
 
   /** Find the ancestor of the query at the given level, if it exists. Searches upward.
    * If it doesn't exist (for example because the level is too low), then ROOT will be returned. */
-  def ancestorAtLevel(query: Taxon, level: String): Taxon =
+  def ancestorAtLevel(query: Taxon, level: Rank): Taxon =
     ancestorAtLevel(query, query, level)
 
   @tailrec
-  private def ancestorAtLevel(query: Taxon, at: Taxon, level: String): Taxon = {
+  private def ancestorAtLevel(query: Taxon, at: Taxon, level: Rank): Taxon = {
     if (taxonRanks(at) == level) {
       at
     } else {
@@ -204,9 +220,9 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[String],
   /** By traversing the tree upward from a given starting set of leaf taxons, count the total number of taxons
    * present in the entire tree.
    */
-  def countDistinctTaxaWithParents(taxons: Iterable[Taxon]): Int = {
+  def countDistinctTaxaWithParents(taxa: Iterable[Taxon]): Int = {
     val r = mutable.BitSet.empty
-    for { a <- taxons } {
+    for { a <- taxa} {
       r += a
       var p = a
       while (p != ROOT && p != NONE) {

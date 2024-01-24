@@ -5,7 +5,7 @@
 
 package com.jnpersson.slacken
 
-import com.jnpersson.slacken.Taxonomy.{NONE, ROOT}
+import com.jnpersson.slacken.Taxonomy.{NONE, ROOT, Rank, Root, Unclassified}
 
 import java.io.PrintWriter
 import scala.annotation.tailrec
@@ -42,7 +42,7 @@ final class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
     r
   }
 
-  def reportLine(taxid: Taxon, rankCode: String, rankDepth: Int, depth: Int): String = {
+  def reportLine(taxid: Taxon, rank: Rank, rankDepth: Int, depth: Int): String = {
     val r = new mutable.StringBuilder
     val cladeCount = cladeCounts.getOrElse(taxid, 0L)
     r append "%6.2f\t".format(100.0 * cladeCount / totalSequences)
@@ -50,9 +50,9 @@ final class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
     r append "\t"
     r append countMap.getOrElse(taxid, 0L)
     if (rankDepth == 0) {
-      r append s"\t$rankCode\t$taxid\t"
+      r append s"\t${rank.code}\t$taxid\t"
     } else {
-      r append s"\t$rankCode$rankDepth\t$taxid\t"
+      r append s"\t${rank.code}$rankDepth\t$taxid\t"
     }
     r append ("  " * depth)
     r.append(taxonomy.getName(taxid).getOrElse(""))
@@ -62,11 +62,11 @@ final class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
   /** Depth-first search to generate report lines and print them.
    *  Mostly adapted from kraken 2's reports.cc.
    */
-  def reportDFS(output: PrintWriter, reportZeros: Boolean, taxid: Taxon, rankCode: String, rankDepth: Int,
+  def reportDFS(output: PrintWriter, reportZeros: Boolean, taxid: Taxon, rank: Rank, rankDepth: Int,
                 depth: Int): Unit = {
     val (rankCodeNext, rankDepthNext) = taxonomy.getRank(taxid) match {
       case Some(r) => (r, 0)
-      case _ => (rankCode, rankDepth + 1)
+      case _ => (rank, rankDepth + 1)
     }
 
     output.println(reportLine(taxid, rankCodeNext, rankDepthNext, depth))
@@ -86,9 +86,9 @@ final class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
   def reportDFS(output: PrintWriter, reportZeros: Boolean): Unit = {
     val totalUnclassified = countMap.getOrElse(NONE, 0)
     if (totalUnclassified != 0 || reportZeros) {
-      output.println(reportLine(NONE, "U", 0, 0))
+      output.println(reportLine(NONE, Unclassified, 0, 0))
     }
-    reportDFS(output, reportZeros, ROOT, "R", 0, 0)
+    reportDFS(output, reportZeros, ROOT, Root, 0, 0)
   }
 
   def print(output: PrintWriter, reportZeros: Boolean = false): Unit =
