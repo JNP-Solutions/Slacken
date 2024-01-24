@@ -6,7 +6,7 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.discount
-import com.jnpersson.discount.bucket.{Reducer, ReducibleBucket}
+import com.jnpersson.discount.bucket.{ReduceParams, Reducer, ReducibleBucket}
 import com.jnpersson.discount.{NTSeq, SeqTitle}
 import com.jnpersson.discount.hash.{BucketId, InputFragment}
 import com.jnpersson.discount.spark.{AnyMinSplitter, Discount, GroupedSegments, Index, IndexParams, Output}
@@ -54,7 +54,7 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   def taggedToBuckets(segments: Dataset[(BucketId, Array[(NTBitArray, Taxon)])], k: Int): Dataset[ReducibleBucket] = {
     val bcTax = bcTaxonomy
     segments.map { case (hash, segments) =>
-      val reducer = TaxonLCAReducer(k, bcTax.value)
+      val reducer = TaxonLCAReducer(ReduceParams(k, false, false), bcTax.value)
       val supermers = segments.map(_._1)
       val tags = segments.map(x => Array.fill(x._1.size - (k - 1))(x._2))
       ReducibleBucket(hash, supermers, tags).reduceCompact(reducer)
@@ -287,8 +287,7 @@ final case class TaxonBucketStats(id: String, numKmers: Long, distinctTaxa: Long
  * @param k k-mer length
  * @param taxonomy the taxonomy
  */
-final case class TaxonLCAReducer(k: Int, taxonomy: Taxonomy) extends Reducer {
-  def forwardOnly = false
+final case class TaxonLCAReducer(params: ReduceParams, taxonomy: Taxonomy) extends Reducer {
 
   val tagOffset: Taxon = KmerTable.longsForK(k) + 1
 
