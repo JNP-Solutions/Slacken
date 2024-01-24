@@ -29,19 +29,4 @@ class TaxonCountsTest extends AnyFunSuite with Matchers {
       TaxonCounts(2, MISeq(1), MISeq(1))) should equal(
       TaxonCounts(1,  MISeq(1), MISeq(2)))
   }
-
-  test("mergeHits") {
-    val testVals = List(
-      TaxonCounts(1, MISeq(1, 3), MISeq(1, 1)),
-      TaxonCounts(2, MISeq(1, 2), MISeq(1, 1)),
-      TaxonCounts(3, MISeq(1, 4), MISeq(1, 1))
-    )
-    TaxonCounts.hitCountsToMap(testVals) should equal (Map(1 -> 3, 2 -> 1, 3 -> 1, 4 -> 1))
-
-    val testVals2 = List(
-      TaxonCounts(1, MISeq(1), MISeq(1)),
-      TaxonCounts(2, MISeq(1), MISeq(1))
-    )
-    TaxonCounts.hitCountsToMap(testVals2) should equal (Map(1 -> 2))
-  }
 }

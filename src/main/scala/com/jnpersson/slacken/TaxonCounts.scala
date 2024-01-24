@@ -10,23 +10,6 @@ import scala.collection.mutable.ArrayBuffer
 
 object TaxonCounts {
 
-  /** Convert a collection of TaxonSummaries to a lookup map that maps each taxon to its
-   * total hit count. */
-  def hitCountsToMap(summaries: Iterable[TaxonCounts]): mutable.Map[Taxon, Int] = {
-    val r = mutable.Map.empty[Taxon, Int]
-    for {
-      x <- summaries
-      (taxon, count) <- x.asPairs
-    } {
-      if (r.contains(taxon)) {
-        r(taxon) = r(taxon) + count
-      } else {
-        r(taxon) = count
-      }
-    }
-    r
-  }
-
   /** Concatenate adjacent TaxonCounts (in order corresponding to the subject sequence)
    * into a single TaxonCounts object
    */
@@ -105,4 +88,20 @@ final case class TaxonCounts(ordinal: Int, taxa: mutable.IndexedSeq[Taxon], coun
 
   def asPairs: Iterator[(Taxon, Int)] =
     taxa.iterator zip counts.iterator
+
+  /** Convert TaxonCounts to a lookup map that maps each taxon to its
+   * total hit count. */
+  def toMap: mutable.Map[Taxon, Int] = {
+    val r = mutable.Map.empty[Taxon, Int]
+    for {
+      (taxon, count) <- asPairs
+    } {
+      if (r.contains(taxon)) {
+        r(taxon) = r(taxon) + count
+      } else {
+        r(taxon) = count
+      }
+    }
+    r
+  }
 }

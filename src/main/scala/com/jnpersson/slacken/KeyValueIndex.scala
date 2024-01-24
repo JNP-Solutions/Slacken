@@ -106,7 +106,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
                cpar: ClassifyParams): Dataset[ClassifiedRead] = {
     val bcSplit = this.bcSplit
     val k = this.k
-    val bcPar = this.bcTaxonomy
+    val bcTax = this.bcTaxonomy
 
     //Split input sequences by minimizer, preserving sequence ID and ordinal of the super-mer
     val taggedSegments = subjects.flatMap(s => {
@@ -136,13 +136,12 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
 
       val sufficientHits = sufficientHitGroups(sortedHits, cpar.minHitGroups)
       val summariesInOrder = TaxonCounts.concatenate(sortedHits.map(_.summary)) //TODO rewrite
-      val allHits = TaxonCounts.hitCountsToMap(List(summariesInOrder))
 
       //More detailed output format for debugging purposes, may be passed instead of summariesInOrder below to
       //see it in the final output
       //      hits.sortBy(_.ordinal).mkString(" ")
 
-      TaxonomicIndex.classify(bcPar.value, title, allHits, summariesInOrder, sufficientHits, k)
+      TaxonomicIndex.classify(bcTax.value, title, summariesInOrder, sufficientHits, cpar.confidenceThreshold, k)
     }
   }
 

@@ -18,9 +18,11 @@ import scala.collection.mutable
 
 /** Parameters for classification of reads
  * @param minHitGroups min number of hit groups
- * @param withUnclassified whether to include unclassified reads in the output
+ * @param confidenceThreshold min. confidence score (fraction of k-mers/minimizers that must be in the classified
+ *                            taxon's clade)
+ * @param withUnclassified whether to include unclassified reads in the outputh
  */
-case class ClassifyParams(minHitGroups: Int, withUnclassified: Boolean)
+case class ClassifyParams(minHitGroups: Int, confidenceThreshold: Double, withUnclassified: Boolean)
 
 /** Parameters for a Kraken1/2 compatible taxonomic index for read classification. Associates k-mers with LCA taxons.
  * @param params Parameters for k-mers, index bucketing and persistence
@@ -219,14 +221,15 @@ object TaxonomicIndex {
   /** Classify a read.
    * @param taxonomy Parent map for taxa
    * @param title Sequence title/ID
-   * @param hitMap Lookup for hit counts for each taxon in this read
    * @param summary Information about classified hit groups
    * @param sufficientHits Whether there are sufficient hits to classify the sequence
+   * @param confidenceThreshold Minimum fraction of k-mers/minimizers that must be in the match (KeyValueIndex only)
    * @param k Length of k-mers
    */
-  def classify(taxonomy: Taxonomy, title: SeqTitle, hitMap: mutable.Map[Taxon, Int], summary: TaxonCounts,
-               sufficientHits: Boolean, k: Int): ClassifiedRead = {
-    val taxon = taxonomy.resolveTree(hitMap)
+  def classify(taxonomy: Taxonomy, title: SeqTitle, summary: TaxonCounts,
+               sufficientHits: Boolean, confidenceThreshold: Double, k: Int): ClassifiedRead = {
+    val hitMap = summary.toMap
+    val taxon = taxonomy.resolveTree(hitMap, confidenceThreshold)
     val classified = taxon != Taxonomy.NONE && sufficientHits
 
     val reportTaxon = if (classified) taxon else Taxonomy.NONE

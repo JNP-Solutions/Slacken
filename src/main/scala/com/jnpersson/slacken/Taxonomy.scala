@@ -188,13 +188,18 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
 
   /**
    * Take all hit taxa plus ancestors, then return the leaf of the highest weighted leaf-to-root path.
-   * Based on the algorithm in Kraken 2 classify.cc, simplified.
+   * If the highest weighted path has a score below the confidence threshold, the taxon may move up in the tree to
+   * increase the score of that clade.
+   *
+   * Based on the algorithm in Kraken 2 classify.cc
    * @param hitCounts
    */
-  def resolveTree(hitCounts: collection.Map[Taxon, Int]): Taxon = {
+  def resolveTree(hitCounts: collection.Map[Taxon, Int], confidenceThreshold: Double): Taxon = {
     var maxTaxon = 0
     var maxScore = 0
     val it = hitCounts.iterator
+    val totalMinimizers = hitCounts.valuesIterator.sum
+    val requiredScore = Math.ceil(confidenceThreshold * totalMinimizers)
 
     while(it.hasNext) {
       val taxon = it.next._1
@@ -213,6 +218,24 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
           maxTaxon = lca(maxTaxon, taxon)
         }
       }
+    }
+
+    maxScore = hitCounts(maxTaxon)
+    while (maxTaxon != NONE && maxScore < requiredScore) {
+      maxScore = 0
+      for {
+        (taxon, score) <- hitCounts
+        if hasAncestor(taxon, maxTaxon)
+      } {
+        //Add score if taxon is in max_taxon's clade
+        maxScore += score
+      }
+      if (maxScore >= requiredScore) {
+        return maxTaxon
+      }
+      //Move up the tree, yielding a higher total score.
+      //Run off the tree (NONE) if the required score is never met
+      maxTaxon = parents(maxTaxon)
     }
     maxTaxon
   }
