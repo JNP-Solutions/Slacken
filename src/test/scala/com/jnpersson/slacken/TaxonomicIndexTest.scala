@@ -74,7 +74,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
 
           val minimizers = idx.makeBuckets(genomesDS, labels)
 
-          val cpar = ClassifyParams(2, true)
+          val cpar = ClassifyParams(2, 0, true)
           //The property of known reads classifying correctly.
           idx.classify(minimizers, reads, cpar).filter(r => {
             //Check that each read got classified to the expected taxon. In the generated reads

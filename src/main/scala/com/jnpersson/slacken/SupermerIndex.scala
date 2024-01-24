@@ -139,12 +139,10 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       as[(String, Array[TaxonCounts])].map(x => {
       val summariesInOrder = TaxonCounts.concatenate(x._2.sortBy(_.ordinal))
 
-      val allHits = TaxonCounts.hitCountsToMap(Seq(summariesInOrder))
-
       //Useful alternative for debugging
       //x._2.sortBy(_.order).mkString(" ")
 
-      TaxonomicIndex.classify(bcPar.value, x._1, allHits, summariesInOrder, sufficientHits = true, k)
+      TaxonomicIndex.classify(bcPar.value, x._1, summariesInOrder, sufficientHits = true, 0, k)
     })
   }
 
