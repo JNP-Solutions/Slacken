@@ -103,7 +103,7 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
    * Depth of a taxon (distance from the root of the tree)
    * @param tax taxon to look up
    * @param acc accumulator
-   * @return
+   * @return number of levels from the root
    */
   @tailrec
   def depth(tax: Taxon, acc: Int = 0): Int = {
@@ -114,7 +114,11 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
     }
   }
 
-  /** Find whether the given taxon has the given parent.  */
+  /** Find whether the given taxon has the given ancestor (possibly with several steps)
+   * @param tax potential descendant node
+   * @param parent potential ancestor node
+   * @return true iff the ancestor relationship exists
+   */
   def hasAncestor(tax: Taxon, parent: Taxon): Boolean =
     stepsToParent(tax, parent) != 0
 
@@ -132,9 +136,13 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
   }
 
   /** Find the ancestor of the query at the given level, if it exists. Searches upward.
-   * If it doesn't exist (for example because the level is too low), then ROOT will be returned. */
-  def ancestorAtLevel(query: Taxon, level: Rank): Taxon =
-    ancestorAtLevel(query, query, level)
+   * If it doesn't exist (for example because the level is too low), then ROOT will be returned.
+   * @param query taxon to search from
+   * @param rank rank to find ancestor at
+   * @return ancestor at the given level, or ROOT if none was found
+   */
+  def ancestorAtLevel(query: Taxon, rank: Rank): Taxon =
+    ancestorAtLevel(query, query, rank)
 
   @tailrec
   private def ancestorAtLevel(query: Taxon, at: Taxon, level: Rank): Taxon = {
@@ -151,25 +159,12 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
     }
   }
 
-  /** Find whether the given path contains the given item.
-   * Paths are terminated by the NONE marker. Since path buffers are reused, the contents of the buffer
-   * past NONE is undefined.
-   */
-  def pathContains(path: Array[Taxon], item: Int): Boolean = {
-    var i = 0
-    while (path(i) != NONE) { //end marker
-      if (path(i) == item) return true
-      i += 1
-    }
-    false
-  }
-
   /**
    * Lowest common ancestor of two taxa. From taxonomy.cc in kraken2.
    * Logic here depends on higher nodes having smaller IDs
    * Idea: track two nodes, advance lower tracker up tree, trackers meet @ LCA
-   * @param tax1
-   * @param tax2
+   * @param tax1 taxon 1
+   * @param tax2 taxon 2
    * @return lca(tax1, tax2)
    */
   def lca(tax1: Taxon, tax2: Taxon): Taxon = {
@@ -191,8 +186,10 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
    * If the highest weighted path has a score below the confidence threshold, the taxon may move up in the tree to
    * increase the score of that clade.
    *
-   * Based on the algorithm in Kraken 2 classify.cc
-   * @param hitCounts
+   * Based on the algorithm in Kraken 2 classify.cc.
+   * @param hitCounts the number of times each taxon was seen in a read
+   * @param confidenceThreshold the minimum fraction of minimizers that must be included below the clade of the
+   *                            matching taxon (if not, the taxon will move up in the tree)
    */
   def resolveTree(hitCounts: collection.Map[Taxon, Int], confidenceThreshold: Double): Taxon = {
     var maxTaxon = 0
@@ -201,26 +198,24 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
     val totalMinimizers = hitCounts.valuesIterator.sum
     val requiredScore = Math.ceil(confidenceThreshold * totalMinimizers)
 
-    while(it.hasNext) {
+    while (it.hasNext) {
       val taxon = it.next._1
-      if (taxon != AMBIGUOUS && taxon != MATE_PAIR_BORDER) {
-        var node = taxon
-        var score = 0
-        while (node != NONE) {
-          score += hitCounts.getOrElse(node, 0)
-          node = parents(node)
-        }
+      var node = taxon
+      var score = 0
+      while (node != NONE) {
+        score += hitCounts.getOrElse(node, 0)
+        node = parents(node)
+      }
 
-        if (score > maxScore) {
-          maxTaxon = taxon
-          maxScore = score
-        } else if (score == maxScore) {
-          maxTaxon = lca(maxTaxon, taxon)
-        }
+      if (score > maxScore) {
+        maxTaxon = taxon
+        maxScore = score
+      } else if (score == maxScore) {
+        maxTaxon = lca(maxTaxon, taxon)
       }
     }
 
-    maxScore = hitCounts(maxTaxon)
+    maxScore = hitCounts.getOrElse(maxTaxon, 0)
     while (maxTaxon != NONE && maxScore < requiredScore) {
       maxScore = 0
       for {
@@ -240,8 +235,10 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
     maxTaxon
   }
 
-  /** By traversing the tree upward from a given starting set of leaf taxons, count the total number of taxons
+  /** By traversing the tree upward from a given starting set of leaf taxa, count the total number of distinct taxa
    * present in the entire tree.
+   * @param taxa leaf taxa to start from
+   * @return number of distinct taxa in the tree
    */
   def countDistinctTaxaWithParents(taxa: Iterable[Taxon]): Int = {
     val r = mutable.BitSet.empty

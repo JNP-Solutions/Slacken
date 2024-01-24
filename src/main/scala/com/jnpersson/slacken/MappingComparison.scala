@@ -71,8 +71,12 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     categoryBreakdown.show()
     val catMap = categoryBreakdown.collect().toMap
 
-    val sensitivity = catMap("TruePos").toDouble / totalReads
-    val ppv = catMap("TruePos").toDouble / (catMap("FalsePos") + catMap("TruePos"))
+    val tp = catMap.getOrElse("TruePos", 0L)
+    val fp = catMap.getOrElse("FalsePos", 0L)
+    val sensitivity = tp.toDouble / totalReads
+    val ppv = if (tp + fp > 0)
+      tp.toDouble / (tp + fp)
+    else 0
     println(s"PPV ${formatPerc(ppv)} Sensitivity ${formatPerc(sensitivity)}")
   }
 

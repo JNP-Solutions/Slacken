@@ -9,7 +9,6 @@ import com.jnpersson.slacken.Taxonomy.{NONE, ROOT, Rank, Root, Unclassified}
 
 import java.io.PrintWriter
 import scala.annotation.tailrec
-import scala.collection.mutable
 import scala.collection.mutable.{Map => MMap}
 
 /** A Kraken 1/2 style taxonomic report with a tree structure.
@@ -30,7 +29,8 @@ final class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
     }
   }
 
-  /** Build a lookup map for taxon hit counts. Includes ancestors to build recursive aggregate counts. */
+  /** Build a lookup map for aggregate taxon hit counts.
+   * Adds counts recursively to ancestors, propagating up the tree. */
   def aggregateCounts(): MMap[Taxon, Long] = {
     val r = MMap[Taxon, Long]()
     for {
@@ -43,20 +43,13 @@ final class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
   }
 
   def reportLine(taxid: Taxon, rank: Rank, rankDepth: Int, depth: Int): String = {
-    val r = new mutable.StringBuilder
-    val cladeCount = cladeCounts.getOrElse(taxid, 0L)
-    r append "%6.2f\t".format(100.0 * cladeCount / totalSequences)
-    r append cladeCount
-    r append "\t"
-    r append countMap.getOrElse(taxid, 0L)
-    if (rankDepth == 0) {
-      r append s"\t${rank.code}\t$taxid\t"
-    } else {
-      r append s"\t${rank.code}$rankDepth\t$taxid\t"
-    }
-    r append ("  " * depth)
-    r.append(taxonomy.getName(taxid).getOrElse(""))
-    r.result()
+    val cladeCount = cladeCounts.getOrElse(taxid, 0L) //aggregate
+    val taxonCount = countMap.getOrElse(taxid, 0L)
+    val percent = "%6.2f".format(100.0 * cladeCount / totalSequences)
+    val depthString = if (rankDepth == 0) "" else rankDepth.toString
+    val indent = "  " * depth
+    val name = taxonomy.getName(taxid).getOrElse("")
+    s"$percent\t$cladeCount\t$taxonCount\t${rank.code}$depthString\t$taxid\t$indent$name"
   }
 
   /** Depth-first search to generate report lines and print them.
