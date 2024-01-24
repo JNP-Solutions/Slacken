@@ -90,11 +90,14 @@ final case class TaxonCounts(ordinal: Int, taxa: mutable.IndexedSeq[Taxon], coun
     taxa.iterator zip counts.iterator
 
   /** Convert TaxonCounts to a lookup map that maps each taxon to its
-   * total hit count. */
+   * total hit count.
+   * Will omit special taxa like AMBIGUOUS and MATE_PAIR_BORDER.
+   */
   def toMap: mutable.Map[Taxon, Int] = {
     val r = mutable.Map.empty[Taxon, Int]
     for {
       (taxon, count) <- asPairs
+      if taxon != AMBIGUOUS && taxon != MATE_PAIR_BORDER
     } {
       if (r.contains(taxon)) {
         r(taxon) = r(taxon) + count

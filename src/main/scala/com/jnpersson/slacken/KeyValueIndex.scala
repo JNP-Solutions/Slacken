@@ -233,14 +233,13 @@ final case class TaxonHit(id1: BucketId, id2: BucketId, ordinal: Int, taxon: Tax
 
 
 /**
- * An aggregator that merges taxons of the same k-mer by applying the LCA function.
+ * An aggregator that merges taxa of the same k-mer by applying the LCA function.
  */
 final case class TaxonLCA(bcTaxonomy: Broadcast[Taxonomy]) extends Aggregator[Taxon, Taxon, Taxon] {
   override def zero: Taxon = Taxonomy.NONE
 
   @transient
   lazy val taxonomy = bcTaxonomy.value
-
 
   override def reduce(b: Taxon, a: Taxon): Taxon = taxonomy.lca(b, a)
 

@@ -24,7 +24,7 @@ import scala.collection.mutable
  */
 case class ClassifyParams(minHitGroups: Int, confidenceThreshold: Double, withUnclassified: Boolean)
 
-/** Parameters for a Kraken1/2 compatible taxonomic index for read classification. Associates k-mers with LCA taxons.
+/** Parameters for a Kraken1/2 compatible taxonomic index for read classification. Associates k-mers with LCA taxa.
  * @param params Parameters for k-mers, index bucketing and persistence
  * @param taxonomy The taxonomy
  * @tparam Record type of index records

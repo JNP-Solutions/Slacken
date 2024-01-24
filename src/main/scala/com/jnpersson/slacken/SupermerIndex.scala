@@ -281,7 +281,7 @@ final case class TaxonBucket(id: BucketId, supermers: Array[NTBitArray], taxa: A
 final case class TaxonBucketStats(id: String, numKmers: Long, distinctTaxa: Long, avgDepth: Double)
 
 /**
- * A [[Reducer]] that merges taxons of the same k-mer by applying the LCA function.
+ * A [[Reducer]] that merges taxa of the same k-mer by applying the LCA function.
  * @param k k-mer length
  * @param taxonomy the taxonomy
  */
