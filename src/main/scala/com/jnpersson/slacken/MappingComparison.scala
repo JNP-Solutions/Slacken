@@ -6,15 +6,56 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.discount.SeqTitle
-import com.jnpersson.slacken.Taxonomy.Rank
+import com.jnpersson.slacken.Taxonomy.{Genus, Rank, Species}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.functions.udf
 import org.apache.spark.sql.{Dataset, SparkSession, functions}
 
 import scala.collection.mutable
 
+
+case class PerTaxonMetrics(refCount: Long, classifiedCount: Long, l1: Double) {
+  def toTSVString: String = s"$refCount\t$classifiedCount\t$l1"
+}
+
+object PerTaxonMetrics {
+  def header = s"taxon_classified\ttaxon_total\ttaxon_l1"
+}
+
+case class PerReadMetrics(classifiedCount: Long, totalCount: Long, truePos: Long, falsePos: Long, vaguePos: Long,
+                          falseNeg: Long, ppv: Double, sensitivity: Double) {
+  def toTSVString: String = s"$classifiedCount\t$totalCount\t$truePos\t$falsePos\t$vaguePos\t$falseNeg\t$ppv\t$sensitivity"
+}
+
+object PerReadMetrics {
+  def header = s"read_classified\tread_total\tread_tp\tread_fp\tread_vp\tread_fn\tread_ppv\tread_sensitivity"
+}
+
+/** A single result line */
+case class Metrics(title: String, rank: Rank, perTaxon: PerTaxonMetrics, perRead: PerReadMetrics) {
+  //Extract some variables from expected filename patterns
+  val pattern1 = """M1_S(\d+)_(s2_2023|nt|s2_2023_all)_(\d+)_(\d+)_s(\d+)_c([\d.]+)_classified""".r
+
+  val pattern2 = """M1_S(\d+)_(s2_2023|nt|s2_2023_all)_(\d+)_(\d+)_s(\d+)_classified""".r
+
+  def toTSVString = title match {
+    case pattern1(sample, library, k, m, s, c) =>
+      s"$title\t$sample\t$library\t$k\t$m\t$s\t$c\t$rank\t${perTaxon.toTSVString}\t${perRead.toTSVString}"
+    case pattern2(sample, library, k, m, s) =>
+      s"$title\t$sample\t$library\t$k\t$m\t$s\t0\t$rank\t${perTaxon.toTSVString}\t${perRead.toTSVString}"
+    case _ =>
+      println(s"Couldn't extract variables from filename: $title")
+      ???
+  }
+}
+
+object Metrics {
+  def header = s"title\tsample\tlibrary\tk\tm\ts\tc\trank\t${PerTaxonMetrics.header}\t${PerReadMetrics.header}"
+}
+
 class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
-                        refIdCol: Int, refTaxonCol: Int, skipHeader: Boolean)(implicit spark: SparkSession) {
+                        refIdCol: Int, refTaxonCol: Int, skipHeader: Boolean,
+                        minCountTaxon: Long)(implicit spark: SparkSession) {
   import MappingComparison._
   import spark.sqlContext.implicits._
 
@@ -22,9 +63,25 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     toDF("id", "refTaxon").
     cache()
 
-  def perTaxonComparison(dataFile: String, level: Rank, minCount: Long): Unit = {
+  def allMetrics(dataFile: String): Iterator[Metrics] = {
+    println(s"--------$dataFile--------")
+    Iterator(
+      allMetrics(dataFile, Genus),
+      allMetrics(dataFile, Species)
+    )
+  }
+
+  def allMetrics(dataFile: String, rank: Rank): Metrics = {
+    val title = dataFile.split("/").last
+    Metrics(title, rank,
+      perTaxonComparison(dataFile, rank),
+      perReadComparison(dataFile, rank)
+    )
+  }
+
+  def perTaxonComparison(dataFile: String, rank: Rank): PerTaxonMetrics = {
     val tax = this.tax
-    val ancestorAtLevel = udf((x: Taxon) => tax.value.ancestorAtLevel(x, level))
+    val ancestorAtLevel = udf((x: Taxon) => tax.value.ancestorAtLevel(x, rank))
     val cmpData = readKrakenFormat(dataFile).toDF("id", "testTaxon").
       withColumn("taxon", ancestorAtLevel($"testTaxon"))
 
@@ -42,7 +99,7 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
 
     val cmpClass = cmpData.
       groupBy("taxon").agg(functions.count("*").as("count")).
-      filter(s"count >= $minCount")
+      filter(s"count >= $minCountTaxon")
     val cmpVector = abundanceVector(
       cmpClass.select("taxon", "count").as[(Taxon, Long)].collect()
     )
@@ -56,11 +113,13 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     val recall = truePos.toDouble / refTaxa.size
     val l1 = l1Dist(cmpVector, refVector)
 
-    println(s"*** Per taxon comparison (minimum $minCount) at level $level")
+    println(s"*** Per taxon comparison (minimum $minCountTaxon) at level $rank")
     println(s"Total ref taxa ${refTaxa.size}, total classified taxa ${cmpTaxa.size}")
     println(s"TP $truePos, FP $falsePos, FN $falseNeg, L1 dist. ${"%.3g".format(l1)}")
     println(s"Precision ${formatPerc(precision)} recall ${formatPerc(recall)}")
     println("")
+
+    PerTaxonMetrics(cmpTaxa.size, refTaxa.size, l1)
   }
 
   def abundanceVector(countedTaxons: Array[(Taxon, Long)]): Array[Double] = {
@@ -81,7 +140,7 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     r
   }
 
-  def perReadComparison(dataFile: String, level: Rank): Unit = {
+  def perReadComparison(dataFile: String, rank: Rank): PerReadMetrics = {
     val cmpData = readKrakenFormat(dataFile).toDF("id", "testTaxon")
     val joint = referenceData.join(cmpData, referenceData("id") === cmpData("id"), "outer").
       select("refTaxon", "testTaxon").as[(Option[Taxon], Option[Taxon])]
@@ -92,17 +151,18 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     println(s"Total reads $totalReads")
     println(s"Classified $classified ${formatPerc(classified.toDouble/totalReads)}")
 
-    perReadComparison(joint, level, totalReads)
+    perReadComparison(joint, rank, classified, totalReads)
   }
 
   /** Per read comparison at a specific taxonomic level */
-  def perReadComparison(refCmp: Dataset[(Option[Taxon], Option[Taxon])], level: Rank, totalReads: Long) = {
-    println(s"*** Per-read comparison at level $level")
+  def perReadComparison(refCmp: Dataset[(Option[Taxon], Option[Taxon])], rank: Rank, classified: Long,
+                        totalReads: Long): PerReadMetrics = {
+    println(s"*** Per-read comparison at level $rank")
     val bctax = this.tax
     val categoryBreakdown = refCmp.mapPartitions(p => {
       val tv = bctax.value
       p.map(x => {
-        hitCategory(tv, x._1, x._2, level).toString
+        hitCategory(tv, x._1, x._2, rank).toString
       })
     }).toDF("category").groupBy("category").count().as[(String, Long)].cache()
     categoryBreakdown.show()
@@ -110,12 +170,15 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
 
     val tp = catMap.getOrElse("TruePos", 0L)
     val fp = catMap.getOrElse("FalsePos", 0L)
+    val vp = catMap.getOrElse("VaguePos", 0L)
+    val fn = catMap.getOrElse("FalseNeg", 0L)
     val sensitivity = tp.toDouble / totalReads
     val ppv = if (tp + fp > 0)
       tp.toDouble / (tp + fp)
     else 0
     println(s"PPV ${formatPerc(ppv)} Sensitivity ${formatPerc(sensitivity)}")
     println("")
+    PerReadMetrics(classified, totalReads, tp, fp, vp, fn, ppv, sensitivity)
   }
 
   def readKrakenFormat(location: String): Dataset[(SeqTitle, Taxon)] = {
