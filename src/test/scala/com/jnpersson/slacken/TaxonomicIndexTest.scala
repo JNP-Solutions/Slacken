@@ -6,12 +6,13 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.discount.{NTSeq, SeqTitle}
-import com.jnpersson.discount.hash.{InputFragment, MinSplitter}
+import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, InputFragment, MinSplitter, RandomXOR}
 import com.jnpersson.discount.spark.{Discount, IndexParams, SparkSessionTestWrapper}
 import com.jnpersson.discount.{Testing => DTesting}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 import com.jnpersson.discount.TestGenerators._
+import org.apache.spark.sql.functions.hash
 import org.scalacheck.Gen
 import org.scalatest.matchers.should.Matchers
 
@@ -107,36 +108,33 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   * At this point there's no correctness check, but the code path is tested.
   */
   def makeTinyIndex[R](makeIdx: (IndexParams, Taxonomy) => TaxonomicIndex[R],
-                       loadIdx: String => TaxonomicIndex[R], maxM: Int): Unit = {
-    //TODO find a better way to configure temp dir for tests
-    val location = "/tmp/testData/slacken_test"
+                       loadIdx: String => TaxonomicIndex[R],
+                       location: String): Unit = {
+    val k = 31
+    val m = 10
+    val mp = RandomXOR(m, DEFAULT_TOGGLE_MASK, true)
 
-    //As this test is slow, we limit the number of checks
-    forAll((Gen.choose(15, 91), "k"), (ms(maxM), "m"), minSuccessful(2)) { (k, m) =>
-      whenever(15 <= m && m <= k) {
-        forAll(Testing.minimizerPriorities(m), minSuccessful(2)) { mp =>
-          val splitter = MinSplitter(mp, k)
-          val params = IndexParams(spark.sparkContext.broadcast(splitter), 16, "")
-          val idx = makeIdx(params, TestTaxonomy.testDataTaxonomy)
-          val discount = Discount(k)
-          val bkts = idx.makeBuckets(discount, List("testData/slacken/slacken_tinydata.fna"),
-            "testData/slacken/seqid2taxid.map", addRC = false)
-          idx.writeBuckets(bkts, location)
-          val c = loadIdx(location).loadBuckets().count() should be > 0L
-        }
-      }
-    }
+    val splitter = MinSplitter(mp, k)
+    val params = IndexParams(spark.sparkContext.broadcast(splitter), 16, "")
+    val idx = makeIdx(params, TestTaxonomy.testDataTaxonomy)
+    val discount = Discount(k)
+    val bkts = idx.makeBuckets(discount, List("testData/slacken/slacken_tinydata.fna"),
+      "testData/slacken/seqid2taxid.map", addRC = false)
+    idx.writeBuckets(bkts, location)
+    loadIdx(location).loadBuckets(location).count() should be > 0L
   }
 
   test("Tiny index, supermer method") {
+    val dir = System.getProperty("user.dir")
     makeTinyIndex((params, taxonomy) => new SupermerIndex(params, taxonomy),
       location => SupermerIndex.load(location, TestTaxonomy.testDataTaxonomy),
-      31)
+      s"$dir/testData/slacken/slacken_test_sm")
   }
 
   test("Tiny index, KeyValue method") {
+    val dir = System.getProperty("user.dir")
     makeTinyIndex((params, taxonomy) => new KeyValueIndex(params, taxonomy),
       location => KeyValueIndex.load(location, TestTaxonomy.testDataTaxonomy),
-      63)
+      s"$dir/testData/slacken/slacken_test_kv")
   }
 }

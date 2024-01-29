@@ -102,13 +102,13 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   def loadBuckets(location: String): Dataset[TaxonBucket] = {
     //Does not delete the table itself, only removes it from the hive catalog
     //This is to ensure that we get the one in the expected location
-    spark.sql("DROP TABLE IF EXISTS taxidx")
+    spark.sql("DROP TABLE IF EXISTS sm_taxidx")
     spark.sql(
-      s"""|CREATE TABLE taxidx(id long, supermers array<struct<data: array<long>, size: int>>, tags array<array<int>>)
+      s"""|CREATE TABLE sm_taxidx(id long, supermers array<struct<data: array<long>, size: int>>, tags array<array<int>>)
           |USING PARQUET CLUSTERED BY (id) INTO ${params.buckets} BUCKETS
           |LOCATION '$location'
           |""".stripMargin)
-    spark.sql("SELECT id, supermers, tags as taxa FROM taxidx").as[TaxonBucket]
+    spark.sql("SELECT id, supermers, tags as taxa FROM sm_taxidx").as[TaxonBucket]
   }
 
   def classify(buckets: Dataset[TaxonBucket], subjects: Dataset[InputFragment],
