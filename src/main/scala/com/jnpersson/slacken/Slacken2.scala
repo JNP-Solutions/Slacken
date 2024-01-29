@@ -27,47 +27,6 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
   override def canonicalMinimizers: Boolean = true
   override def frequencyBySequence: Boolean = true
 
-  def minimizerOrderingByTaxonDepth(inFiles: List[String], taxonomyLocation: String,
-                                    seqLabelLocation: String)(implicit spark: SparkSession): MinimizerSource = {
-    assert(minimizerWidth() <= 15)
-
-    //Construct a temporary m-mer index to create a minimizer ordering.
-    //The ordering will be based on the taxon depth of each m-mer. The minimizer ordering and sample fraction
-    // of this inner index is not biologically significant.
-
-    //1. supermer method
-    val innerM = minimizerWidth() - 6
-    assert(innerM >= 1)
-    val d = discount.copy(k = minimizerWidth(), minimizers = All, m = innerM, normalize = false, sample = 0.1)
-    val idx = SupermerIndex.empty(d, taxonomyLocation, inFiles)
-
-//    2. KeyValue method
-//    val d = discount.copy(k = minimizerWidth(), minimizers = All, ordering = Given,
-//      m = minimizerWidth(), normalize = false)
-//    val idx = KeyValueIndex.empty(d, taxonomyLocation, inFiles)
-
-    val bkts = idx.makeBuckets(d, inFiles, seqLabelLocation, addRC = true)
-    Generated(idx.minimizerDepthOrdering(bkts, complete = true))
-  }
-
-  /** Configure a splitter for a new index */
-  def configureNewSplitter(inFiles: Option[List[String]], taxonomyLocation: String,
-                           seqLabelLocation: String)(implicit spark: SparkSession): AnyMinSplitter = {
-    val (ord, minSource) = ordering() match {
-      case Frequency(true) =>
-        if (minimizerWidth() > 15) {
-          throw new Exception("For the frequency ordering, m must be <= 15")
-        }
-        //Construct the special taxon depth-based minimizer ordering
-        val inner = minimizerOrderingByTaxonDepth(inFiles.getOrElse(List()), taxonomyLocation, seqLabelLocation)
-        (Given, extendMinimizersIfConfigured(inner))
-      case _ => (ordering(), parseMinimizerSource)
-    }
-
-    //Always normalize sequences, in case we are constructing a frequency table for the splitter
-    val d = discount.copy(minimizers = minSource, ordering = ord, normalize = true)
-    MinSplitter(seedMask(d.getSplitter(inFiles).priorities), k())
-  }
 
   val taxonIndex = new Subcommand("taxonIndex") {
     val location = opt[String](required = true, descr = "Path to location where index is stored")
@@ -86,7 +45,7 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
 
         val params = IndexParams(
           spark.sparkContext.broadcast(
-            configureNewSplitter(inFiles.toOption, taxonomy(), labels())
+            MinSplitter(seedMask(discount.getSplitter(inFiles.toOption).priorities), k())
           ), partitions(), location())
         println(s"Splitter ${params.splitter}")
 
