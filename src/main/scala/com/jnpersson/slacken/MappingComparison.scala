@@ -28,13 +28,25 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     val cmpData = readKrakenFormat(dataFile).toDF("id", "testTaxon").
       withColumn("taxon", ancestorAtLevel($"testTaxon"))
 
-    val refTaxa = mutable.BitSet.empty ++ referenceData.
-      withColumn("taxon", ancestorAtLevel($"refTaxon")).
+    val refClass = referenceData.
+      withColumn("taxon", ancestorAtLevel($"refTaxon"))
+    val refVector = abundanceVector(
+      refClass.groupBy("taxon").
+        agg(functions.count("taxon").as("count")).
+        select("taxon", "count").
+        as[(Taxon, Long)].collect()
+    )
+    val refTaxa = mutable.BitSet.empty ++ refClass.
       select("taxon").distinct().
       as[Taxon].collect()
-    val cmpTaxa = mutable.BitSet.empty ++ cmpData.
+
+    val cmpClass = cmpData.
       groupBy("taxon").agg(functions.count("*").as("count")).
-      filter(s"count >= $minCount").select("taxon").
+      filter(s"count >= $minCount")
+    val cmpVector = abundanceVector(
+      cmpClass.select("taxon", "count").as[(Taxon, Long)].collect()
+    )
+    val cmpTaxa = mutable.BitSet.empty ++ cmpClass.select("taxon").
       as[Taxon].collect()
 
     val truePos = refTaxa.intersect(cmpTaxa).size
@@ -42,12 +54,31 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     val falseNeg = (refTaxa -- cmpTaxa).size
     val precision = truePos.toDouble / cmpTaxa.size
     val recall = truePos.toDouble / refTaxa.size
+    val l1 = l1Dist(cmpVector, refVector)
 
     println(s"*** Per taxon comparison (minimum $minCount) at level $level")
     println(s"Total ref taxa ${refTaxa.size}, total classified taxa ${cmpTaxa.size}")
-    println(s"TP $truePos, FP $falsePos, FN $falseNeg")
+    println(s"TP $truePos, FP $falsePos, FN $falseNeg, L1 dist. ${"%.3g".format(l1)}")
     println(s"Precision ${formatPerc(precision)} recall ${formatPerc(recall)}")
     println("")
+  }
+
+  def abundanceVector(countedTaxons: Array[(Taxon, Long)]): Array[Double] = {
+    val r = new Array[Double](tax.value.parents.length)
+    val totalWeight = countedTaxons.map(_._2).sum
+    for { (taxon, c) <- countedTaxons } {
+      r(taxon) = c.toDouble / totalWeight
+    }
+    r
+  }
+
+  /** Compute L1 distance of two vectors of equal length. */
+  def l1Dist(v1: Array[Double], v2: Array[Double]): Double = {
+    var r = 0d
+    for { i <- v1.indices } {
+      r += Math.abs(v1(i) - v2(i))
+    }
+    r
   }
 
   def perReadComparison(dataFile: String, level: Rank): Unit = {
