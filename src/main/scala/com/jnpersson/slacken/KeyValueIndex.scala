@@ -11,8 +11,9 @@ import com.jnpersson.discount.spark.{Discount, IndexParams}
 import com.jnpersson.slacken.TaxonomicIndex.ClassifiedRead
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.expressions.Aggregator
-import org.apache.spark.sql.{Dataset, Encoder, Encoders, SaveMode, SparkSession}
+import org.apache.spark.sql.{Dataset, Encoder, Encoders, SaveMode, SparkSession, functions}
 import org.apache.spark.sql.functions.{broadcast, collect_list, collect_set, desc, struct, udaf, udf}
+
 
 /** Metagenomic index compatible with the Kraken 2 algorithm.
  * This index does not store super-mers, but instead stores k-mers and taxa as key-value pairs.
@@ -29,9 +30,10 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   /** Given input genomes and their taxon IDs, build an index of minimizers and LCA taxa.
    * @param idsSequences pairs of (genome title, genome DNA)
    * @param seqLabels pairs of (genome title, taxon ID)
+   * @param method LCA calculation method
    */
   def makeBuckets(idsSequences: Dataset[(SeqTitle, NTSeq)],
-                    seqLabels: Dataset[(SeqTitle, Taxon)]): Dataset[(BucketId, BucketId, Taxon)] = {
+                    seqLabels: Dataset[(SeqTitle, Taxon)], method: LCAMethod): Dataset[(BucketId, BucketId, Taxon)] = {
     val bcSplit = this.bcSplit
 
     val idSeqDF = idsSequences.toDF("seqId", "seq")
@@ -40,14 +42,26 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     val idSeqLabels = idSeqDF.join(labels, idSeqDF("seqId") === labels("seqId")).
       select("seq", "taxon").as[(String, Taxon)]
 
-    val LCAs = idSeqLabels.flatMap(r => {
+    val lcas = idSeqLabels.flatMap(r => {
       val splitter = bcSplit.value
       splitter.superkmerPositions(r._1, addRC = false).map { case (_, rank, _) =>
         (rank.data(0), rank.dataOrBlank(1), r._2)
       }
     })
 
-    reduceLCAs(LCAs)
+    method match {
+      case LCAAtLeastTwo =>
+        reduceLCAs(lcas)
+      case LCARequireAll =>
+        //Filter out sequence IDs that are not present in the input data, so that the genome counts
+        //will reflect only data that is actually being considered. E.g. we could be building a small library
+        //using a large label file, and then counts based purely on the label file would not be valid.
+        val onlyPresentLabels = idSeqDF.join(labels, List("seqId")).
+          select("seqId", "taxon")
+        val gc = GenomeCounts.build(taxonomy, onlyPresentLabels)
+        reduceLCAsRequireAll(lcas, gc).
+          toDF("id1", "id2", "taxon").as[(BucketId, BucketId, Taxon)]
+    }
   }
   /** Write buckets to the given location */
   def writeBuckets(buckets: Dataset[(BucketId, BucketId, Taxon)], location: String): Unit = {
@@ -73,12 +87,39 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
    * @return tuples of (minimizer part 1, minimizer part 2, LCA taxon)
    */
   def reduceLCAs(minimizersTaxa: Dataset[(BucketId, BucketId, Taxon)]): Dataset[(BucketId, BucketId, Taxon)] = {
-    val bcPar = this.bcTaxonomy
+    val bcTax = this.bcTaxonomy
 
-    val udafLca = udaf(TaxonLCA(bcPar))
+    val udafLca = udaf(TaxonLCA(bcTax))
     minimizersTaxa.toDF("id1", "id2", "taxon").
       groupBy("id1", "id2").
       agg(udafLca($"taxon").as("taxon")).as[(BucketId, BucketId, Taxon)]
+  }
+
+  /** Given non-combined pairs of minimizers and taxa, combine them using the lowest common ancestor (LCA)
+   * function to return only one LCA taxon per minimizer,
+   * returning the result if and only if all genomes in the LCA taxon have this minimizer (not just two or more)
+   *
+   * @param minimizersTaxa tuples of (minimizer part 1, minimizer part 2, taxon)
+   * @param genomeCounts counts of distinct genomes per taxon
+   * @return tuples of (minimizer part 1, minimizer part 2, LCA taxon)
+   */
+  def reduceLCAsRequireAll(minimizersTaxa: Dataset[(BucketId, BucketId, Taxon)],
+                           genomeCounts: Array[Long]): Dataset[(BucketId, BucketId, Taxon)] = {
+    val bcTax = this.bcTaxonomy
+    val bcCounts = spark.sparkContext.broadcast(genomeCounts)
+
+    val udafLca = udaf(TaxonLCA(bcTax))
+    val preFilter = minimizersTaxa.toDF("id1", "id2", "taxon").
+      groupBy("id1", "id2").
+      agg(udafLca($"taxon").as("taxon"), functions.count_distinct($"taxon").as("count"))
+
+    val isAboveExpected = udf((x: Taxon, count: Long) => {
+      val expected = bcCounts.value
+      count >= expected(x)
+    })
+
+    preFilter.filter(isAboveExpected($"taxon", $"count")).select("id1", "id2", "taxon").
+      as[(BucketId, BucketId, Taxon)]
   }
 
   /** Load buckets from the given location */
@@ -156,12 +197,11 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
 
   /** An iterator of (k-mer, taxonomic depth) pairs where the root level has depth zero. */
   def kmersDepths(buckets: Dataset[(BucketId, BucketId, Taxon)]): Dataset[(BucketId, BucketId, Int)] = {
-    val bcPar = this.bcTaxonomy
-    val depth = udf((x: Taxon) => bcPar.value.depth(x))
+    val bcTax = this.bcTaxonomy
+    val depth = udf((x: Taxon) => bcTax.value.depth(x))
     buckets.select($"id1", $"id2", depth($"taxon").as("depth")).
       sort(desc("depth")).as[(BucketId, BucketId, Int)]
   }
-
 }
 
 object KeyValueIndex {

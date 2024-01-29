@@ -79,6 +79,7 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
     val build = new RunCmd("build") {
       val inFiles = trailArg[List[String]](required = true, descr = "Input sequence files")
       val labels = opt[String](required = true, descr = "Path to sequence taxonomic label file")
+      val all = toggle(descrYes = "Require minimizers to be present in all LCA genomes", default = Some(false))
 
       def run(implicit spark: SparkSession): Unit = {
         val d = discount
@@ -88,8 +89,11 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
             configureNewSplitter(inFiles.toOption, taxonomy(), labels())
           ), partitions(), location())
         println(s"Splitter ${params.splitter}")
+
+        val method = if (all()) LCARequireAll else LCAAtLeastTwo
         val index = new KeyValueIndex(params, TaxonomicIndex.getTaxonomy(taxonomy()))
-        val bkts = index.makeBuckets(d, inFiles(), labels(), addRC = false)
+
+        val bkts = index.makeBuckets(d, inFiles(), labels(), addRC = false, method)
         index.writeBuckets(bkts, params.location)
       }
     }

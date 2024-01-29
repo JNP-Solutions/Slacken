@@ -62,8 +62,8 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   }
 
   def segmentsToBuckets(segments: Dataset[(discount.spark.HashSegment, Taxon)], k: Int): Dataset[ReducibleBucket] = {
-    val bcPar = this.bcTaxonomy
-    val udafLca = udaf(TaxonLCA(bcPar))
+    val bcTax = this.bcTaxonomy
+    val udafLca = udaf(TaxonLCA(bcTax))
 
     val byHash = segments.toDF("segment", "taxon").groupBy($"segment")
     //Aggregate distinct supermers to remove any skew from repetitive data
@@ -75,7 +75,11 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   }
 
   def makeBuckets(idsSequences: Dataset[(SeqTitle, NTSeq)],
-                  taxonLabels: Dataset[(SeqTitle, Taxon)]): Dataset[TaxonBucket] = {
+                  taxonLabels: Dataset[(SeqTitle, Taxon)], method: LCAMethod): Dataset[TaxonBucket] = {
+    if (method != LCAAtLeastTwo) {
+      throw new Exception(s"The method $method is not yet supported in SupermerIndex")
+    }
+
     val bcSplit = this.bcSplit
     val idSeqDF = idsSequences.toDF("seqId", "seq")
     val labels = taxonLabels.toDF("seqId", "taxon")
@@ -107,7 +111,7 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   def classify(buckets: Dataset[TaxonBucket], subjects: Dataset[InputFragment],
                cpar: ClassifyParams): Dataset[ClassifiedRead] = {
     val bcSplit = this.bcSplit
-    val bcPar = this.bcTaxonomy
+    val bcTax = this.bcTaxonomy
     val k = this.k
 
     println("Warning: SupermerIndex does not yet respect minHitGroups (to be implemented)")
@@ -142,7 +146,7 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       //Useful alternative for debugging
       //x._2.sortBy(_.order).mkString(" ")
 
-      TaxonomicIndex.classify(bcPar.value, x._1, summariesInOrder, sufficientHits = true, 0, k)
+      TaxonomicIndex.classify(bcTax.value, x._1, summariesInOrder, sufficientHits = true, 0, k)
     })
   }
 
