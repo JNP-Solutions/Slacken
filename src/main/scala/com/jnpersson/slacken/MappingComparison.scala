@@ -14,12 +14,12 @@ import org.apache.spark.sql.{Dataset, SparkSession, functions}
 import scala.collection.mutable
 
 
-case class PerTaxonMetrics(refCount: Long, classifiedCount: Long, l1: Double) {
-  def toTSVString: String = s"$refCount\t$classifiedCount\t$l1"
+case class PerTaxonMetrics(refCount: Long, classifiedCount: Long, l1: Double, precision: Double, recall: Double) {
+  def toTSVString: String = s"$refCount\t$classifiedCount\t$l1\t$precision\t$recall"
 }
 
 object PerTaxonMetrics {
-  def header = s"taxon_classified\ttaxon_total\ttaxon_l1"
+  def header = s"taxon_classified\ttaxon_total\ttaxon_l1\ttaxon_precision\ttaxon_recall"
 }
 
 case class PerReadMetrics(classifiedCount: Long, totalCount: Long, truePos: Long, falsePos: Long, vaguePos: Long,
@@ -34,15 +34,15 @@ object PerReadMetrics {
 /** A single result line */
 case class Metrics(title: String, rank: Rank, perTaxon: PerTaxonMetrics, perRead: PerReadMetrics) {
   //Extract some variables from expected filename patterns
-  val pattern1 = """M1_S(\d+)_(s2_2023|nt|s2_2023_all)_(\d+)_(\d+)_s(\d+)_c([\d.]+)_classified""".r
-
-  val pattern2 = """M1_S(\d+)_(s2_2023|nt|s2_2023_all)_(\d+)_(\d+)_s(\d+)_classified""".r
+  val pattern = """M1_S(\d+)_(s2_2023|nt|s2_2023_all)_(\d+)_(\d+)(f|ff|)(_\d+)?(_s\d+)?(_c[\d.]+)?_classified""".r
 
   def toTSVString = title match {
-    case pattern1(sample, library, k, m, s, c) =>
-      s"$title\t$sample\t$library\t$k\t$m\t$s\t$c\t$rank\t${perTaxon.toTSVString}\t${perRead.toTSVString}"
-    case pattern2(sample, library, k, m, s) =>
-      s"$title\t$sample\t$library\t$k\t$m\t$s\t0\t$rank\t${perTaxon.toTSVString}\t${perRead.toTSVString}"
+    case pattern(sample, library, k, m, frequency, freqLenRaw, sRaw, cRaw) =>
+      //Note: freqLen is meaningless if the ordering is not frequency
+      val freqLen = Option(freqLenRaw).map(_.drop(1)).getOrElse("10")
+      val c = Option(cRaw).map(_.drop(2)).getOrElse("0.0")
+      val s = Option(sRaw).map(_.drop(2)).getOrElse("7")
+      s"$title\t$sample\t$library\t$k\t$m\t$frequency\t$freqLen\t$s\t$c\t$rank\t${perTaxon.toTSVString}\t${perRead.toTSVString}"
     case _ =>
       println(s"Couldn't extract variables from filename: $title")
       ???
@@ -50,7 +50,7 @@ case class Metrics(title: String, rank: Rank, perTaxon: PerTaxonMetrics, perRead
 }
 
 object Metrics {
-  def header = s"title\tsample\tlibrary\tk\tm\ts\tc\trank\t${PerTaxonMetrics.header}\t${PerReadMetrics.header}"
+  def header = s"title\tsample\tlibrary\tk\tm\tfrequency\tfl\ts\tc\trank\t${PerTaxonMetrics.header}\t${PerReadMetrics.header}"
 }
 
 class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
@@ -119,7 +119,7 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     println(s"Precision ${formatPerc(precision)} recall ${formatPerc(recall)}")
     println("")
 
-    PerTaxonMetrics(cmpTaxa.size, refTaxa.size, l1)
+    PerTaxonMetrics(cmpTaxa.size, refTaxa.size, l1, precision, recall)
   }
 
   def abundanceVector(countedTaxons: Array[(Taxon, Long)]): Array[Double] = {
