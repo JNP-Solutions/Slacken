@@ -16,6 +16,21 @@ import org.apache.spark.sql.functions.{count, desc, udf}
 
 import scala.collection.mutable
 
+/** A method for calculating LCA's (least common ancestors) */
+sealed trait LCAMethod
+
+/**
+ * Standard Kraken/Kraken2 method. The LCA is assigned if at least two descendants share the k-mer/minimizer.
+ * In addition, no node outside the LCA's clade will have it.
+ */
+case object LCAAtLeastTwo extends LCAMethod
+
+/**
+ * Stronger method. The LCA is assigned only if all genomes under the node share the k-mer/minimizer.
+ * In addition, no node outside the LCA's clade will have it.
+ */
+case object LCARequireAll extends LCAMethod
+
 /** Parameters for classification of reads
  * @param minHitGroups min number of hit groups
  * @param confidenceThreshold min. confidence score (fraction of k-mers/minimizers that must be in the classified
@@ -42,26 +57,33 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
 
   lazy val bcTaxonomy = sc.broadcast(taxonomy)
 
-  /** Construct buckets for a new index from genomes.
-   *  @param discount Discount object for input reading
-   *  @param inFiles Files with genomic sequences to index
-   *  @param seqLabelLocation Location of a file that labels each genome with a taxon
-   *  @param addRC Whether to add reverse complements
-   *  @return index buckets
+  /**
+   * Construct buckets for a new index from genomes.
+   *
+   * @param discount         Discount object for input reading
+   * @param inFiles          Files with genomic sequences to index
+   * @param seqLabelLocation Location of a file that labels each genome with a taxon
+   * @param addRC            Whether to add reverse complements
+   * @param method           LCA calculation method
+   * @return index buckets
    */
   def makeBuckets(discount: Discount, inFiles: List[String], seqLabelLocation: String,
-                  addRC: Boolean): Dataset[Record] = {
+                  addRC: Boolean, method: LCAMethod = LCAAtLeastTwo): Dataset[Record] = {
     val input = discount.inputReader(inFiles: _*).getInputFragments(addRC).map(x =>
       (x.header, x.nucleotides))
    val seqLabels = getTaxonLabels(seqLabelLocation)
-   makeBuckets(input, seqLabels)
+   makeBuckets(input, seqLabels, method)
   }
 
-  /** Build index buckets
+  /**
+   * Build index buckets
+   *
    * @param idsSequences Pairs of (genome title, genome)
-   * @param taxonLabels Pairs of (genome title, taxon)
+   * @param taxonLabels  Pairs of (genome title, taxon)
+   * @param method       LCA calculation method
    */
-  def makeBuckets(idsSequences: Dataset[(SeqTitle, NTSeq)], taxonLabels: Dataset[(SeqTitle, Taxon)]): Dataset[Record]
+  def makeBuckets(idsSequences: Dataset[(SeqTitle, NTSeq)], taxonLabels: Dataset[(SeqTitle, Taxon)],
+                  method: LCAMethod): Dataset[Record]
 
   def writeBuckets(buckets: Dataset[Record], location: String): Unit
 
@@ -96,7 +118,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
    */
   def writeOutput(reads: Dataset[ClassifiedRead], location: String, cpar: ClassifyParams): Unit = {
     reads.cache
-    val bcPar = bcTaxonomy
+    val bcTax = bcTaxonomy
     try {
       val outputRows = if (cpar.withUnclassified) {
         reads.map(r => r.outputLine)
@@ -110,7 +132,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
       //in the case of a fine grained index with many partitions
       outputRows.coalesce(200).write.mode(SaveMode.Overwrite).
         text(s"${location}_classified")
-      val report = new KrakenReport(bcPar.value, countByTaxon)
+      val report = new KrakenReport(bcTax.value, countByTaxon)
       val writer = HDFSUtil.getPrintWriter(s"${location}_kreport.txt")
       report.print(writer)
       writer.close()

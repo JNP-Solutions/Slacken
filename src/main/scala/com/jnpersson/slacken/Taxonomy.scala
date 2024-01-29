@@ -245,11 +245,10 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
   def countDistinctTaxaWithParents(taxa: Iterable[Taxon]): Int = {
     val r = mutable.BitSet.empty
     for { a <- taxa} {
-      r += a
       var p = a
       while (p != ROOT && p != NONE) {
-        p = parents(p)
         r += p
+        p = parents(p)
       }
     }
     r += ROOT
