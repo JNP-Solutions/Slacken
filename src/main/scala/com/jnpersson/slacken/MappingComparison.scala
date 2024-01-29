@@ -1,5 +1,5 @@
 /*
- * This file is part of Hypercut. Copyright (c) 2023 Johan Nyström-Persson.
+ * This file is part of Slacken. Copyright (c) 2019-2024 Johan Nyström-Persson.
  */
 
 
@@ -30,8 +30,7 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
 
     val refTaxa = mutable.BitSet.empty ++ referenceData.
       withColumn("taxon", ancestorAtLevel($"refTaxon")).
-      groupBy("taxon").agg(functions.count("*").as("count")).
-      filter(s"count >= $minCount").select("taxon").
+      select("taxon").distinct().
       as[Taxon].collect()
     val cmpTaxa = mutable.BitSet.empty ++ cmpData.
       groupBy("taxon").agg(functions.count("*").as("count")).

@@ -1,5 +1,5 @@
 /*
- * This file is part of Hypercut. Copyright (c) 2023 Johan Nyström-Persson.
+ * This file is part of Slacken. Copyright (c) 2019-2024 Johan Nyström-Persson.
  */
 
 
