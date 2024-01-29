@@ -104,10 +104,10 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     //This is to ensure that we get the one in the expected location
     spark.sql("DROP TABLE IF EXISTS taxidx")
     spark.sql(
-      """|CREATE TABLE taxidx(id long, supermers array<struct<data: array<long>, size: int>>, tags array<array<int>>)
-         |USING PARQUET CLUSTERED BY (id) INTO ${params.buckets} BUCKETS
-         |LOCATION '$location'
-         |""".stripMargin)
+      s"""|CREATE TABLE taxidx(id long, supermers array<struct<data: array<long>, size: int>>, tags array<array<int>>)
+          |USING PARQUET CLUSTERED BY (id) INTO ${params.buckets} BUCKETS
+          |LOCATION '$location'
+          |""".stripMargin)
     spark.sql("SELECT id, supermers, tags as taxa FROM taxidx").as[TaxonBucket]
   }
 
