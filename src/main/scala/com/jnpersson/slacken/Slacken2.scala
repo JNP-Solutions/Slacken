@@ -5,11 +5,11 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, Extended, MinSplitter, RandomXOR, SpacedSeed}
-import com.jnpersson.discount.spark.{All, AnyMinSplitter, Commands, Configuration, Discount, Generated, IndexParams, MinimizerSource, RunCmd, SparkTool}
+import com.jnpersson.discount.spark.{All, AnyMinSplitter, Commands, Configuration, Discount, Generated, HDFSUtil, IndexParams, MinimizerSource, RunCmd, SparkTool}
 import com.jnpersson.discount.{Frequency, Given, Lexicographic}
 import com.jnpersson.slacken.TaxonomicIndex.getTaxonLabels
 import com.jnpersson.slacken.Taxonomy.Genus
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{SaveMode, SparkSession}
 import org.rogach.scallop.Subcommand
 
 class Slacken2Conf(args: Array[String]) extends Configuration(args) {
@@ -176,22 +176,22 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
     val reference = opt[String](descr = "Reference mapping to compare (TSV format)", required = true)
     val idCol = opt[Int](descr = "Read ID column in reference", default = Some(2))
     val taxonCol = opt[Int](descr = "Taxon column in reference", short = 'T', default = Some(3))
-    val output = opt[String](descr = "Output location") //TODO implement this
+    val output = opt[String](descr = "Output location")
     val skipHeader = toggle(name = "header", descrYes = "Skip header in reference data", default = Some(false))
 
-    val level = choice(Taxonomy.ranks.map(_.title), default = Some("genus"))
     val testFiles = trailArg[List[String]]("testFiles", descr = "Mappings to compare (Slacken/Kraken format)",
       required = true)
 
     def run(implicit spark: SparkSession): Unit = {
+      import spark.implicits._
+
       val t = spark.sparkContext.broadcast(TaxonomicIndex.getTaxonomy(taxonomy()))
-      val mc = new MappingComparison(t, reference(), idCol(), taxonCol(), skipHeader())
-      for { t <- testFiles() } {
-        println(s"--------$t--------")
-        val compareLevel = Taxonomy.rank(level()).getOrElse(Genus)
-        mc.perReadComparison(t, compareLevel)
-        mc.perTaxonComparison(t, compareLevel, 100)
-      }
+      val mc = new MappingComparison(t, reference(), idCol(), taxonCol(), skipHeader(), 100)
+      val metrics =
+        for { t <- testFiles().iterator
+            m <- mc.allMetrics(t) } yield m
+      HDFSUtil.writeTextLines(output() + "_metrics.tsv",
+        Iterator(Metrics.header) ++ metrics.map(_.toTSVString))
     }
   }
   addSubcommand(compare)
