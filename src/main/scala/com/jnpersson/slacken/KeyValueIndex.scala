@@ -126,12 +126,12 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   def loadBuckets(location: String): Dataset[(BucketId, BucketId, Taxon)] = {
     //Does not delete the table itself, only removes it from the hive catalog
     //This is to ensure that we get the one in the expected location
-    spark.sql("DROP TABLE IF EXISTS taxidx")
-    spark.sql(s"""|CREATE TABLE taxidx(id1 long, id2 long, taxon int)
+    spark.sql("DROP TABLE IF EXISTS kv_taxidx")
+    spark.sql(s"""|CREATE TABLE kv_taxidx(id1 long, id2 long, taxon int)
                   |USING PARQUET CLUSTERED BY (id1, id2) INTO $numIndexBuckets BUCKETS
                   |LOCATION '$location'
                   |""".stripMargin)
-    spark.sql("SELECT id1, id2, taxon FROM taxidx").as[(BucketId, BucketId, Taxon)]
+    spark.sql("SELECT id1, id2, taxon FROM kv_taxidx").as[(BucketId, BucketId, Taxon)]
   }
 
   /** Union several indexes. The indexes must use the same splitter and taxonomy.
