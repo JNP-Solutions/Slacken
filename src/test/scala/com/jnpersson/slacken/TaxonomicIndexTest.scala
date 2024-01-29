@@ -7,7 +7,7 @@ package com.jnpersson.slacken
 
 import com.jnpersson.discount.{NTSeq, SeqTitle}
 import com.jnpersson.discount.hash.{InputFragment, MinSplitter}
-import com.jnpersson.discount.spark.{IndexParams, SparkSessionTestWrapper}
+import com.jnpersson.discount.spark.{Discount, IndexParams, SparkSessionTestWrapper}
 import com.jnpersson.discount.{Testing => DTesting}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
@@ -54,8 +54,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   /* Note: this test is probabilistic and relies on randomly generated DNA sequences
      not having enough k-mers in common.
    */
-  def testIndexType[R](makeIdx: (IndexParams, Taxonomy) => TaxonomicIndex[R],
-                       maxM: Int): Unit = {
+  def randomGenomes[R](makeIdx: (IndexParams, Taxonomy) => TaxonomicIndex[R], maxM: Int): Unit = {
     //Simulate very long reads to reduce the risk of misclassification by chance in random data
     val reads = simulateReads(genomes, 200, 1000).toDS()
     val genomesDS = genomes.toDS
@@ -96,11 +95,48 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     }
   }
 
-  test("Supermer method") {
-    testIndexType((params, taxonomy) => new SupermerIndex(params, taxonomy), 31)
+  test("Random genomes, supermer method") {
+    randomGenomes((params, taxonomy) => new SupermerIndex(params, taxonomy), 31)
   }
 
-  test("KeyValue method") {
-    testIndexType((params, taxonomy) => new KeyValueIndex(params, taxonomy), 63)
+  test("Random genomes, KeyValue method") {
+    randomGenomes((params, taxonomy) => new KeyValueIndex(params, taxonomy), 63)
+  }
+
+  /* Build a tiny index and write it to disk, then reading it back.
+  * At this point there's no correctness check, but the code path is tested.
+  */
+  def makeTinyIndex[R](makeIdx: (IndexParams, Taxonomy) => TaxonomicIndex[R],
+                       loadIdx: String => TaxonomicIndex[R], maxM: Int): Unit = {
+    //TODO find a better way to configure temp dir for tests
+    val location = "/tmp/testData/slacken_test"
+
+    //As this test is slow, we limit the number of checks
+    forAll((Gen.choose(15, 91), "k"), (ms(maxM), "m"), minSuccessful(2)) { (k, m) =>
+      whenever(15 <= m && m <= k) {
+        forAll(Testing.minimizerPriorities(m), minSuccessful(2)) { mp =>
+          val splitter = MinSplitter(mp, k)
+          val params = IndexParams(spark.sparkContext.broadcast(splitter), 16, "")
+          val idx = makeIdx(params, TestTaxonomy.testDataTaxonomy)
+          val discount = Discount(k)
+          val bkts = idx.makeBuckets(discount, List("testData/slacken/slacken_tinydata.fna"),
+            "testData/slacken/seqid2taxid.map", addRC = false)
+          idx.writeBuckets(bkts, location)
+          val c = loadIdx(location).loadBuckets().count() should be > 0L
+        }
+      }
+    }
+  }
+
+  test("Tiny index, supermer method") {
+    makeTinyIndex((params, taxonomy) => new SupermerIndex(params, taxonomy),
+      location => SupermerIndex.load(location, TestTaxonomy.testDataTaxonomy),
+      31)
+  }
+
+  test("Tiny index, KeyValue method") {
+    makeTinyIndex((params, taxonomy) => new KeyValueIndex(params, taxonomy),
+      location => KeyValueIndex.load(location, TestTaxonomy.testDataTaxonomy),
+      63)
   }
 }

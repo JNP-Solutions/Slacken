@@ -60,7 +60,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
   /**
    * Construct buckets for a new index from genomes.
    *
-   * @param discount         Discount object for input reading
+   * @param discount         Discount object, used to get an InputReader only.
    * @param inFiles          Files with genomic sequences to index
    * @param seqLabelLocation Location of a file that labels each genome with a taxon
    * @param addRC            Whether to add reverse complements

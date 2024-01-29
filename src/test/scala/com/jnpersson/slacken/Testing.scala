@@ -9,6 +9,7 @@ import com.jnpersson.discount
 import com.jnpersson.discount.NTSeq
 import com.jnpersson.discount.TestGenerators.dnaStrings
 import com.jnpersson.discount.hash.{ExtendedTable, InputFragment, MinimizerPriorities}
+import com.jnpersson.slacken.Taxonomy.ROOT
 import org.scalacheck.Gen
 
 import scala.util.Random
@@ -48,6 +49,20 @@ object TestTaxonomy {
     Taxonomy.fromNodesAndNames(ns.toArray, names)
   }
 
+  /** Random reads */
   def reads(minLen: Int, maxLen: Int): Gen[InputFragment] =
     dnaStrings(minLen, maxLen).map(ntseq => InputFragment("", 0, ntseq, None))
+
+  /**
+   * A hardcoded taxonomy for the tiny test dataset in testData/slacken/slacken_tinydata.fna.
+   * Make both strains direct children of root as a simple way to generate test data.
+   */
+  def testDataTaxonomy =
+    Taxonomy.fromNodesAndNames(
+      Array((455631, ROOT, "strain"),
+        (526997, ROOT, "strain")),
+      Iterator((455631, "Clostridioides difficile QCD-66c26"),
+        (526997, "Bacillus mycoides DSM 2048"))
+    )
+
 }

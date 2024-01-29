@@ -205,12 +205,14 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
 }
 
 object KeyValueIndex {
+  def load(location: String, taxonomy: Taxonomy)(implicit spark: SparkSession): KeyValueIndex = {
+    val params = IndexParams.read(location)
+    new KeyValueIndex(params, taxonomy)
+  }
 
   /** Load index from the given location */
-  def load(location: String, taxonomyLocation: String)(implicit spark: SparkSession): KeyValueIndex = {
-    val params = IndexParams.read(location)
-    new KeyValueIndex(params, TaxonomicIndex.getTaxonomy(taxonomyLocation))
-  }
+  def load(location: String, taxonomyLocation: String)(implicit spark: SparkSession): KeyValueIndex =
+    load(location, TaxonomicIndex.getTaxonomy(taxonomyLocation))
 
   /** For a super-mer with a given minimizer, assign a taxon hit, handling ambiguity flags correctly
    * @param taxon The minimizer's LCA taxon

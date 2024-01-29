@@ -21,10 +21,13 @@ import org.apache.spark.sql.functions.{broadcast, collect_list, desc, first, str
 import scala.collection.mutable.ArrayBuffer
 
 object SupermerIndex {
-  def load(location: String, taxonomyLocation: String)(implicit spark: SparkSession): SupermerIndex = {
+  def load(location: String, taxonomy: Taxonomy)(implicit spark: SparkSession): SupermerIndex = {
     val params = IndexParams.read(location)
-    new SupermerIndex(params, TaxonomicIndex.getTaxonomy(taxonomyLocation))
+    new SupermerIndex(params, taxonomy)
   }
+
+  def load(location: String, taxonomyLocation: String)(implicit spark: SparkSession): SupermerIndex =
+    load(location, TaxonomicIndex.getTaxonomy(taxonomyLocation))
 
   /** Build an empty SupermerIndex.
    * @param inFiles Input files used for minimizer ordering construction only
