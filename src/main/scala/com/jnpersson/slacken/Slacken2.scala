@@ -183,10 +183,10 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
       val t = spark.sparkContext.broadcast(TaxonomicIndex.getTaxonomy(taxonomy()))
       val mc = new MappingComparison(t, reference(), idCol(), taxonCol(), skipHeader())
       for { t <- testFiles() } {
-        println(t)
+        println(s"--------$t--------")
         val compareLevel = Taxonomy.rank(level()).getOrElse(Genus)
         mc.perReadComparison(t, compareLevel)
-        mc.perTaxonComparison(t, 100)
+        mc.perTaxonComparison(t, compareLevel, 100)
       }
     }
   }

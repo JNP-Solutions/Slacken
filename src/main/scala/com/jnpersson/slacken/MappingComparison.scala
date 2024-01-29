@@ -8,6 +8,7 @@ package com.jnpersson.slacken
 import com.jnpersson.discount.SeqTitle
 import com.jnpersson.slacken.Taxonomy.Rank
 import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.sql.functions.udf
 import org.apache.spark.sql.{Dataset, SparkSession, functions}
 
 import scala.collection.mutable
@@ -21,15 +22,20 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     toDF("id", "refTaxon").
     cache()
 
-  def perTaxonComparison(dataFile: String, minCount: Long): Unit = {
-    val cmpData = readKrakenFormat(dataFile).toDF("id", "testTaxon")
+  def perTaxonComparison(dataFile: String, level: Rank, minCount: Long): Unit = {
+    val tax = this.tax
+    val ancestorAtLevel = udf((x: Taxon) => tax.value.ancestorAtLevel(x, level))
+    val cmpData = readKrakenFormat(dataFile).toDF("id", "testTaxon").
+      withColumn("taxon", ancestorAtLevel($"testTaxon"))
+
     val refTaxa = mutable.BitSet.empty ++ referenceData.
-      groupBy("refTaxon").agg(functions.count("*").as("count")).
-      filter(s"count >= $minCount").select("refTaxon").
+      withColumn("taxon", ancestorAtLevel($"refTaxon")).
+      groupBy("taxon").agg(functions.count("*").as("count")).
+      filter(s"count >= $minCount").select("taxon").
       as[Taxon].collect()
     val cmpTaxa = mutable.BitSet.empty ++ cmpData.
-      groupBy("testTaxon").agg(functions.count("*").as("count")).
-      filter(s"count >= $minCount").select("testTaxon").
+      groupBy("taxon").agg(functions.count("*").as("count")).
+      filter(s"count >= $minCount").select("taxon").
       as[Taxon].collect()
 
     val truePos = refTaxa.intersect(cmpTaxa).size
@@ -38,10 +44,11 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     val precision = truePos.toDouble / cmpTaxa.size
     val recall = truePos.toDouble / refTaxa.size
 
-    println(s"*** Per taxon comparison (minimum $minCount)")
+    println(s"*** Per taxon comparison (minimum $minCount) at level $level")
     println(s"Total ref taxa ${refTaxa.size}, total classified taxa ${cmpTaxa.size}")
     println(s"TP $truePos, FP $falsePos, FN $falseNeg")
     println(s"Precision ${formatPerc(precision)} recall ${formatPerc(recall)}")
+    println("")
   }
 
   def perReadComparison(dataFile: String, level: Rank): Unit = {
@@ -78,6 +85,7 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
       tp.toDouble / (tp + fp)
     else 0
     println(s"PPV ${formatPerc(ppv)} Sensitivity ${formatPerc(sensitivity)}")
+    println("")
   }
 
   def readKrakenFormat(location: String): Dataset[(SeqTitle, Taxon)] = {
