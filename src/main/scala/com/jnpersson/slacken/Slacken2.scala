@@ -121,7 +121,10 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
     def histogram = new RunCmd("histogram") {
 //      val output = opt[String](descr = "Output location", required = true) //TODO
       def run(implicit spark: SparkSession): Unit = {
-        index.depthHistogram().show()
+        println("Minimizer depths")
+        index.kmerDepthHistogram().show()
+        println("Taxon depths")
+        index.taxonDepthHistogram().show()
       }
     }
     addSubcommand(histogram)
@@ -142,7 +145,6 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
       required = true)
 
     def run(implicit spark: SparkSession): Unit = {
-      import spark.implicits._
 
       val t = spark.sparkContext.broadcast(TaxonomicIndex.getTaxonomy(taxonomy()))
       val mc = new MappingComparison(t, reference(), idCol(), taxonCol(), skipHeader(), 100)

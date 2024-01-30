@@ -167,6 +167,10 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     }).toDF("id1", "id2", "depth").
       sort(desc("depth")).as[(BucketId, BucketId, Int)]
   }
+
+  def taxonDepths(buckets: Dataset[TaxonBucket]): Dataset[(Taxon, Int)] = {
+    ???
+  }
 }
 
 /**

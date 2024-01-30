@@ -9,6 +9,7 @@ import com.jnpersson.discount.hash.{BucketId, InputFragment}
 import com.jnpersson.discount.spark.Index.randomTableName
 import com.jnpersson.discount.spark.{Discount, IndexParams}
 import com.jnpersson.slacken.TaxonomicIndex.ClassifiedRead
+import com.jnpersson.slacken.Taxonomy.Species
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.expressions.Aggregator
 import org.apache.spark.sql.{Dataset, Encoder, Encoders, SaveMode, SparkSession, functions}
@@ -194,13 +195,19 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     println(s"${taxonomy.countDistinctTaxaWithParents(leafTaxons)} distinct taxa in index")
   }
 
-
   /** An iterator of (k-mer, taxonomic depth) pairs where the root level has depth zero. */
   def kmersDepths(buckets: Dataset[(BucketId, BucketId, Taxon)]): Dataset[(BucketId, BucketId, Int)] = {
     val bcTax = this.bcTaxonomy
     val depth = udf((x: Taxon) => bcTax.value.depth(x))
     buckets.select($"id1", $"id2", depth($"taxon").as("depth")).
       sort(desc("depth")).as[(BucketId, BucketId, Int)]
+  }
+
+  def taxonDepths(buckets: Dataset[(BucketId, BucketId, Taxon)]): Dataset[(Taxon, Int)] = {
+    val bcTax = this.bcTaxonomy
+    val depth = udf((x: Taxon) => bcTax.value.depth(x))
+    buckets.select($"taxon").distinct.select($"taxon", depth($"taxon").as("depth")).
+      sort(desc("depth")).as[(Taxon, Int)]
   }
 }
 

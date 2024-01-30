@@ -144,9 +144,18 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
   /** K-mers or minimizers in this index (keys) sorted by taxon depth from deep to shallow */
   def kmersDepths(buckets: Dataset[Record]): Dataset[(BucketId, BucketId, Int)]
 
-  def depthHistogram(): Dataset[(Int, Long)] = {
+  /** Taxons in this index (values) together with their depths */
+  def taxonDepths(buckets: Dataset[Record]): Dataset[(Taxon, Int)]
+
+  def kmerDepthHistogram(): Dataset[(Int, Long)] = {
     val indexBuckets = loadBuckets()
     kmersDepths(indexBuckets).select("depth").groupBy("depth").count().
+      sort("depth").as[(Int, Long)]
+  }
+
+  def taxonDepthHistogram(): Dataset[(Int, Long)] = {
+    val indexBuckets = loadBuckets()
+    taxonDepths(indexBuckets).select("depth").groupBy("depth").count().
       sort("depth").as[(Int, Long)]
   }
 
@@ -155,7 +164,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
    * @param output Directory to write to (prefix name)
    */
   def writeDepthHistogram(output: String): Unit =
-    depthHistogram().
+    kmerDepthHistogram().
       write.mode(SaveMode.Overwrite).option("sep", "\t").csv(s"${output}_taxonDepths")
 
   def writeKmerDepthOrdering(buckets: Dataset[Record], location: String): Unit = {
