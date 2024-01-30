@@ -15,17 +15,17 @@ object Taxonomy {
   val ROOT: Taxon = 1
 
   /** Levels in the taxonomic hierarchy, from general (higher) to specific (lower) */
-  sealed abstract class Rank(val title: String, val code: String) extends Serializable
-  case object Unclassified extends Rank("unclassified", "U")
-  case object Root extends Rank("root", "R")
-  case object Superkingdom extends Rank("superkingdom", "D")
-  case object Kingdom extends Rank("kingdom", "K")
-  case object Phylum extends Rank("phylum", "P")
-  case object Class extends Rank("class", "C")
-  case object Order extends Rank("order", "O")
-  case object Family extends Rank("family", "F")
-  case object Genus extends Rank("genus", "G")
-  case object Species extends Rank("species", "S")
+  sealed abstract class Rank(val title: String, val code: String, val depth: Int) extends Serializable
+  case object Unclassified extends Rank("unclassified", "U", -1)
+  case object Root extends Rank("root", "R", 0)
+  case object Superkingdom extends Rank("superkingdom", "D", 1)
+  case object Kingdom extends Rank("kingdom", "K", 2)
+  case object Phylum extends Rank("phylum", "P", 3)
+  case object Class extends Rank("class", "C", 4)
+  case object Order extends Rank("order", "O", 5)
+  case object Family extends Rank("family", "F", 6)
+  case object Genus extends Rank("genus", "G", 7)
+  case object Species extends Rank("species", "S", 8)
 
   /** All Rank values except Unclassified. */
   val ranks = List(Root, Superkingdom, Kingdom, Phylum, Class, Order, Family, Genus, Species)
@@ -100,17 +100,15 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
   }
 
   /**
-   * Depth of a taxon (distance from the root of the tree)
-   * @param tax taxon to look up
-   * @param acc accumulator
-   * @return number of levels from the root
+   * Numerical depth of a taxon. Standardised to correspond to ranks, so that 0 = root,
+   * 1 = superkingdom etc. This need not correspond to the actual depth of the tree structure.
    */
   @tailrec
-  def depth(tax: Taxon, acc: Int = 0): Int = {
-    if (tax == NONE) {
-      acc
-    } else {
-      depth(parents(tax),  acc + 1)
+  def depth(tax: Taxon): Int = {
+    if (tax == NONE) -1
+    else Option(taxonRanks(tax)) match {
+      case Some(r) => r.depth
+      case None => depth(parents(tax))
     }
   }
 
@@ -246,12 +244,11 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
     val r = mutable.BitSet.empty
     for { a <- taxa} {
       var p = a
-      while (p != ROOT && p != NONE) {
+      while (p != NONE) {
         r += p
         p = parents(p)
       }
     }
-    r += ROOT
     r.size
   }
 }
