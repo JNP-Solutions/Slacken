@@ -234,6 +234,13 @@ object TaxonomicIndex {
     Taxonomy.fromNodesAndNames(nodes.toArray, names)
   }
 
+  //Copy a taxonomy to a new location (the files needed for classification and index access only.)
+  //Possible optimisation: Remove data not actually used in the index.
+  def copyTaxonomy(fromDir: String, toDir: String)(implicit spark: SparkSession): Unit = {
+    HDFSUtil.copyFile(s"$fromDir/nodes.dmp", s"$toDir/nodes.dmp")
+    HDFSUtil.copyFile(s"$fromDir/names.dmp", s"$toDir/names.dmp")
+  }
+
   /** A classified read.
    * @param classified Could the read be classified?
    * @param title Sequence title/ID

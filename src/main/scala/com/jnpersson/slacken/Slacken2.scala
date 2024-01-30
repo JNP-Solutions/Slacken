@@ -4,16 +4,18 @@
 
 package com.jnpersson.slacken
 
-import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK,MinSplitter, RandomXOR, SpacedSeed}
-import com.jnpersson.discount.spark.{ Commands, Configuration, HDFSUtil, IndexParams,  RunCmd, SparkTool}
-import org.apache.spark.sql.{SparkSession}
+import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, MinSplitter, RandomXOR, SpacedSeed}
+import com.jnpersson.discount.spark.{Commands, Configuration, HDFSUtil, IndexParams, RunCmd, SparkTool}
+import org.apache.spark.sql.SparkSession
 import org.rogach.scallop.Subcommand
+
+import java.io.FileNotFoundException
 
 class Slacken2Conf(args: Array[String]) extends Configuration(args) {
   version(s"Slacken 2 ${getClass.getPackage.getImplementationVersion} beta (c) 2019-2023 Johan Nyström-Persson")
   banner("Usage:")
 
-  val minHitGroups = opt[Int](name = "minHits", descr = "Minimum hit groups (default 2)", default = Some(2))
+  val taxonomy = opt[String](descr = "Path to taxonomy directory (nodes.dmp and names.dmp)")
 
   override def defaultMinimizerSpaces: Int = 7
   override def defaultOrdering: String = "xor"
@@ -24,13 +26,24 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
   override def canonicalMinimizers: Boolean = true
   override def frequencyBySequence: Boolean = true
 
+  /** Get the Taxonomy from the default location or from the user-overridden location */
+  def getTaxonomy(indexLocation: String)(implicit spark: SparkSession) = taxonomy.toOption match {
+    case Some(l) => TaxonomicIndex.getTaxonomy(l)
+    case _ =>
+      try {
+        TaxonomicIndex.getTaxonomy(s"${indexLocation}_taxonomy")
+      } catch {
+        case fnf: FileNotFoundException =>
+          Console.err.println(s"Taxonomy not found: ${fnf.getMessage}. Please specify the taxonomy location with --taxonomy.")
+          throw fnf
+      }
+  }
 
   val taxonIndex = new Subcommand("taxonIndex") {
-    val location = opt[String](required = true, descr = "Path to location where index is stored")
-    val taxonomy = opt[String](descr = "Path to taxonomy directory (nodes.dmp and names.dmp)", required = true)
+    val location = trailArg[String](required = true, descr = "Path to location where index is stored")
 
     def index(implicit spark: SparkSession) =
-      KeyValueIndex.load(location(), taxonomy())
+      KeyValueIndex.load(location(), getTaxonomy(location()))
 
     val build = new RunCmd("build") {
       val inFiles = trailArg[List[String]](required = true, descr = "Input sequence files")
@@ -47,10 +60,11 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
         println(s"Splitter ${params.splitter}")
 
         val method = if (all()) LCARequireAll else LCAAtLeastTwo
-        val index = new KeyValueIndex(params, TaxonomicIndex.getTaxonomy(taxonomy()))
+        val index = new KeyValueIndex(params, getTaxonomy(location()))
 
         val bkts = index.makeBuckets(d, inFiles(), labels(), addRC = false, method)
         index.writeBuckets(bkts, params.location)
+        TaxonomicIndex.copyTaxonomy(taxonomy(), location() + "_taxonomy")
       }
     }
     addSubcommand(build)
@@ -78,6 +92,7 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
     addSubcommand(union)
 
     val classify = new RunCmd("classify") {
+      val minHitGroups = opt[Int](name = "minHits", descr = "Minimum hit groups (default 2)", default = Some(2))
       val inFiles = trailArg[List[String]](required = true, descr = "Input sequence files")
       val paired = opt[Boolean](descr = "Inputs are paired-end reads", default = Some(false))
       val unclassified = toggle(descrYes = "Output unclassified reads", default = Some(true))
@@ -130,8 +145,6 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
   addSubcommand(taxonIndex)
 
   val compare = new RunCmd("compare") {
-    val taxonomy = opt[String](descr = "Path to taxonomy directory (nodes.dmp and names.dmp)", short = 't',
-      required = true)
     val reference = opt[String](descr = "Reference mapping to compare (TSV format)", required = true)
     val idCol = opt[Int](descr = "Read ID column in reference", default = Some(2))
     val taxonCol = opt[Int](descr = "Taxon column in reference", short = 'T', default = Some(3))

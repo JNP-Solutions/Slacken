@@ -26,9 +26,6 @@ object SupermerIndex {
     new SupermerIndex(params, taxonomy)
   }
 
-  def load(location: String, taxonomyLocation: String)(implicit spark: SparkSession): SupermerIndex =
-    load(location, TaxonomicIndex.getTaxonomy(taxonomyLocation))
-
   /** Build an empty SupermerIndex.
    * @param inFiles Input files used for minimizer ordering construction only
    */
