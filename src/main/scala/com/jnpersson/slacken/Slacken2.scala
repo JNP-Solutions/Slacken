@@ -167,6 +167,22 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
   }
   addSubcommand(compare)
 
+  val inputCheck = new RunCmd("inputCheck") {
+    val labels = opt[String](required = true, descr = "Path to sequence taxonomic label file")
+
+    def run(implicit spark: SparkSession): Unit = {
+      import spark.implicits._
+
+      val t = getTaxonomy(taxonomy())
+      val leafNodes = TaxonomicIndex.getTaxonLabels(labels()).select("_2").distinct().as[Taxon].collect()
+      println(s"${leafNodes.size} distinct taxa in input sequences")
+      val max = t.countDistinctTaxaWithParents(leafNodes)
+      println(s"$max max theoretical taxa in index")
+    }
+
+  }
+  addSubcommand(inputCheck)
+
   verify()
 }
 
