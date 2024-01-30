@@ -9,11 +9,10 @@ import com.jnpersson.discount.hash.{BucketId, InputFragment}
 import com.jnpersson.discount.spark.Index.randomTableName
 import com.jnpersson.discount.spark.{Discount, IndexParams}
 import com.jnpersson.slacken.TaxonomicIndex.ClassifiedRead
-import com.jnpersson.slacken.Taxonomy.Species
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.expressions.Aggregator
 import org.apache.spark.sql.{Dataset, Encoder, Encoders, SaveMode, SparkSession, functions}
-import org.apache.spark.sql.functions.{broadcast, collect_list, collect_set, desc, struct, udaf, udf}
+import org.apache.spark.sql.functions.{collect_list, collect_set, desc, struct, udaf, udf}
 
 
 /** Metagenomic index compatible with the Kraken 2 algorithm.

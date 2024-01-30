@@ -4,12 +4,9 @@
 
 package com.jnpersson.slacken
 
-import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, Extended, MinSplitter, RandomXOR, SpacedSeed}
-import com.jnpersson.discount.spark.{All, AnyMinSplitter, Commands, Configuration, Discount, Generated, HDFSUtil, IndexParams, MinimizerSource, RunCmd, SparkTool}
-import com.jnpersson.discount.{Frequency, Given, Lexicographic}
-import com.jnpersson.slacken.TaxonomicIndex.getTaxonLabels
-import com.jnpersson.slacken.Taxonomy.Genus
-import org.apache.spark.sql.{SaveMode, SparkSession}
+import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK,MinSplitter, RandomXOR, SpacedSeed}
+import com.jnpersson.discount.spark.{ Commands, Configuration, HDFSUtil, IndexParams,  RunCmd, SparkTool}
+import org.apache.spark.sql.{SparkSession}
 import org.rogach.scallop.Subcommand
 
 class Slacken2Conf(args: Array[String]) extends Configuration(args) {
