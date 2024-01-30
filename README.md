@@ -69,19 +69,18 @@ This is a small selection of bacterial genomes.
 ### Building the index
 
 ```
-./submit-slacken2.sh  -p 2000 -k 35 -m 31  taxonIndex -l mySlackenLib \
-  -t k2/taxonomy  build -l k2/seqid2taxid.map  k2/library/bacteria/library.fna
+./submit-slacken2.sh  -p 2000 -k 35 -m 31 -t k2/taxonomy  taxonIndex mySlackenLib \
+  build -l k2/seqid2taxid.map  k2/library/bacteria/library.fna
 ```
 
 Where: 
 * `-p 2000` is the number of partitions (should be larger for larger libraries)
 * `-k 35` is the k-mer (window) size
 * `-m 31` is the minimizer size
-* `-l mySlackenLib` is the location where the built library will be stored (a directory will be created or overwritten)
+* `mySlackenLib` is the location where the built library will be stored (a directory will be created or overwritten)
 * `-t` is the directory where the taxonomy is stored (names.dmp and nodes.dmp, see above)
 * `-l` is the label file mapping sequence IDs to taxa (obtained by the download step above)
 * `...library.fna` is the file to be indexed (any number of files may be supplied, separated by space)
-
 
 While the build process is running, the Spark UI may be inspected at [http://localhost:4040](http://localhost:4040) if the process is running 
 locally.
@@ -91,21 +90,20 @@ More help: `./submit-slacken2.sh --help`
 
 
 ```
-./submit-slacken2.sh taxonIndex -l mySlackenLib -t k2/taxonomy classify testData/SRR094926_10k.fasta \
+./submit-slacken2.sh taxonIndex mySlackenLib classify testData/SRR094926_10k.fasta \
   -o test_class
 ```
 
 Where
 
-* `-l mySlackenLib` is the location where the library was built in the previous step
-* `-t k2/taxonomy` is the directory where the taxonomy is stored
+* `mySlackenLib` is the location where the library was built in the previous step
 * `SRR094926_10k.fasta` is the file with reads to be classified. Any number of files may be supplied.
 * `-o test_class` is the directory where the output will be stored. A file `test_class_kreport.txt` will also be created.
 
 To classify mate pairs, the `-p` flag may be used. Input files are then expected to be in alternating order:
 
 ```
-./submit-slacken2.sh taxonIndex -l mySlackenLib -t k2/taxonomy classify -p sample01.1.fq sample01.2.fq \
+./submit-slacken2.sh taxonIndex mySlackenLib classify -p sample01.1.fq sample01.2.fq \
   sample02.1.fq sample02.2.fq -o test_class
 ```
 

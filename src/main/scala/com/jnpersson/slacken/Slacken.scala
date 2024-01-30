@@ -9,16 +9,32 @@ import com.jnpersson.discount.spark.{Commands, Configuration, RunCmd, SparkTool}
 import org.apache.spark.sql.SparkSession
 import org.rogach.scallop.Subcommand
 
+import java.io.FileNotFoundException
+
 class SlackenConf(args: Array[String]) extends Configuration(args) {
   version(s"Slacken ${getClass.getPackage.getImplementationVersion} beta (c) 2019-2023 Johan Nyström-Persson")
   banner("Usage:")
 
+  val taxonomy = opt[String](descr = "Path to taxonomy directory (nodes.dmp and names.dmp)")
+
+  /** Get the Taxonomy from the default location or from the user-overridden location */
+  def getTaxonomy(indexLocation: String)(implicit spark: SparkSession) = taxonomy.toOption match {
+    case Some(l) => TaxonomicIndex.getTaxonomy(l)
+    case _ =>
+      try {
+        TaxonomicIndex.getTaxonomy(s"${indexLocation}_taxonomy")
+      } catch {
+        case fnf: FileNotFoundException =>
+          Console.err.println(s"Taxonomy not found: ${fnf.getMessage}. Please specify the taxonomy location with --taxonomy.")
+          throw fnf
+      }
+  }
+
   val taxonIndex = new Subcommand("taxonIndex") {
-    val location = opt[String](required = true, descr = "Path to location where index is stored")
-    val taxonomy = opt[String](descr = "Path to taxonomy directory (nodes.dmp and names.dmp)", required = true)
+    val location = trailArg[String](required = true, descr = "Path to location where index is stored")
 
     def index(implicit spark: SparkSession): SupermerIndex =
-      SupermerIndex.load(location(), taxonomy())
+      SupermerIndex.load(location(), getTaxonomy(location()))
 
     def histogram = new RunCmd("histogram") {
       val output = opt[String](descr = "Output location", required = true)
@@ -38,6 +54,7 @@ class SlackenConf(args: Array[String]) extends Configuration(args) {
         val i = SupermerIndex.empty(dc, taxonomy(), inFiles())
         val bkts = i.makeBuckets(dc, inFiles(), labels(), true)
         i.writeBuckets(bkts, location())
+        TaxonomicIndex.copyTaxonomy(taxonomy(), location() + "_taxonomy")
       }
     }
     addSubcommand(build)
