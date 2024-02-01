@@ -6,6 +6,7 @@ package com.jnpersson.slacken
 
 import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, MinSplitter, RandomXOR, SpacedSeed}
 import com.jnpersson.discount.spark.{Commands, Configuration, HDFSUtil, IndexParams, RunCmd, SparkTool}
+import com.jnpersson.slacken.analysis.{MappingComparison, Metrics}
 import org.apache.spark.sql.SparkSession
 import org.rogach.scallop.Subcommand
 

@@ -3,10 +3,11 @@
  */
 
 
-package com.jnpersson.slacken
+package com.jnpersson.slacken.analysis
 
 import com.jnpersson.discount.SeqTitle
 import com.jnpersson.slacken.Taxonomy.{Genus, Rank, Species}
+import com.jnpersson.slacken.{Taxon, Taxonomy}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.functions.udf
 import org.apache.spark.sql.{Dataset, SparkSession, functions}
@@ -14,12 +15,13 @@ import org.apache.spark.sql.{Dataset, SparkSession, functions}
 import scala.collection.mutable
 
 
-case class PerTaxonMetrics(refCount: Long, classifiedCount: Long, l1: Double, precision: Double, recall: Double) {
-  def toTSVString: String = s"$refCount\t$classifiedCount\t$l1\t$precision\t$recall"
+case class PerTaxonMetrics(refCount: Long, classifiedCount: Long, l1: Double, precision: Double, recall: Double,
+                           unifrac: Double) {
+  def toTSVString: String = s"$refCount\t$classifiedCount\t$l1\t$precision\t$recall\t$unifrac"
 }
 
 object PerTaxonMetrics {
-  def header = s"taxon_classified\ttaxon_total\ttaxon_l1\ttaxon_precision\ttaxon_recall"
+  def header = s"taxon_classified\ttaxon_total\ttaxon_l1\ttaxon_precision\ttaxon_recall\ttaxon_unifrac"
 }
 
 case class PerReadMetrics(classifiedCount: Long, totalCount: Long, truePos: Long, falsePos: Long, vaguePos: Long,
@@ -112,14 +114,15 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     val precision = truePos.toDouble / cmpTaxa.size
     val recall = truePos.toDouble / refTaxa.size
     val l1 = l1Dist(cmpVector, refVector)
+    val unifrac = new UniFrac(tax.value, cmpTaxa, refTaxa).distance
 
     println(s"*** Per taxon comparison (minimum $minCountTaxon) at level $rank")
     println(s"Total ref taxa ${refTaxa.size}, total classified taxa ${cmpTaxa.size}")
-    println(s"TP $truePos, FP $falsePos, FN $falseNeg, L1 dist. ${"%.3g".format(l1)}")
+    println(s"TP $truePos, FP $falsePos, FN $falseNeg, L1 dist. ${"%.3g".format(l1)} unifrac dist. ${"%.3g".format(unifrac)}")
     println(s"Precision ${formatPerc(precision)} recall ${formatPerc(recall)}")
     println("")
 
-    PerTaxonMetrics(cmpTaxa.size, refTaxa.size, l1, precision, recall)
+    PerTaxonMetrics(cmpTaxa.size, refTaxa.size, l1, precision, recall, unifrac)
   }
 
   def abundanceVector(countedTaxons: Array[(Taxon, Long)]): Array[Double] = {
