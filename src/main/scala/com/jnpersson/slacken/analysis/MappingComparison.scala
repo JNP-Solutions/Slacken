@@ -10,7 +10,7 @@ import com.jnpersson.slacken.Taxonomy.{Genus, Rank, Species}
 import com.jnpersson.slacken.{Taxon, Taxonomy}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.functions.udf
-import org.apache.spark.sql.{Dataset, SparkSession, functions}
+import org.apache.spark.sql.{DataFrame, Dataset, SparkSession, functions}
 
 import scala.collection.mutable
 
@@ -39,11 +39,13 @@ case class Metrics(title: String, rank: Rank, perTaxon: PerTaxonMetrics, perRead
   val pattern = """M1_S(\d+)_(s2_2023|nt|s2_2023_all)_(\d+)_(\d+)(f|ff|)(_\d+)?(_s\d+)?(_c[\d.]+)?_classified""".r
 
   def toTSVString = title match {
-    case pattern(sample, library, k, m, frequency, freqLenRaw, sRaw, cRaw) =>
+    case pattern(sample, library, k, m, freqRaw, freqLenRaw, sRaw, cRaw) =>
+
       //Note: freqLen is meaningless if the ordering is not frequency
       val freqLen = Option(freqLenRaw).map(_.drop(1)).getOrElse("10")
       val c = Option(cRaw).map(_.drop(2)).getOrElse("0.0")
       val s = Option(sRaw).map(_.drop(2)).getOrElse("7")
+      val frequency = if (freqRaw == "") "none" else freqRaw
       s"$title\t$sample\t$library\t$k\t$m\t$frequency\t$freqLen\t$s\t$c\t$rank\t${perTaxon.toTSVString}\t${perRead.toTSVString}"
     case _ =>
       println(s"Couldn't extract variables from filename: $title")
@@ -75,17 +77,21 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
 
   def allMetrics(dataFile: String, rank: Rank): Metrics = {
     val title = dataFile.split("/").last
-    Metrics(title, rank,
-      perTaxonComparison(dataFile, rank),
-      perReadComparison(dataFile, rank)
-    )
+    val cmpData = readKrakenFormat(dataFile).toDF("id", "testTaxon").cache()
+    try {
+      Metrics(title, rank,
+        perTaxonComparison(cmpData, rank),
+        perReadComparison(cmpData, rank)
+      )
+    } finally {
+      cmpData.unpersist()
+    }
   }
 
-  def perTaxonComparison(dataFile: String, rank: Rank): PerTaxonMetrics = {
+  def perTaxonComparison(cmpDataRaw: DataFrame, rank: Rank): PerTaxonMetrics = {
     val tax = this.tax
     val ancestorAtLevel = udf((x: Taxon) => tax.value.ancestorAtLevel(x, rank))
-    val cmpData = readKrakenFormat(dataFile).toDF("id", "testTaxon").
-      withColumn("taxon", ancestorAtLevel($"testTaxon"))
+    val cmpData = cmpDataRaw.withColumn("taxon", ancestorAtLevel($"testTaxon"))
 
     val refClass = referenceData.
       withColumn("taxon", ancestorAtLevel($"refTaxon"))
@@ -143,8 +149,7 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     r
   }
 
-  def perReadComparison(dataFile: String, rank: Rank): PerReadMetrics = {
-    val cmpData = readKrakenFormat(dataFile).toDF("id", "testTaxon")
+  def perReadComparison(cmpData: DataFrame, rank: Rank): PerReadMetrics = {
     val joint = referenceData.join(cmpData, referenceData("id") === cmpData("id"), "outer").
       select("refTaxon", "testTaxon").as[(Option[Taxon], Option[Taxon])]
 
