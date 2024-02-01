@@ -52,6 +52,7 @@ object Taxonomy {
    */
   def fromNodesAndNames(nodes: Array[(Taxon, Taxon, String)], names: Iterator[(Taxon, String)]): Taxonomy = {
     val numEntries = nodes.iterator.map(_._1).max + 1
+    println(s"Taxonomy size: $numEntries")
     val scientificNames = new Array[String](numEntries)
     for { (taxon, name) <- names } {
       scientificNames(taxon) = name
@@ -82,8 +83,14 @@ object Taxonomy {
 final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scientificNames: Array[String]) {
   import Taxonomy._
 
-  def getRank(taxon: Taxon): Option[Rank] = Option(taxonRanks(taxon))
-  def getName(taxon: Taxon): Option[String] = Option(scientificNames(taxon))
+  def getRank(taxon: Taxon): Option[Rank] =
+    Option(taxonRanks(taxon))
+
+  def getName(taxon: Taxon): Option[String] =
+    Option(scientificNames(taxon))
+
+  def contains(taxon: Taxon): Boolean =
+    parents(taxon) != NONE || taxon == ROOT
 
   /** Lookup array mapping taxon ID to taxon IDs of children */
   lazy val children: Array[List[Taxon]] = {
@@ -257,5 +264,11 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
       }
     }
     r.size
+  }
+  def debugTracePath(x: Taxon): Unit = {
+    println(s"$x\t${taxonRanks(x)}\t${scientificNames(x)}")
+    if (x != ROOT && x != NONE) {
+      debugTracePath(parents(x))
+    }
   }
 }
