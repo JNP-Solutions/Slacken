@@ -142,6 +142,13 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
   def ancestorAtLevel(query: Taxon, rank: Rank): Taxon =
     ancestorAtLevel(query, query, rank)
 
+  /** Convenience function that optionally returns the query itself if no ancestor level is specified */
+  def ancestorAtLevel(query: Taxon, rank: Option[Rank]): Taxon =
+    rank match {
+      case Some(r) => ancestorAtLevel(query, r)
+      case None => query
+    }
+
   @tailrec
   private def ancestorAtLevel(query: Taxon, at: Taxon, level: Rank): Taxon = {
     if (taxonRanks(at) == level) {

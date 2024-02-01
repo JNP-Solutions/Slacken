@@ -1,6 +1,6 @@
 package com.jnpersson.slacken.analysis
 
-import com.jnpersson.slacken.Taxonomy.ROOT
+import com.jnpersson.slacken.Taxonomy.{NONE, ROOT}
 import com.jnpersson.slacken.{Taxon, Taxonomy}
 
 import scala.collection.mutable.BitSet
@@ -19,7 +19,7 @@ class UniFrac(tax: Taxonomy, sample1: BitSet, sample2: BitSet) {
     val r = BitSet.empty
     for { t <- sample } {
       var n = t
-      while (n != ROOT) {
+      while (n != ROOT && !r.contains(n)) {
         r += n
         n = tax.parents(n)
       }
@@ -31,8 +31,8 @@ class UniFrac(tax: Taxonomy, sample1: BitSet, sample2: BitSet) {
     //each distinct node contributes 1 to the unique path length of each sample
     val totalUniquePathLength = distinct1.size + distinct2.size
 
-    //each node contributes 1 to the total path length. Subtract 1 to account for ROOT.
-    val totalPathLength = bothTree.size - 1
+    //each node contributes 1 to the total path length.
+    val totalPathLength = bothTree.size
 
     totalUniquePathLength.toDouble/totalPathLength
   }

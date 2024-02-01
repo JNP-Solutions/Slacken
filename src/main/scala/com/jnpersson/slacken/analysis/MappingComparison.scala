@@ -34,7 +34,7 @@ object PerReadMetrics {
 }
 
 /** A single result line */
-case class Metrics(title: String, rank: Rank, perTaxon: PerTaxonMetrics, perRead: PerReadMetrics) {
+case class Metrics(title: String, rank: Option[Rank], perTaxon: PerTaxonMetrics, perRead: PerReadMetrics) {
   //Extract some variables from expected filename patterns
   val pattern = """M1_S(\d+)_(s2_2023|nt|s2_2023_all)_(\d+)_(\d+)(f|ff|)(_\d+)?(_s\d+)?(_c[\d.]+)?_classified""".r
 
@@ -46,7 +46,8 @@ case class Metrics(title: String, rank: Rank, perTaxon: PerTaxonMetrics, perRead
       val c = Option(cRaw).map(_.drop(2)).getOrElse("0.0")
       val s = Option(sRaw).map(_.drop(2)).getOrElse("7")
       val frequency = if (freqRaw == "") "none" else freqRaw
-      s"$title\t$sample\t$library\t$k\t$m\t$frequency\t$freqLen\t$s\t$c\t$rank\t${perTaxon.toTSVString}\t${perRead.toTSVString}"
+      val rankStr = rank.map(_.toString).getOrElse("All")
+      s"$title\t$sample\t$library\t$k\t$m\t$frequency\t$freqLen\t$s\t$c\t$rankStr\t${perTaxon.toTSVString}\t${perRead.toTSVString}"
     case _ =>
       println(s"Couldn't extract variables from filename: $title")
       ???
@@ -70,12 +71,13 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
   def allMetrics(dataFile: String): Iterator[Metrics] = {
     println(s"--------$dataFile--------")
     Iterator(
-      allMetrics(dataFile, Genus),
-      allMetrics(dataFile, Species)
+      allMetrics(dataFile, Some(Genus)),
+      allMetrics(dataFile, Some(Species)),
+      allMetrics(dataFile, None)
     )
   }
 
-  def allMetrics(dataFile: String, rank: Rank): Metrics = {
+  def allMetrics(dataFile: String, rank: Option[Rank]): Metrics = {
     val title = dataFile.split("/").last
     val cmpData = readKrakenFormat(dataFile).toDF("id", "testTaxon").cache()
     try {
@@ -88,7 +90,7 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     }
   }
 
-  def perTaxonComparison(cmpDataRaw: DataFrame, rank: Rank): PerTaxonMetrics = {
+  def perTaxonComparison(cmpDataRaw: DataFrame, rank: Option[Rank]): PerTaxonMetrics = {
     val tax = this.tax
     val ancestorAtLevel = udf((x: Taxon) => tax.value.ancestorAtLevel(x, rank))
     val cmpData = cmpDataRaw.withColumn("taxon", ancestorAtLevel($"testTaxon"))
@@ -149,7 +151,7 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     r
   }
 
-  def perReadComparison(cmpData: DataFrame, rank: Rank): PerReadMetrics = {
+  def perReadComparison(cmpData: DataFrame, rank: Option[Rank]): PerReadMetrics = {
     val joint = referenceData.join(cmpData, referenceData("id") === cmpData("id"), "outer").
       select("refTaxon", "testTaxon").as[(Option[Taxon], Option[Taxon])]
 
@@ -163,7 +165,7 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
   }
 
   /** Per read comparison at a specific taxonomic level */
-  def perReadComparison(refCmp: Dataset[(Option[Taxon], Option[Taxon])], rank: Rank, classified: Long,
+  def perReadComparison(refCmp: Dataset[(Option[Taxon], Option[Taxon])], rank: Option[Rank], classified: Long,
                         totalReads: Long): PerReadMetrics = {
     println(s"*** Per-read comparison at level $rank")
     val bctax = this.tax
@@ -221,7 +223,7 @@ object MappingComparison {
   /** Wrongly classified */
   case object FalsePos extends HitCategory
 
-  def hitCategory(tax: Taxonomy, refTaxon: Option[Taxon], testTaxon: Option[Taxon], level: Rank): HitCategory = {
+  def hitCategory(tax: Taxonomy, refTaxon: Option[Taxon], testTaxon: Option[Taxon], level: Option[Rank]): HitCategory = {
     (refTaxon, testTaxon) match {
       case (Some(ref), Some(test)) =>
         val levelAncestor = tax.ancestorAtLevel(ref, level)
