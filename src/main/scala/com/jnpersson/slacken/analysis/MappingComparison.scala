@@ -9,8 +9,8 @@ import com.jnpersson.discount.SeqTitle
 import com.jnpersson.slacken.Taxonomy.{Genus, Rank, Species}
 import com.jnpersson.slacken.{Taxon, Taxonomy}
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.sql.functions.udf
-import org.apache.spark.sql.{DataFrame, Dataset, SparkSession, functions}
+import org.apache.spark.sql.functions.{count, udf}
+import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession, functions}
 
 import scala.collection.mutable
 
@@ -64,9 +64,25 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
   import MappingComparison._
   import spark.sqlContext.implicits._
 
-  val referenceData = readCustomFormat(reference, refIdCol, refTaxonCol).
-    toDF("id", "refTaxon").
-    cache()
+  val unfilteredRefData = readCustomFormat(reference, refIdCol, refTaxonCol).
+    toDF("id", "refTaxon").cache()
+
+  def readReferenceData: DataFrame = {
+    val tax = this.tax
+
+    for {
+      taxon <- unfilteredRefData.select("refTaxon").distinct().as[Taxon].collect()
+      if ! tax.value.contains(taxon)
+    } {
+      println(s"Reference contains unknown taxon, not known to taxonomy: $taxon. It will be filtered out.")
+    }
+
+    val contains = udf((x: Taxon) => tax.value.contains(x))
+    unfilteredRefData.filter(contains($"refTaxon")).cache
+  }
+
+  val referenceData = readReferenceData
+  println(s"Filtered reference size: ${referenceData.count}, unfiltered size: ${unfilteredRefData.count}")
 
   def allMetrics(dataFile: String): Iterator[Metrics] = {
     println(s"--------$dataFile--------")
@@ -79,7 +95,13 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
 
   def allMetrics(dataFile: String, rank: Option[Rank]): Metrics = {
     val title = dataFile.split("/").last
-    val cmpData = readKrakenFormat(dataFile).toDF("id", "testTaxon").cache()
+
+    //Inner join: filter out reads not present in the reference
+    //(may have been removed due to unknown taxon).
+
+    val cmpData = readKrakenFormat(dataFile).toDF("id", "testTaxon").
+      join(referenceData, List("id")).select("id", "testTaxon").
+      cache()
     try {
       Metrics(title, rank,
         perTaxonComparison(cmpData, rank),
