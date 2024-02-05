@@ -152,9 +152,9 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     //Split input sequences by minimizer, preserving sequence ID and ordinal of the super-mer
     val taggedSegments = subjects.flatMap(s => {
       val splitter = bcSplit.value
-      HashSegments.splitFragment(s, splitter).map(x => {
+      Supermers.splitFragment(s, splitter).map(x => {
         //Drop the sequence data
-        OrdinalSegment(x.segment.id1, x.segment.id2,
+        OrdinalSpan(x.segment.id1, x.segment.id2,
           x.segment.segment.size - (k - 1), x.flag, x.ordinal, x.seqTitle)
       })
     }).
@@ -223,7 +223,7 @@ object KeyValueIndex {
    * @param taxon The minimizer's LCA taxon
    * @param segment The super-mer from the original sequence
    * */
-  def setTaxon(taxon: Option[Taxon], segment: OrdinalSegment): TaxonHit = {
+  def setTaxon(taxon: Option[Taxon], segment: OrdinalSpan): TaxonHit = {
     val reportTaxon =
       if (segment.flag == AMBIGUOUS_FLAG) AMBIGUOUS_SPAN
       else if (segment.flag == MATE_PAIR_BORDER_FLAG) MATE_PAIR_BORDER

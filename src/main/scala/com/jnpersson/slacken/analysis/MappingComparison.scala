@@ -155,10 +155,10 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     PerTaxonMetrics(cmpTaxa.size, refTaxa.size, l1, precision, recall, unifrac)
   }
 
-  def abundanceVector(countedTaxons: Array[(Taxon, Long)]): Array[Double] = {
+  def abundanceVector(countedTaxa: Array[(Taxon, Long)]): Array[Double] = {
     val r = new Array[Double](tax.value.parents.length)
-    val totalWeight = countedTaxons.map(_._2).sum
-    for { (taxon, c) <- countedTaxons } {
+    val totalWeight = countedTaxa.map(_._2).sum
+    for { (taxon, c) <- countedTaxa} {
       r(taxon) = c.toDouble / totalWeight
     }
     r
