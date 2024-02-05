@@ -29,20 +29,20 @@ package object slacken {
    * A super-mer with sequence data with an ordinal from a named sequence
    * @param segment the super-mer
    * @param flag ambiguous flag
-   * @param ordinal the relative position of this segment in the original sequence
+   * @param ordinal the relative position of this super-mer in the original sequence
    * @param seqTitle title of the original sequence
    */
-  final case class OrdinalSegmentWithSequence(segment: HashSegment, flag: SegmentFlag, ordinal: Int, seqTitle: SeqTitle)
+  final case class OrdinalSupermer(segment: Supermer, flag: SegmentFlag, ordinal: Int, seqTitle: SeqTitle)
 
   /**
-   * A super-mer with a specific minimizer, potentially ambiguous, without sequence data
+   * A super-mer with a specific minimizer, which is potentially ambiguous, but without sequence data (so just a span)
    * @param id1 first part of the minimizer
    * @param id2 second part of the minimizer
-   * @param kmers number of k-mers in this segment
+   * @param kmers number of k-mers in this span
    * @param flag ambiguous flag
-   * @param ordinal the relative position of this segment in the original sequence
+   * @param ordinal the relative position of this span in the original sequence
    * @param seqTitle title of the original sequence
    * */
-  final case class OrdinalSegment(id1: Long, id2: Long, kmers: Int, flag: SegmentFlag, ordinal: Int,
-                                  seqTitle: SeqTitle)
+  final case class OrdinalSpan(id1: Long, id2: Long, kmers: Int, flag: SegmentFlag, ordinal: Int,
+                               seqTitle: SeqTitle)
 }

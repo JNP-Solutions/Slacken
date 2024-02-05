@@ -45,7 +45,7 @@ object SupermerIndex {
  */
 final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit spark: SparkSession)
   extends TaxonomicIndex[TaxonBucket](params, taxonomy) {
-  import HashSegments._
+  import Supermers._
 
   import spark.sqlContext.implicits._
 
@@ -130,7 +130,7 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     //We do a left join to ensure that there's some result for each part of the input to be classified.
     val subjectWithIndex = taggedSegments.join(buckets, List("id"), "left").
       select("id", "subjects", "supermers", "taxa").
-      as[(BucketId, Array[OrdinalSegmentWithSequence], Array[NTBitArray], Array[Array[Taxon]])]
+      as[(BucketId, Array[OrdinalSupermer], Array[NTBitArray], Array[Array[Taxon]])]
 
     val taxonSummaries = subjectWithIndex.flatMap { data =>
       val tbkt = if (data._3 != null) TaxonBucket(data._1, data._3, data._4)
@@ -208,7 +208,7 @@ final case class TaxonBucket(id: BucketId, supermers: Array[NTBitArray], taxa: A
     TaxonBucketStats(splitter.humanReadable(id), kmerTable(splitter.k).size, allTaxa.distinct.length, avgDepth)
   }
 
-  def classifyKmers(k: Int, subjects: Array[OrdinalSegmentWithSequence]): Iterator[(SeqTitle, TaxonCounts)] = {
+  def classifyKmers(k: Int, subjects: Array[OrdinalSupermer]): Iterator[(SeqTitle, TaxonCounts)] = {
     val (sequence, ambiguousOrGap) = subjects.partition(_.flag == SEQUENCE_FLAG)
 
     val provider = new TagProvider {
