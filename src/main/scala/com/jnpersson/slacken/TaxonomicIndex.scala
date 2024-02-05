@@ -212,6 +212,14 @@ object TaxonomicIndex {
       map(x => (x.getString(0), x.getString(1).toInt))
   }
 
+  /** Show statistics for a taxon label file */
+  def inputStats(labelFile: String, tax: Taxonomy)(implicit spark: SparkSession): Unit = {
+    import spark.sqlContext.implicits._
+    val leafNodes = getTaxonLabels(labelFile).select("_2").distinct().as[Taxon].collect()
+    val max = tax.countDistinctTaxaWithParents(leafNodes)
+    println(s"${leafNodes.size} leaf taxa in input sequences described by $labelFile (maximal implied tree size $max)")
+  }
+
   /**
    * Read a taxonomy from a directory with NCBI nodes.dmp and names.dmp.
    * The files are expected to be small.

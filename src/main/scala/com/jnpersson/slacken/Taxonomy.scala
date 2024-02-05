@@ -83,6 +83,9 @@ object Taxonomy {
 final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scientificNames: Array[String]) {
   import Taxonomy._
 
+  def isLeafNode(taxon: Taxon): Boolean =
+    children(taxon).isEmpty
+
   def getRank(taxon: Taxon): Option[Rank] =
     Option(taxonRanks(taxon))
 
@@ -93,6 +96,7 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
     parents(taxon) != NONE || taxon == ROOT
 
   /** Lookup array mapping taxon ID to taxon IDs of children */
+  @transient
   lazy val children: Array[List[Taxon]] = {
     val children: Array[List[Taxon]] = parents.map(i => Nil)
     for { (parent, taxid) <- parents.zipWithIndex } {

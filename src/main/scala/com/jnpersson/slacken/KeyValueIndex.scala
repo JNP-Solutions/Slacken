@@ -190,8 +190,10 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   def showIndexStats(): Unit = {
     val indexBuckets = loadBuckets()
     println(s"${indexBuckets.count()} $m-minimizers in index")
-    val leafTaxons = indexBuckets.agg(collect_set("taxon")).as[Set[Taxon]].collect()(0)
-    println(s"${taxonomy.countDistinctTaxaWithParents(leafTaxons)} distinct taxa in index")
+    val allTaxa = indexBuckets.agg(collect_set("taxon")).as[Set[Taxon]].collect()(0)
+    val leafTaxa = allTaxa.filter(taxonomy.isLeafNode)
+    val treeSize = taxonomy.countDistinctTaxaWithParents(allTaxa)
+    println(s"Tree size: $treeSize taxa, stored taxa: ${allTaxa.size}, of which ${leafTaxa.size} leaf taxa")
   }
 
   /** An iterator of (k-mer, taxonomic depth) pairs where the root level has depth zero. */

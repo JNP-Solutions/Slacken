@@ -61,11 +61,14 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
         println(s"Splitter ${params.splitter}")
 
         val method = if (all()) LCARequireAll else LCAAtLeastTwo
-        val index = new KeyValueIndex(params, getTaxonomy(location()))
+        val tax = getTaxonomy(location())
+        val index = new KeyValueIndex(params, tax)
 
         val bkts = index.makeBuckets(d, inFiles(), labels(), addRC = false, method)
         index.writeBuckets(bkts, params.location)
         TaxonomicIndex.copyTaxonomy(taxonomy(), location() + "_taxonomy")
+        index.showIndexStats()
+        TaxonomicIndex.inputStats(labels(), tax)
       }
     }
     addSubcommand(build)
@@ -172,13 +175,8 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
     val labels = opt[String](required = true, descr = "Path to sequence taxonomic label file")
 
     def run(implicit spark: SparkSession): Unit = {
-      import spark.implicits._
-
       val t = getTaxonomy(taxonomy())
-      val leafNodes = TaxonomicIndex.getTaxonLabels(labels()).select("_2").distinct().as[Taxon].collect()
-      println(s"${leafNodes.size} distinct taxa in input sequences")
-      val max = t.countDistinctTaxaWithParents(leafNodes)
-      println(s"$max max theoretical taxa in index")
+      TaxonomicIndex.inputStats(labels(), t)
     }
 
   }
