@@ -17,6 +17,7 @@
 
 package com.jnpersson.discount.hash
 import com.jnpersson.discount.NTSeq
+import com.jnpersson.discount.spark.Output
 import com.jnpersson.discount.util.{Arrays, NTBitArray}
 import it.unimi.dsi.fastutil.ints.{IntArrays, IntComparator}
 
@@ -115,7 +116,7 @@ final case class SampledFrequencies(table: MinTable, minimizerCounts: Array[Int]
     val sum = Arrays.sum(minimizerCounts)
     val unseenCount = countUnseen()
 
-    def percent(x: Int) = "%.2f%%".format(x.toDouble/sum * 100)
+    def percent(x: Int) = Output.formatPerc(x.toDouble/sum)
 
     def ntString(p: Int) = NTBitArray.fromLong(p, width).toString
 

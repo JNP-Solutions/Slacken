@@ -11,7 +11,7 @@ import com.jnpersson.slacken.{Taxon, Taxonomy}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.functions.{count, udf}
 import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession, functions}
-
+import com.jnpersson.discount.spark.Output.formatPerc
 import scala.collection.mutable
 
 
@@ -259,6 +259,4 @@ object MappingComparison {
       case (None, None) => ???
     }
   }
-
-  def formatPerc(d: Double) = "%.3f%%".format(d * 100)
 }

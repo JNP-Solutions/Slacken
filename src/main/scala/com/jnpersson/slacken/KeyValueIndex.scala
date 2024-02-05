@@ -7,12 +7,13 @@ package com.jnpersson.slacken
 import com.jnpersson.discount.{NTSeq, SeqTitle}
 import com.jnpersson.discount.hash.{BucketId, InputFragment}
 import com.jnpersson.discount.spark.Index.randomTableName
+import com.jnpersson.discount.spark.Output.formatPerc
 import com.jnpersson.discount.spark.{Discount, IndexParams}
 import com.jnpersson.slacken.TaxonomicIndex.ClassifiedRead
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.expressions.Aggregator
 import org.apache.spark.sql.{Dataset, Encoder, Encoders, SaveMode, SparkSession, functions}
-import org.apache.spark.sql.functions.{collect_list, collect_set, desc, struct, udaf, udf}
+import org.apache.spark.sql.functions.{collect_list, collect_set, count, desc, struct, udaf, udf}
 
 
 /** Metagenomic index compatible with the Kraken 2 algorithm.
@@ -189,11 +190,16 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   /** Print statistics for this index. */
   def showIndexStats(): Unit = {
     val indexBuckets = loadBuckets()
-    println(s"${indexBuckets.count()} $m-minimizers in index")
-    val allTaxa = indexBuckets.agg(collect_set("taxon")).as[Set[Taxon]].collect()(0)
-    val leafTaxa = allTaxa.filter(taxonomy.isLeafNode)
-    val treeSize = taxonomy.countDistinctTaxaWithParents(allTaxa)
-    println(s"Tree size: $treeSize taxa, stored taxa: ${allTaxa.size}, of which ${leafTaxa.size} leaf taxa")
+    val allTaxa = indexBuckets.groupBy("taxon").agg(count("taxon")).as[(Taxon, Long)].collect()
+
+    val leafTaxa = allTaxa.filter(x => taxonomy.isLeafNode(x._1))
+    val treeSize = taxonomy.countDistinctTaxaWithParents(allTaxa.map(_._1))
+    println(s"Tree size: $treeSize taxa, stored taxa: ${allTaxa.size}, of which ${leafTaxa.size} " +
+      s"leaf taxa (${formatPerc(leafTaxa.size.toDouble/allTaxa.size)})")
+
+    val recTotal = allTaxa.map(_._2).sum
+    val leafTotal = leafTaxa.map(_._2).sum
+    println(s"Total $m-minimizers: $recTotal, of which leaf records: $leafTotal (${formatPerc(leafTotal.toDouble/recTotal)})")
   }
 
   /** An iterator of (k-mer, taxonomic depth) pairs where the root level has depth zero. */
