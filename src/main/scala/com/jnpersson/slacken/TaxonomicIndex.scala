@@ -216,8 +216,14 @@ object TaxonomicIndex {
   def inputStats(labelFile: String, tax: Taxonomy)(implicit spark: SparkSession): Unit = {
     import spark.sqlContext.implicits._
     val leafNodes = getTaxonLabels(labelFile).select("_2").distinct().as[Taxon].collect()
-    val max = tax.countDistinctTaxaWithParents(leafNodes)
-    println(s"${leafNodes.size} leaf taxa in input sequences described by $labelFile (maximal implied tree size $max)")
+    val invalidLeafNodes = leafNodes.filter(x => !tax.isDefined(x))
+    if (invalidLeafNodes.nonEmpty) {
+      println(s"${invalidLeafNodes.size} unknown leaf nodes in input (missing from taxonomy):")
+      println(invalidLeafNodes.toList)
+    }
+    val validLeafNodes = leafNodes.filter(x => tax.isDefined(x))
+    val max = tax.countDistinctTaxaWithParents(validLeafNodes)
+    println(s"${validLeafNodes.size} valid leaf taxa in input sequences described by $labelFile (maximal implied tree size $max)")
   }
 
   /**
