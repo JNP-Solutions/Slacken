@@ -75,13 +75,16 @@ object Taxonomy {
 }
 
 /**
- * Maps each taxon to its parent.
+ * Maps each taxon to its parent. Taxons are integers in the range 0..size. Some may be unused.
  * @param parents Lookup array mapping taxon ID (offset) to parent taxon ID
  * @param taxonRanks Lookup array mapping taxon ID to rank. May be null.
  * @param scientificNames Lookup array mapping taxon ID to scientific names. May be null.
  */
 final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scientificNames: Array[String]) {
   import Taxonomy._
+
+  //Size of the range of this taxonomy, including unused taxa.
+  def size: Taxon = parents.length
 
   def isLeafNode(taxon: Taxon): Boolean =
     children(taxon).isEmpty
