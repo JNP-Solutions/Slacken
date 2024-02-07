@@ -2,7 +2,7 @@ name := "Slacken"
 
 version := "0.1.0"
 
-scalaVersion := "2.12.17"
+scalaVersion := "2.12.18"
 
 val sparkVersion = "3.3.0"
 
@@ -11,8 +11,6 @@ val sparkVersion = "3.3.0"
 scalacOptions ++= Seq("--feature", "-release", "8")
 
 javacOptions ++= Seq("--release=8")
-
-ThisBuild / scapegoatVersion := "2.1.0"
 
 resolvers += "Spark Packages Repo" at "https://dl.bintray.com/spark-packages/maven"
 
