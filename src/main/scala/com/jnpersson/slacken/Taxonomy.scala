@@ -89,6 +89,9 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
   def isLeafNode(taxon: Taxon): Boolean =
     children(taxon).isEmpty
 
+  def isDefined(taxon: Taxon): Boolean =
+    scientificNames(taxon) != null
+
   def getRank(taxon: Taxon): Option[Rank] =
     Option(taxonRanks(taxon))
 
@@ -102,7 +105,8 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
   @transient
   lazy val children: Array[List[Taxon]] = {
     val children: Array[List[Taxon]] = parents.map(i => Nil)
-    for { (parent, taxid) <- parents.zipWithIndex } {
+    for { (parent, taxid) <- parents.zipWithIndex
+          if isDefined(taxid) } {
       children(parent) = taxid :: children(parent)
     }
 
