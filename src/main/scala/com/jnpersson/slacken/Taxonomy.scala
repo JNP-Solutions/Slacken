@@ -58,7 +58,7 @@ object Taxonomy {
       scientificNames(taxon) = name
     }
 
-    val parents = new Array[Taxon](numEntries)
+    val parents = Array.fill[Taxon](numEntries)(NONE)
     val taxonRanks = new Array[Rank](numEntries)
     for { (taxon, parent, rankTitle) <- nodes } {
       parents(taxon) = parent
@@ -90,7 +90,7 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
     children(taxon).isEmpty
 
   def isDefined(taxon: Taxon): Boolean =
-    scientificNames(taxon) != null
+    parents(taxon) != NONE || taxon == ROOT
 
   def getRank(taxon: Taxon): Option[Rank] =
     Option(taxonRanks(taxon))
