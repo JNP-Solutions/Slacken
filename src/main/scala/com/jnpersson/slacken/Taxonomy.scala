@@ -182,60 +182,54 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
     }
   }
 
-  /** Find whether the given path contains the given item.
-   * Paths are terminated by the NONE marker. Since path buffers are reused, the contents of the buffer
-   * past NONE is undefined.
-   */
-  def pathContains(path: Array[Taxon], item: Int): Boolean = {
-    var i = 0
-    while (path(i) != NONE) { //end marker
-      if (path(i) == item) return true
-      i += 1
-    }
-    false
-  }
-
-  private val PATH_MAX_LENGTH = 256
-  def newPathBuffer: Array[Taxon] = Array.fill(PATH_MAX_LENGTH)(NONE)
-
   /**
-   * Lowest common ancestor of two taxa.
-   * Algorithm from krakenutil.cpp (Kraken 1). This algorithm has the advantage that parents do not need to have a
-   * taxid smaller than their children.
-   * Note that this algorithm is quadratic in the average path length.
-   * @param buffer reusable buffer for calculations, allocated by the newPathBuffer method above.
-   * @param tax1 taxon 1
-   * @param tax2 taxon 2
-   * @return
+   * Lowest common ancestor algorithm. The calculation needs a data buffer,
+   * so it is recommended to create one instance of this class in each thread and reuse it.
    */
-  def lca(buffer: Array[Taxon])(tax1: Taxon, tax2: Taxon): Taxon = {
-    if (tax1 == NONE || tax2 == NONE) {
-      return if (tax2 == NONE) tax1 else tax2
-    }
+  final class LCAFinder {
+    private val PATH_MAX_LENGTH = 256
 
-    var a = tax1
+    private val taxonPath: Array[Taxon] = Array.fill(PATH_MAX_LENGTH)(NONE)
 
-    //Step 1: store the entire path from taxon a to root in the buffer
-    var i = 0
-    while (a != NONE) {
-      //The path length must never exceed the buffer size - if it does, increase PATH_MAX_LENGTH above
-      buffer(i) = a
-      i += 1
-      a = parents(a)
-    }
-    buffer(i) = NONE // mark end
-    val path1 = buffer
-
-    //Step 2: traverse the path from b to root, checking whether the current node is
-    //contained in path a (in the buffer). If it is, we have found the LCA.
-    var b = tax2
-    while (b != NONE) {
-      if (pathContains(path1, b)) {
-        return b
+    /**
+     * Lowest common ancestor of two taxa.
+     * Algorithm from krakenutil.cpp (Kraken 1). This algorithm has the advantage that parents do not need to have a
+     * taxid smaller than their children.
+     * Note that this algorithm is quadratic in the average path length.
+     * @param tax1 taxon 1
+     * @param tax2 taxon 2
+     * @return LCA(taxon1, taxon2)
+     */
+    def apply(tax1: Taxon, tax2: Taxon): Taxon = {
+      if (tax1 == NONE || tax2 == NONE) {
+        return if (tax2 == NONE) tax1 else tax2
       }
-      b = parents(b)
+
+      var a = tax1
+
+      //Step 1: store the entire path from taxon a to root in the buffer
+      var i = 0
+      while (a != NONE) {
+        //The path length must never exceed the buffer size - if it does, increase PATH_MAX_LENGTH above
+        taxonPath(i) = a
+        i += 1
+        a = parents(a)
+      }
+      taxonPath(i) = NONE // mark end
+
+      //Step 2: traverse the path from b to root, checking whether each step is
+      //contained in the path of a (in the buffer). If it is, we have found the LCA.
+      var b = tax2
+      while (b != NONE) {
+        var i = 0
+        while (taxonPath(i) != NONE) {
+          if (taxonPath(i) == b) return b
+          i += 1
+        }
+        b = parents(b)
+      }
+      NONE
     }
-    NONE
   }
 
   /**
@@ -249,7 +243,7 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
    *                            matching taxon (if not, the taxon will move up in the tree)
    */
   def resolveTree(hitSummary: TaxonCounts, confidenceThreshold: Double): Taxon = {
-    val buffer = newPathBuffer
+    val lca = new LCAFinder
     var maxTaxon = 0
     var maxScore = 0
 
@@ -270,7 +264,7 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
         maxTaxon = taxon
         maxScore = score
       } else if (score == maxScore) {
-        maxTaxon = lca(buffer)(maxTaxon, taxon)
+        maxTaxon = lca(maxTaxon, taxon)
       }
     }
 

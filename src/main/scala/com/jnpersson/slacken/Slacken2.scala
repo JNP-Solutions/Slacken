@@ -172,11 +172,13 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
   addSubcommand(compare)
 
   val inputCheck = new RunCmd("inputCheck") {
-    val labels = opt[String](required = true, descr = "Path to sequence taxonomic label file")
+    val labels = opt[String](descr = "Path to sequence taxonomic label file")
 
     def run(implicit spark: SparkSession): Unit = {
       val t = getTaxonomy(taxonomy())
-      TaxonomicIndex.inputStats(labels(), t)
+      for { l <- labels } {
+        TaxonomicIndex.inputStats (l, t)
+      }
     }
 
   }

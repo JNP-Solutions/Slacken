@@ -42,7 +42,7 @@ import scala.io.Source
  * @param bpsPerLine bps per line
  * @param bytesPerLine bytes per line
  */
-case class FAIRecord(id: String, length: Long, start: Long, bpsPerLine: Int, bytesPerLine: Int) {
+final case class FAIRecord(id: String, length: Long, start: Long, bpsPerLine: Int, bytesPerLine: Int) {
   /** byte offset of the final character in this sequence */
   val end = (start + (length / bpsPerLine) * bytesPerLine + (length % bpsPerLine)) - 1
 }

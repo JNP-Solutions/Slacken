@@ -140,17 +140,17 @@ class Inputs(files: Seq[String], k: Int, maxReadLength: Int, pairedEnd: Boolean 
     } else {
       expandedFiles.map(forFile(_, None))
     }
-    readers.map(_.getInputFragments(withRC, withAmbiguous, sampleFraction)).
-      reduceOption(_ union _).
-      getOrElse(spark.emptyDataset[InputFragment])
+    val fs = readers.map(_.getInputFragments(withRC, withAmbiguous, sampleFraction))
+    fs.foldLeft(spark.emptyDataset[InputFragment])(_ union _)
   }
 
   /**
    * All sequence titles contained in this set of input files
    */
-  def getSequenceTitles: Dataset[SeqTitle] =
-    expandedFiles.map(forFile(_)).map(_.getSequenceTitles).reduceOption(_ union _).
-      getOrElse(spark.emptyDataset[SeqTitle])
+  def getSequenceTitles: Dataset[SeqTitle] = {
+    val titles = expandedFiles.map(forFile(_)).map(_.getSequenceTitles)
+    titles.foldLeft(spark.emptyDataset[SeqTitle])(_ union _)
+  }
 }
 
 /**
