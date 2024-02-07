@@ -40,10 +40,10 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     val idSeqDF = idsSequences.toDF("seqId", "seq")
     val labels = seqLabels.toDF("seqId", "taxon")
 
-    val idSeqLabels = idSeqDF.join(labels, idSeqDF("seqId") === labels("seqId")).
-      select("seq", "taxon").as[(String, Taxon)]
+    val seqTaxa = idSeqDF.join(labels, idSeqDF("seqId") === labels("seqId")).
+      select("seq", "taxon").as[(NTSeq, Taxon)]
 
-    val lcas = idSeqLabels.flatMap(r => {
+    val lcas = seqTaxa.flatMap(r => {
       val splitter = bcSplit.value
       splitter.superkmerPositions(r._1, addRC = false).map { case (_, rank, _) =>
         (rank.data(0), rank.dataOrBlank(1), r._2)
@@ -138,7 +138,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   /** Union several indexes. The indexes must use the same splitter and taxonomy.
    */
   def unionIndexes(locations: Iterable[String], outputLocation: String): Unit = {
-    val buckets = locations.map(l => loadBuckets(l)).reduce(_ union _)
+    val buckets = locations.map(loadBuckets).foldLeft(spark.emptyDataset[(BucketId, BucketId, Taxon)])(_ union _)
     val compacted = reduceLCAs(buckets)
     writeBuckets(compacted, outputLocation)
   }
@@ -293,12 +293,13 @@ final case class TaxonLCA(bcTaxonomy: Broadcast[Taxonomy]) extends Aggregator[Ta
 
   @transient
   lazy val taxonomy = bcTaxonomy.value
+
   @transient
-  private lazy val buffer = taxonomy.newPathBuffer
+  private lazy val lca = new taxonomy.LCAFinder
 
-  override def reduce(b: Taxon, a: Taxon): Taxon = taxonomy.lca(buffer)(b, a)
+  override def reduce(b: Taxon, a: Taxon): Taxon = lca(b, a)
 
-  override def merge(b1: Taxon, b2: Taxon): Taxon = taxonomy.lca(buffer)(b1, b2)
+  override def merge(b1: Taxon, b2: Taxon): Taxon = lca(b1, b2)
 
   override def finish(reduction: Taxon): Taxon = reduction
 

@@ -15,13 +15,13 @@ import com.jnpersson.discount.spark.Output.formatPerc
 import scala.collection.mutable
 
 
-case class PerTaxonMetrics(refCount: Long, classifiedCount: Long, l1: Double, precision: Double, recall: Double,
+final case class PerTaxonMetrics(refCount: Long, classifiedCount: Long, l1: Double, precision: Double, recall: Double,
                            unifrac: Double) {
   def toTSVString: String = s"$refCount\t$classifiedCount\t$l1\t$precision\t$recall\t$unifrac"
 }
 
 object PerTaxonMetrics {
-  def header = s"taxon_classified\ttaxon_total\ttaxon_l1\ttaxon_precision\ttaxon_recall\ttaxon_unifrac"
+  def header = "taxon_classified\ttaxon_total\ttaxon_l1\ttaxon_precision\ttaxon_recall\ttaxon_unifrac"
 }
 
 case class PerReadMetrics(classifiedCount: Long, totalCount: Long, truePos: Long, falsePos: Long, vaguePos: Long,
@@ -30,11 +30,11 @@ case class PerReadMetrics(classifiedCount: Long, totalCount: Long, truePos: Long
 }
 
 object PerReadMetrics {
-  def header = s"read_classified\tread_total\tread_tp\tread_fp\tread_vp\tread_fn\tread_ppv\tread_sensitivity"
+  def header = "read_classified\tread_total\tread_tp\tread_fp\tread_vp\tread_fn\tread_ppv\tread_sensitivity"
 }
 
 /** A single result line */
-case class Metrics(title: String, rank: Option[Rank], perTaxon: PerTaxonMetrics, perRead: PerReadMetrics) {
+final case class Metrics(title: String, rank: Option[Rank], perTaxon: PerTaxonMetrics, perRead: PerReadMetrics) {
   //Extract some variables from expected filename patterns
   val pattern = """M1_S(\d+)_(s2_2023|nt|s2_2023_all)_(\d+)_(\d+)(f|ff|)(_\d+)?(_s\d+)?(_c[\d.]+)?_classified""".r
 
@@ -68,7 +68,7 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     toDF("id", "refTaxon").cache()
 
   def readReferenceData: DataFrame = {
-    val tax = this.tax
+    val bcTax = this.tax
 
     for {
       taxon <- unfilteredRefData.select("refTaxon").distinct().as[Taxon].collect()
@@ -77,7 +77,7 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
       println(s"Reference contains unknown taxon, not known to taxonomy: $taxon. It will be filtered out.")
     }
 
-    val contains = udf((x: Taxon) => tax.value.contains(x))
+    val contains = udf((x: Taxon) => bcTax.value.contains(x))
     unfilteredRefData.filter(contains($"refTaxon")).cache
   }
 

@@ -83,10 +83,10 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     val bcSplit = this.bcSplit
     val idSeqDF = idsSequences.toDF("seqId", "seq")
     val labels = taxonLabels.toDF("seqId", "taxon")
-    val idSeqLabels = idSeqDF.join(labels, idSeqDF("seqId") === labels("seqId")).
+    val seqTaxa = idSeqDF.join(labels, idSeqDF("seqId") === labels("seqId")).
       select("seq", "taxon").as[(String, Taxon)]
 
-    val segments = idSeqLabels.flatMap(r => GroupedSegments.hashSegments(r._1, bcSplit.value).map(s => (s, r._2)))
+    val segments = seqTaxa.flatMap(r => GroupedSegments.hashSegments(r._1, bcSplit.value).map(s => (s, r._2)))
     segmentsToBuckets(segments, bcSplit.value.k).toDF("id", "supermers", "taxa").as[TaxonBucket]
   }
 
@@ -302,13 +302,12 @@ final case class TaxonLCAReducer(params: ReduceParams, taxonomy: Taxonomy) exten
   override def shouldKeep(table: KmerTable, kmer: Int): Boolean =
     table.kmers(tagOffset)(kmer) != Taxonomy.NONE
 
-  //Reusable buffer for the LCA operation
-  private val buffer = taxonomy.newPathBuffer
+  private val lca = new taxonomy.LCAFinder
 
   def reduceEqualKmers(table: KmerTable, into: Int, from: Int): Unit = {
     val tax1 = table.kmers(tagOffset)(from).toInt
     val tax2 = table.kmers(tagOffset)(into).toInt
-    table.kmers(tagOffset)(into) = taxonomy.lca(buffer)(tax1, tax2)
+    table.kmers(tagOffset)(into) = lca(tax1, tax2)
     //Discard this k-mer on compaction
     table.kmers(tagOffset)(from) = Taxonomy.NONE
   }

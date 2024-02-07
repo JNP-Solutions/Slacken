@@ -37,7 +37,7 @@ case object LCARequireAll extends LCAMethod
  *                            taxon's clade)
  * @param withUnclassified whether to include unclassified reads in the outputh
  */
-case class ClassifyParams(minHitGroups: Int, confidenceThreshold: Double, withUnclassified: Boolean)
+final case class ClassifyParams(minHitGroups: Int, confidenceThreshold: Double, withUnclassified: Boolean)
 
 /** Parameters for a Kraken1/2 compatible taxonomic index for read classification. Associates k-mers with LCA taxa.
  * @param params Parameters for k-mers, index bucketing and persistence
