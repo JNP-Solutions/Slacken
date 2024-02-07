@@ -20,7 +20,7 @@ object GenomeCounts {
     import spark.sqlContext.implicits._
     val taxa = seqLabels.select("taxon").distinct().as[Taxon].collect()
 
-    val r = new Array[Long](tax.parents.length) //guarantee that all taxa will fit
+    val r = new Array[Long](tax.size)
     for { taxon <- taxa } {
       //each taxon has an initial count of 1
       r(taxon) = 1
