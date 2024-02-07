@@ -302,10 +302,13 @@ final case class TaxonLCAReducer(params: ReduceParams, taxonomy: Taxonomy) exten
   override def shouldKeep(table: KmerTable, kmer: Int): Boolean =
     table.kmers(tagOffset)(kmer) != Taxonomy.NONE
 
+  //Reusable buffer for the LCA operation
+  private val buffer = taxonomy.newPathBuffer
+
   def reduceEqualKmers(table: KmerTable, into: Int, from: Int): Unit = {
     val tax1 = table.kmers(tagOffset)(from).toInt
     val tax2 = table.kmers(tagOffset)(into).toInt
-    table.kmers(tagOffset)(into) = taxonomy.lca(tax1, tax2)
+    table.kmers(tagOffset)(into) = taxonomy.lca(buffer)(tax1, tax2)
     //Discard this k-mer on compaction
     table.kmers(tagOffset)(from) = Taxonomy.NONE
   }
