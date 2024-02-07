@@ -53,8 +53,8 @@ class Configuration(args: Seq[String]) extends ScallopConf(args) {
     default = Some(10))
 
   validate (k) { k =>
-    if (minimizerWidth() >= k) {
-      Left("-m must be < -k")
+    if (minimizerWidth() > k) {
+      Left("-m must be <= -k")
     } else if (normalize() && (k % 2 == 0)) {
       Left(s"--normalize is only available for odd values of k, but $k was given")
     } else Right(Unit)
