@@ -57,6 +57,9 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
 
   lazy val bcTaxonomy = sc.broadcast(taxonomy)
 
+  /** Sanity check input data */
+  def checkInput(discount: Discount, inFiles: List[String]): Unit = {}
+
   /**
    * Construct buckets for a new index from genomes.
    *
@@ -71,8 +74,8 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
                   addRC: Boolean, method: LCAMethod = LCAAtLeastTwo): Dataset[Record] = {
     val input = discount.inputReader(inFiles: _*).getInputFragments(addRC).map(x =>
       (x.header, x.nucleotides))
-   val seqLabels = getTaxonLabels(seqLabelLocation)
-   makeBuckets(input, seqLabels, method)
+    val seqLabels = getTaxonLabels(seqLabelLocation)
+    makeBuckets(input, seqLabels, method)
   }
 
   /**

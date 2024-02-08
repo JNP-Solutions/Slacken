@@ -50,6 +50,7 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
       val inFiles = trailArg[List[String]](required = true, descr = "Input sequence files")
       val labels = opt[String](required = true, descr = "Path to sequence taxonomic label file")
       val all = toggle(descrYes = "Require minimizers to be present in all LCA genomes", default = Some(false))
+      val check = opt[Boolean](descr = "Only check input files", hidden = true, default = Some(false))
 
       def run(implicit spark: SparkSession): Unit = {
         val d = discount
@@ -64,11 +65,15 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
         val tax = getTaxonomy(location())
         val index = new KeyValueIndex(params, tax)
 
-        val bkts = index.makeBuckets(d, inFiles(), labels(), addRC = false, method)
-        index.writeBuckets(bkts, params.location)
-        TaxonomicIndex.copyTaxonomy(taxonomy(), location() + "_taxonomy")
-        index.showIndexStats()
-        TaxonomicIndex.inputStats(labels(), tax)
+        if (check()) {
+          index.checkInput(d, inFiles())
+        } else { //build index
+          val bkts = index.makeBuckets(d, inFiles(), labels(), addRC = false, method)
+          index.writeBuckets(bkts, params.location)
+          TaxonomicIndex.copyTaxonomy(taxonomy(), location() + "_taxonomy")
+          index.showIndexStats()
+          TaxonomicIndex.inputStats(labels(), tax)
+        }
       }
     }
     addSubcommand(build)
@@ -180,7 +185,6 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
         TaxonomicIndex.inputStats (l, t)
       }
     }
-
   }
   addSubcommand(inputCheck)
 

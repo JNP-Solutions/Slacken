@@ -28,6 +28,27 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   import KeyValueIndex._
   import spark.sqlContext.implicits._
 
+  override def checkInput(discount: Discount, inFiles: List[String]): Unit = {
+    val fragments = discount.inputReader(inFiles: _*).getInputFragments(false).map(x =>
+      (x.header, x.nucleotides))
+
+    /* Check if there are input sequences with no valid minimizers.
+    * If so, report them.  */
+    val spl = bcSplit
+    //count minimizers per input sequence ID
+    val noMinInput = fragments.map(r => {
+      val splitter = spl.value
+      (splitter.superkmerPositions(r._2, addRC = false).size.toLong, r._1)
+      }
+    ).toDF("minimizers", "seqId").groupBy("seqId").agg(
+      functions.sum("minimizers").as("sum")).filter($"sum" === 0L).cache()
+    if (! noMinInput.isEmpty) {
+      val noMinCount = noMinInput.count()
+      println(s"Some input sequences had no minimizers (total $noMinCount): ")
+      noMinInput.show()
+    }
+  }
+
   /** Given input genomes and their taxon IDs, build an index of minimizers and LCA taxa.
    * @param idsSequences pairs of (genome title, genome DNA)
    * @param seqLabels pairs of (genome title, taxon ID)
