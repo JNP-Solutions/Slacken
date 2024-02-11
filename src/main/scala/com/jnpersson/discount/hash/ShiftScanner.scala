@@ -30,10 +30,6 @@ import com.jnpersson.discount.util.BitRepresentation._
 final case class ShiftScanner(priorities: MinimizerPriorities) {
 
   private val width: Int = priorities.width
-
-  //Long bitmask with the rightmost 2 * width bits set to 1
-  private val mask: Long = -1L >>> (64 - 2 * width)
-
   /**
    * Find all matches in a nucleotide string.
    * @param data input data (NT sequence)

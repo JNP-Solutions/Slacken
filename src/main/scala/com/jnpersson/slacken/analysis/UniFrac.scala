@@ -1,7 +1,7 @@
 package com.jnpersson.slacken.analysis
 
-import com.jnpersson.slacken.Taxonomy.{NONE, ROOT}
-import com.jnpersson.slacken.{Taxon, Taxonomy}
+import com.jnpersson.slacken.Taxonomy
+import com.jnpersson.slacken.Taxonomy.ROOT
 
 import scala.collection.mutable.BitSet
 

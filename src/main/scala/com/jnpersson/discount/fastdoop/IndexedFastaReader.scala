@@ -24,7 +24,6 @@ import org.apache.hadoop.io.Text
 import org.apache.hadoop.mapreduce.lib.input.FileSplit
 import org.apache.hadoop.mapreduce.{InputSplit, RecordReader, TaskAttemptContext}
 
-import java.io.InputStream
 import scala.io.Source
 
 /**
@@ -282,7 +281,7 @@ class FAIUtils(path: Path, job: Configuration, startByte: Long, fullSize: Long) 
   //initial guess
   private var startOffset = (fileSize * (startByte.toDouble / fullSize)).toLong
   private var faiSource: Option[Source] = None
-  seekToStart
+  seekToStart()
 
   //seek backwards if we have gone too far
   private def seekToStart(): Unit = {

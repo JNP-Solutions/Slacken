@@ -7,16 +7,16 @@ package com.jnpersson.slacken
 
 import com.jnpersson.discount
 import com.jnpersson.discount.bucket.{ReduceParams, Reducer, ReducibleBucket}
-import com.jnpersson.discount.{NTSeq, SeqTitle}
 import com.jnpersson.discount.hash.{BucketId, InputFragment}
-import com.jnpersson.discount.spark.{AnyMinSplitter, Discount, GroupedSegments, Index, IndexParams, Output}
+import com.jnpersson.discount.spark._
 import com.jnpersson.discount.util.KmerTable.BuildParams
 import com.jnpersson.discount.util.{KmerTable, KmerTableBuilder, NTBitArray, TagProvider}
+import com.jnpersson.discount.{Both, NTSeq, SeqTitle}
 import com.jnpersson.slacken.TaxonomicIndex.ClassifiedRead
 import com.jnpersson.slacken.Taxonomy.NONE
 import it.unimi.dsi.fastutil.longs.LongArrays
-import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
-import org.apache.spark.sql.functions.{broadcast, collect_list, desc, first, struct, udaf, udf}
+import org.apache.spark.sql.functions.{collect_list, desc, struct, udaf}
+import org.apache.spark.sql.{Dataset, SparkSession}
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -46,7 +46,6 @@ object SupermerIndex {
 final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit spark: SparkSession)
   extends TaxonomicIndex[TaxonBucket](params, taxonomy) {
   import Supermers._
-
   import spark.sqlContext.implicits._
 
   assert(params.m <= 31) //Support for wider minimizers yet to be implemented
@@ -54,7 +53,7 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   def taggedToBuckets(segments: Dataset[(BucketId, Array[(NTBitArray, Taxon)])], k: Int): Dataset[ReducibleBucket] = {
     val bcTax = bcTaxonomy
     segments.map { case (hash, segments) =>
-      val reducer = TaxonLCAReducer(ReduceParams(k, false, false), bcTax.value)
+      val reducer = TaxonLCAReducer(ReduceParams(k), bcTax.value)
       val supermers = segments.map(_._1)
       val tags = segments.map(x => Array.fill(x._1.size - (k - 1))(x._2))
       ReducibleBucket(hash, supermers, tags).reduceCompact(reducer)
@@ -181,7 +180,7 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
 final case class TaxonBucket(id: BucketId, supermers: Array[NTBitArray], taxa: Array[Array[Taxon]]) {
 
   def kmerTable(k: Int): KmerTable =
-    ReducibleBucket(id, supermers, taxa).writeToSortedTableNoRowCol(k, forwardOnly = false)
+    ReducibleBucket(id, supermers, taxa).writeToSortedTableNoRowCol(k, Both)
 
   /** An iterator of (k-mer, taxonomic depth) pairs where the root level has depth zero. */
   def kmersDepths(k: Int, taxonomy: Taxonomy): Iterator[(NTBitArray, Int)] = {
@@ -220,7 +219,7 @@ final case class TaxonBucket(id: BucketId, supermers: Array[NTBitArray], taxa: A
     }
     //tags layout after left join: [subj row, subj ordinal, subj col], [0 const], [taxon]
     val subjectTable = KmerTable.fromSupermers(sequence.map(_.segment.segment),
-      BuildParams(k, forwardOnly = false, sort = true), provider)
+      BuildParams(k, Both, sort = true), provider)
 
     val joint = KmerTableOps.leftJoinTables(subjectTable, kmerTable(k), 0, Taxonomy.NONE)
     val jointTags = joint.kmers.drop(joint.kmerWidth) //tag columns only

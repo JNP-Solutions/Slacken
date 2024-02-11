@@ -124,7 +124,7 @@ object TestGenerators {
 
   def reducibleBucket(k: Int): Gen[ReducibleBucket] = {
     val sumReducer = Reducer.configure(
-      ReduceParams(k, forwardOnly = false, intersect = false), Sum)
+      ReduceParams(k), Sum)
     for {
       nSupermers <- Gen.choose(1, 10)
       supermers <- Gen.listOfN(nSupermers, encodedSupermers(k)).map(_.toArray)
@@ -136,7 +136,7 @@ object TestGenerators {
   //Generate a pair of buckets that have distinct super-mers and also common super-mers.
   //For the common super-mers, the tags (counts) need not be the same for the two buckets.
   def bucketPairWithCommonKmers(k: Int): Gen[(ReducibleBucket, ReducibleBucket)] = {
-    val sumReducer = Reducer.configure(ReduceParams(k, forwardOnly = false, intersect = false), Sum)
+    val sumReducer = Reducer.configure(ReduceParams(k), Sum)
     for {
       bucket1 <- reducibleBucket(k)
       bucket2 <- reducibleBucket(k)

@@ -17,6 +17,7 @@
 
 package com.jnpersson.discount.util
 
+import com.jnpersson.discount.Both
 import com.jnpersson.discount.TestGenerators._
 import com.jnpersson.discount.util.KmerTable.BuildParams
 import org.scalacheck.Gen
@@ -62,7 +63,7 @@ class NTBitArrayProps extends AnyFunSuite with ScalaCheckPropertyChecks {
   test("k-mers length") {
     forAll(dnaStrings, ks) { (x, k) =>
       whenever (k <= x.length) {
-        val kmers = KmerTable.fromSegment(NTBitArray.encode(x), BuildParams(k, forwardOnly = false))
+        val kmers = KmerTable.fromSegment(NTBitArray.encode(x), BuildParams(k))
         kmers.size should equal (x.length - (k - 1))
       }
     }

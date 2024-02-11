@@ -5,16 +5,14 @@
 
 package com.jnpersson.slacken
 
-import com.jnpersson.discount.{NTSeq, SeqTitle}
 import com.jnpersson.discount.hash.{BucketId, InputFragment}
 import com.jnpersson.discount.spark.{AnyMinSplitter, Discount, HDFSUtil, IndexParams}
 import com.jnpersson.discount.util.NTBitArray
+import com.jnpersson.discount.{NTSeq, SeqTitle}
 import com.jnpersson.slacken.TaxonomicIndex.{ClassifiedRead, getTaxonLabels}
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
 import org.apache.spark.sql.functions.{count, desc, udf}
-
-import scala.collection.mutable
+import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
 
 /** A method for calculating LCA's (least common ancestors) */
 sealed trait LCAMethod

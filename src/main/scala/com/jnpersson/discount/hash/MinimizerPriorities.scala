@@ -21,7 +21,6 @@ import com.jnpersson.discount.NTSeq
 import com.jnpersson.discount.util.{Arrays, NTBitArray}
 
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 
 object MinTable {
   val all1mersDNA = List("A", "C", "G", "T")
@@ -44,7 +43,7 @@ object MinTable {
   }
 
   def encodedMotifsOfLength(length: Int): Iterator[NTBitArray] =
-    Iterator.range(0, (1 << (2 * length))).map(x => NTBitArray.fromLong(x, length))
+    Iterator.range(0, 1 << (2 * length)).map(x => NTBitArray.fromLong(x, length))
 
   /**
    * Generate a motif table with all motifs of a certain length, in lexicographic order.

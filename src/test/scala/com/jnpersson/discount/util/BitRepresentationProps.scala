@@ -18,13 +18,12 @@
 package com.jnpersson.discount.util
 
 import com.jnpersson.discount.TestGenerators._
-import org.scalatest.matchers.should.Matchers._
 import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.matchers.should.Matchers._
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 
 class BitRepresentationProps extends AnyFunSuite with ScalaCheckPropertyChecks {
   import BitRepresentation._
-  import DNAHelpers._
 
   test("bytesToString reversible") {
     forAll(dnaStrings) { x =>

@@ -104,7 +104,7 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
   /** Lookup array mapping taxon ID to taxon IDs of children */
   @transient
   lazy val children: Array[List[Taxon]] = {
-    val children: Array[List[Taxon]] = parents.map(i => Nil)
+    val children: Array[List[Taxon]] = parents.map(_ => Nil)
     for { (parent, taxid) <- parents.zipWithIndex
           if isDefined(taxid) } {
       children(parent) = taxid :: children(parent)
@@ -306,6 +306,8 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
     }
     r.size
   }
+
+  @tailrec
   def debugTracePath(x: Taxon): Unit = {
     println(s"$x\t${taxonRanks(x)}\t${scientificNames(x)}")
     if (x != ROOT && x != NONE) {

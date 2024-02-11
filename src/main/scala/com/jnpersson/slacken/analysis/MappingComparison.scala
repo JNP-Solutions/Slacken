@@ -6,12 +6,13 @@
 package com.jnpersson.slacken.analysis
 
 import com.jnpersson.discount.SeqTitle
+import com.jnpersson.discount.spark.Output.formatPerc
 import com.jnpersson.slacken.Taxonomy.{Genus, Rank, Species}
 import com.jnpersson.slacken.{Taxon, Taxonomy}
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.sql.functions.{count, udf}
-import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession, functions}
-import com.jnpersson.discount.spark.Output.formatPerc
+import org.apache.spark.sql.functions.udf
+import org.apache.spark.sql.{DataFrame, Dataset, SparkSession, functions}
+
 import scala.collection.mutable
 
 

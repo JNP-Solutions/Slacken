@@ -8,7 +8,7 @@ package com.jnpersson.slacken
 import com.jnpersson.discount.NTSeq
 import com.jnpersson.discount.hash.{BucketId, InputFragment}
 import com.jnpersson.discount.spark.AnyMinSplitter
-import com.jnpersson.discount.util.{BitRepresentation, NTBitArray}
+import com.jnpersson.discount.util.NTBitArray
 
 import scala.annotation.{switch, tailrec}
 import scala.collection.mutable.ArrayBuffer
