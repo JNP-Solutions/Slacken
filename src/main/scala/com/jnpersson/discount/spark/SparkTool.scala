@@ -17,7 +17,7 @@
 
 package com.jnpersson.discount.spark
 
-import com.jnpersson.discount.{Frequency, Given}
+import com.jnpersson.discount.{Both, ForwardOnly, Frequency, Given}
 import com.jnpersson.discount.bucket.Reducer
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.SparkSession
@@ -114,7 +114,8 @@ private[jnpersson] class DiscountConf(args: Array[String]) extends Configuration
 
     def run(implicit spark: SparkSession) : Unit = {
       lazy val index = inputIndex().filterCounts(min.toOption, max.toOption)
-      def counts = index.counted(normalize())
+      val orientation = if (normalize()) ForwardOnly else Both
+      def counts = index.counted(orientation)
 
       if (superkmers()) {
         discount.kmers(inputFiles() : _*).segments.writeSupermerStrings(output())

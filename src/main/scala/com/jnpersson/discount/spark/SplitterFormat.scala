@@ -17,8 +17,7 @@
 
 package com.jnpersson.discount.spark
 
-import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, MinSplitter, MinTable, MinimizerPriorities, RandomXOR, SpacedSeed}
-import com.jnpersson.discount.util.NTBitArray
+import com.jnpersson.discount.hash._
 import org.apache.spark.sql.SparkSession
 
 import java.util.Properties

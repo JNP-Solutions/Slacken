@@ -41,8 +41,10 @@ Test / fork := true
 
 Test / javaOptions += "-Xmx4G"
 
-//This option required when running tests on Java 17, as of Spark 3.3.0.
+//These options are required when running tests on Java 17, as of Spark 3.3.0.
 //Can safely be commented out on Java 8 or 11.
 Test / javaOptions += "--add-exports=java.base/sun.nio.ch=ALL-UNNAMED"
+Test / javaOptions += "--add-opens=java.base/sun.security.action=ALL-UNNAMED"
+Test / javaOptions += "--add-opens=java.base/java.io=ALL-UNNAMED"
 
 Test / testOptions += Tests.Argument(TestFrameworks.ScalaCheck, "-verbosity", "1")

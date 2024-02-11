@@ -18,7 +18,7 @@
 package com.jnpersson.discount.spark
 
 import com.jnpersson.discount.NTSeq
-import com.jnpersson.discount.util.{NTBitArray}
+import com.jnpersson.discount.util.NTBitArray
 import org.apache.spark.sql.{Dataset, SparkSession}
 
 object SyntheticReads {

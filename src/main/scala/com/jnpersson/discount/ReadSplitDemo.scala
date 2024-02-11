@@ -62,7 +62,7 @@ object ReadSplitDemo {
   def highlighted(data: String, pattern: String): String = {
     val lidx = data.lastIndexOf(pattern)
     val preMinimizer = data.substring(0, lidx)
-    val postMinimizer = data.substring(lidx + pattern.size)
+    val postMinimizer = data.substring(lidx + pattern.length)
     preMinimizer + Console.BLUE + pattern + Console.RESET + postMinimizer
   }
 

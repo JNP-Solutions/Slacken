@@ -5,16 +5,14 @@
 
 package com.jnpersson.slacken
 
-import com.jnpersson.discount.{NTSeq, SeqTitle}
+import com.jnpersson.discount.TestGenerators._
 import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, InputFragment, MinSplitter, RandomXOR}
 import com.jnpersson.discount.spark.{Discount, IndexParams, SparkSessionTestWrapper}
-import com.jnpersson.discount.{Testing => DTesting}
-import org.scalatest.funsuite.AnyFunSuite
-import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
-import com.jnpersson.discount.TestGenerators._
-import org.apache.spark.sql.functions.hash
+import com.jnpersson.discount.{NTSeq, SeqTitle, Testing => DTesting}
 import org.scalacheck.Gen
+import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
+import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 
 import scala.annotation.tailrec
 import scala.util.Random
@@ -45,7 +43,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     } else {
       val genome = Random.nextInt(genomes.size)
       val read = simulatedRead(genomes(genome)._2, length)
-      val taxon = (genome + 2)
+      val taxon = genome + 2
       val title = s"$id:$taxon"
       val f = InputFragment(title, 0, read, None)
       simulateReads(genomes, length, id - 1, f :: acc)

@@ -5,7 +5,7 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.slacken.Taxonomy.NONE
-import org.apache.spark.sql.{DataFrame, SparkSession, functions}
+import org.apache.spark.sql.{DataFrame, SparkSession}
 
 import java.io.{FileWriter, PrintWriter}
 

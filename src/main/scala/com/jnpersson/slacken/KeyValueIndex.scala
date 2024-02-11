@@ -4,16 +4,16 @@
 
 package com.jnpersson.slacken
 
-import com.jnpersson.discount.{NTSeq, SeqTitle}
 import com.jnpersson.discount.hash.{BucketId, InputFragment}
 import com.jnpersson.discount.spark.Index.randomTableName
 import com.jnpersson.discount.spark.Output.formatPerc
 import com.jnpersson.discount.spark.{Discount, IndexParams}
+import com.jnpersson.discount.{NTSeq, SeqTitle}
 import com.jnpersson.slacken.TaxonomicIndex.ClassifiedRead
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.expressions.Aggregator
-import org.apache.spark.sql.{Dataset, Encoder, Encoders, SaveMode, SparkSession, functions}
-import org.apache.spark.sql.functions.{collect_list, collect_set, count, desc, struct, udaf, udf}
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql._
 
 
 /** Metagenomic index compatible with the Kraken 2 algorithm.

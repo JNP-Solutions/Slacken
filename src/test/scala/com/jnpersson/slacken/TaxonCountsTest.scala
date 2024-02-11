@@ -7,8 +7,8 @@ package com.jnpersson.slacken
 
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should._
+
 import scala.collection.mutable.{IndexedSeq => MISeq}
-import scala.collection.mutable.Map
 
 class TaxonCountsTest extends AnyFunSuite with Matchers {
 
