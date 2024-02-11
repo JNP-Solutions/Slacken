@@ -131,23 +131,24 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
   }
 
   /** Find whether the given taxon has the given ancestor (possibly with several steps)
+   * Will also return true if tax == parent.
    * @param tax potential descendant node
-   * @param parent potential ancestor node
+   * @param ancestor potential ancestor node
    * @return true iff the ancestor relationship exists
    */
-  def hasAncestor(tax: Taxon, parent: Taxon): Boolean =
-    stepsToParent(tax, parent) != 0
+  def hasAncestor(tax: Taxon, ancestor: Taxon): Boolean =
+    stepsToAncestor(tax, ancestor) != -1
 
-  /** Number of levels between a taxon and a given parent. The result will always be zero
-   * if the given parent is not in the lineage of the taxon. */
+  /** Number of levels between a taxon and a given ancestor. The result will always be -1
+   * if the given ancestor is not in the lineage of the taxon. */
   @tailrec
-  def stepsToParent(tax: Taxon, parent: Taxon, acc: Int = 0): Int = {
+  def stepsToAncestor(tax: Taxon, ancestor: Taxon, acc: Int = 0): Int = {
     if (tax == NONE) {
-      0
-    } else if (parent == tax) {
+      -1
+    } else if (ancestor == tax) {
       acc
     } else {
-      stepsToParent(parents(tax), parent, acc + 1)
+      stepsToAncestor(parents(tax), ancestor, acc + 1)
     }
   }
 
