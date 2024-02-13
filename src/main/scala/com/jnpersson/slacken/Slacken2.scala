@@ -171,7 +171,7 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
         for { t <- testFiles().iterator
             m <- mc.allMetrics(t) } yield m
       HDFSUtil.writeTextLines(output() + "_metrics.tsv",
-        Iterator(Metrics.header) ++ metrics.map(_.toTSVString))
+        Iterator(Metrics.header) ++ metrics.flatMap(_.toTSVString))
     }
   }
   addSubcommand(compare)
