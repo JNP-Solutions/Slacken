@@ -39,7 +39,7 @@ final case class Metrics(title: String, rank: Option[Rank], perTaxon: PerTaxonMe
   //Extract some variables from expected filename patterns
   val pattern = """M1_S(\d+)_(s2_2023|nt|s2_2023_all)_(\d+)_(\d+)(f|ff|)(_\d+)?(_s\d+)?(_c[\d.]+)?_classified""".r
 
-  def toTSVString = title match {
+  def toTSVString: Option[String] = title match {
     case pattern(sample, library, k, m, freqRaw, freqLenRaw, sRaw, cRaw) =>
 
       //Note: freqLen is meaningless if the ordering is not frequency
@@ -48,10 +48,12 @@ final case class Metrics(title: String, rank: Option[Rank], perTaxon: PerTaxonMe
       val s = Option(sRaw).map(_.drop(2)).getOrElse("7")
       val frequency = if (freqRaw == "") "none" else freqRaw
       val rankStr = rank.map(_.toString).getOrElse("All")
-      s"$title\t$sample\t$library\t$k\t$m\t$frequency\t$freqLen\t$s\t$c\t$rankStr\t${perTaxon.toTSVString}\t${perRead.toTSVString}"
+      Some(
+        s"$title\t$sample\t$library\t$k\t$m\t$frequency\t$freqLen\t$s\t$c\t$rankStr\t${perTaxon.toTSVString}\t${perRead.toTSVString}"
+      )
     case _ =>
-      println(s"Couldn't extract variables from filename: $title")
-      ???
+      println(s"Couldn't extract variables from filename: $title. Omitting from output.")
+      None
   }
 }
 
