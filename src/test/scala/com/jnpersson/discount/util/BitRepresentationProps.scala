@@ -19,8 +19,8 @@ package com.jnpersson.discount.util
 
 import com.jnpersson.discount.TestGenerators._
 import org.scalatest.funsuite.AnyFunSuite
-import org.scalatest.matchers.should.Matchers._
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
+import org.scalatest.matchers.should.Matchers._
 
 class BitRepresentationProps extends AnyFunSuite with ScalaCheckPropertyChecks {
   import BitRepresentation._
@@ -45,27 +45,45 @@ class BitRepresentationProps extends AnyFunSuite with ScalaCheckPropertyChecks {
 
   test("Bitwise reverseComplement") {
     forAll(ms) { m =>
-      whenever(m >= 1 && m <= 32) {
+      whenever (m >= 1 && m <= 32) {
         val mask = -1L >>> (64 - 2 * m)
 
         forAll(encodedMinimizers(m)) { min =>
           val rev = BitRepresentation.reverseComplement(min, m, mask)
           val revrev = BitRepresentation.reverseComplement(rev, m, mask)
           revrev should equal(min)
-          BitRepresentation.reverseComplement(revrev, m, mask) should
-            equal(rev)
-
-          val ntb1 = NTBitArray(Array(min << (64 - 2 * m)), m)
-          val ntb2 = NTBitArray(Array(rev << (64 - 2 * m)), m)
-          DNAHelpers.reverseComplement(ntb1.toString) should equal(ntb2.toString)
-
-          val lmin = min << (64 - 2 * min) //left aligned
-          val lrev = BitRepresentation.reverseComplementLeftAligned(lmin, -1)
-          val lrevrev = BitRepresentation.reverseComplementLeftAligned(lrev, -1)
-          lrevrev should equal(lmin)
-          BitRepresentation.reverseComplementLeftAligned(lrevrev, -1) should equal(lrev)
         }
       }
     }
   }
+
+  test("Reverse complement populates NTBitArray") {
+    forAll(ms) { m =>
+      whenever (m >= 1 && m <= 32) {
+        val mask = -1L >>> (64 - 2 * m)
+
+        forAll(encodedMinimizers(m)) { min =>
+          val rev = BitRepresentation.reverseComplement(min, m, mask)
+
+          val ntb1 = NTBitArray.fromLong(min, m)
+          val ntb2 = NTBitArray.fromLong(rev, m)
+          ntb1.reverseComplement should equal(ntb2)
+        }
+      }
+    }
+  }
+
+  test("Left-aligned reverse complement") {
+    forAll(ms) { m =>
+      whenever(m >= 1 && m <= 32) {
+        forAll(encodedMinimizers(m)) { min =>
+          val lmin = min << (64 - 2 * min) //left aligned
+          val lrev = BitRepresentation.reverseComplementLeftAligned(lmin, -1)
+          val lrevrev = BitRepresentation.reverseComplementLeftAligned(lrev, -1)
+          lrevrev should equal(lmin)
+        }
+      }
+    }
+  }
+
 }
