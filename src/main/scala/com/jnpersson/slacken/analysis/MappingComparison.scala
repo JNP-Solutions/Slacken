@@ -75,12 +75,12 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
 
     for {
       taxon <- unfilteredRefData.select("refTaxon").distinct().as[Taxon].collect()
-      if ! tax.value.contains(taxon)
+      if ! tax.value.isDefined(taxon)
     } {
       println(s"Reference contains unknown taxon, not known to taxonomy: $taxon. It will be filtered out.")
     }
 
-    val contains = udf((x: Taxon) => bcTax.value.contains(x))
+    val contains = udf((x: Taxon) => bcTax.value.isDefined(x))
     unfilteredRefData.filter(contains($"refTaxon")).cache
   }
 

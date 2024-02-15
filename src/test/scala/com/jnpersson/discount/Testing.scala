@@ -59,9 +59,13 @@ object Testing {
 
   /** Generate a list of items when we don't care about preserving parameters.
    * This only works if the generator is guaranteed to succeed. */
-  def getList[T](gen: Gen[T], n: Int): immutable.Seq[T] = Gen.listOfN(n, gen).
-    apply(Parameters.default, Seed(System.currentTimeMillis())).get
+  def getList[T](gen: Gen[T], n: Int): immutable.Seq[T] =
+    getSingle(Gen.listOfN(n, gen))
 
+  /** Generate an item when we don't care about preserving parameters.
+   * This only works if the generator is guaranteed to succeed. */
+  def getSingle[T](gen: Gen[T]): T =
+    gen.apply(Parameters.default, Seed(System.currentTimeMillis())).get
 }
 
 object TestGenerators {

@@ -11,8 +11,8 @@ import scala.annotation.tailrec
 import scala.collection.mutable
 
 object Taxonomy {
-  val NONE: Taxon = 0
-  val ROOT: Taxon = 1
+  final val NONE: Taxon = 0
+  final val ROOT: Taxon = 1
 
   /** Levels in the taxonomic hierarchy, from general (higher) to specific (lower) */
   sealed abstract class Rank(val title: String, val code: String, val depth: Int) extends Serializable
@@ -52,54 +52,64 @@ object Taxonomy {
    */
   def fromNodesAndNames(nodes: Array[(Taxon, Taxon, String)], names: Iterator[(Taxon, String)]): Taxonomy = {
     val numEntries = nodes.iterator.map(_._1).max + 1
-    println(s"Taxonomy size: $numEntries")
     val scientificNames = new Array[String](numEntries)
     for { (taxon, name) <- names } {
       scientificNames(taxon) = name
     }
 
     val parents = Array.fill[Taxon](numEntries)(NONE)
-    val taxonRanks = new Array[Rank](numEntries)
+    val ranks = new Array[Rank](numEntries)
     for { (taxon, parent, rankTitle) <- nodes } {
       parents(taxon) = parent
-      taxonRanks(taxon) = rank(rankTitle).orNull
+      ranks(taxon) = rank(rankTitle).orNull
     }
 
     parents(ROOT) = Taxonomy.NONE
-    taxonRanks(NONE) = Unclassified
-    taxonRanks(ROOT) = Root
-    scientificNames(NONE) = Unclassified.title
-
-    new Taxonomy(parents, taxonRanks, scientificNames)
+    ranks(NONE) = Unclassified
+    ranks(ROOT) = Root
+    new Taxonomy(parents, ranks, scientificNames)
   }
 }
 
 /**
- * Maps each taxon to its parent. Taxons are integers in the range 0..size. Some may be unused.
+ * Maps each taxon to its parent, rank and name.
+ * The parent relationships should describe a tree structure (DAG).
+ * Taxa are integers in the range 0..size. Some may be unused. Id 1 is always ROOT.
+ * Id 0 is NONE. Except for ROOT, only unused taxa have NONE as a parent.
  * @param parents Lookup array mapping taxon ID (offset) to parent taxon ID
- * @param taxonRanks Lookup array mapping taxon ID to rank. May be null.
+ * @param ranks Lookup array mapping taxon ID to rank. May be null.
  * @param scientificNames Lookup array mapping taxon ID to scientific names. May be null.
  */
-final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scientificNames: Array[String]) {
+final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificNames: Array[String]) {
   import Taxonomy._
 
   //Size of the range of this taxonomy, including unused taxa.
+  //Size - 1 is the maximal taxon potentially used.
   def size: Taxon = parents.length
+
+  /** All defined taxa, in the range [1, size - 1] */
+  def taxa: Iterator[Taxon] =
+    Iterator.range(1, size).filter(isDefined)
 
   def isLeafNode(taxon: Taxon): Boolean =
     children(taxon).isEmpty
 
+  /** Whether the given taxon is defined in this taxonomy or not */
   def isDefined(taxon: Taxon): Boolean =
     parents(taxon) != NONE || taxon == ROOT
 
+  /** Get the rank of a (potentially undefined) taxon as an Option */
   def getRank(taxon: Taxon): Option[Rank] =
-    Option(taxonRanks(taxon))
+    Option(ranks(taxon))
 
+  /** Get the name of a (potentially undefined) taxon as an Option */
   def getName(taxon: Taxon): Option[String] =
     Option(scientificNames(taxon))
 
-  def contains(taxon: Taxon): Boolean =
-    parents(taxon) != NONE || taxon == ROOT
+  override def toString: String = {
+    val taxaString = taxa.take(20).map(t => s"($t, ${ranks(t)}, ${parents(t)})").mkString(", ")
+    s"Taxonomy($taxaString ... (${taxa.size}))"
+  }
 
   /** Lookup array mapping taxon ID to taxon IDs of children */
   @transient
@@ -108,10 +118,6 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
     for { (parent, taxid) <- parents.zipWithIndex
           if isDefined(taxid) } {
       children(parent) = taxid :: children(parent)
-    }
-
-    for { i <- children.indices } {
-      children(i) = children(i).sorted
     }
 
     children
@@ -124,7 +130,7 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
   @tailrec
   def depth(tax: Taxon): Int = {
     if (tax == NONE) -1
-    else Option(taxonRanks(tax)) match {
+    else Option(ranks(tax)) match {
       case Some(r) => r.depth
       case None => depth(parents(tax))
     }
@@ -170,7 +176,7 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
 
   @tailrec
   private def ancestorAtLevel(query: Taxon, at: Taxon, level: Rank): Taxon = {
-    if (taxonRanks(at) == level) {
+    if (ranks(at) == level) {
       at
     } else {
       val p = parents(at)
@@ -309,7 +315,7 @@ final case class Taxonomy(parents: Array[Taxon], taxonRanks: Array[Rank], scient
 
   @tailrec
   def debugTracePath(x: Taxon): Unit = {
-    println(s"$x\t${taxonRanks(x)}\t${scientificNames(x)}")
+    println(s"$x\t${ranks(x)}\t${scientificNames(x)}")
     if (x != ROOT && x != NONE) {
       debugTracePath(parents(x))
     }

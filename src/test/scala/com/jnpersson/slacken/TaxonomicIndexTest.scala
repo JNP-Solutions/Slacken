@@ -23,11 +23,14 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   import spark.sqlContext.implicits._
 
   val numberOfGenomes = 100
-  val taxonomy = TestTaxonomy.make(numberOfGenomes)
-  val genomes = com.jnpersson.discount.Testing.getList(TestTaxonomy.genomes, numberOfGenomes - 2).
-    zipWithIndex.
+  //multiply by 8 to make the leaf node level approximately right sized
+  val taxonomy = DTesting.getSingle(Testing.taxonomies(numberOfGenomes * 8))
+
+  val leafNodes = taxonomy.taxa.filter(taxonomy.isLeafNode).toList
+  val genomes = com.jnpersson.discount.Testing.getList(Testing.genomes, leafNodes.size).
+    zip(leafNodes).
     map(g => (s"Taxon${g._2 + 2}", g._1))
-  val seqIdToTaxId = (2 until numberOfGenomes).map(i => (s"Taxon$i", i))
+  val seqIdToTaxId = (leafNodes).map(i => (s"Taxon$i", i))
 
   /** Simulate a random read from the given genome */
   def simulatedRead(genome: NTSeq, length: Int = 101): NTSeq = {
@@ -58,7 +61,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     val reads = simulateReads(genomes, 200, 1000).toDS()
     val genomesDS = genomes.toDS
     val labels = seqIdToTaxId.toDS.cache()
-    val noiseReads = DTesting.getList(TestTaxonomy.reads(200, 200), 1000).
+    val noiseReads = DTesting.getList(Testing.reads(200, 200), 1000).
       zipWithIndex.map(x => x._1.copy(header = x._2.toString)).toDS()
 
     //As this test is slow, we limit the number of checks
