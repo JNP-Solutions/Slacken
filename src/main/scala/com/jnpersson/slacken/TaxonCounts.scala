@@ -10,6 +10,11 @@ import scala.collection.mutable.ArrayBuffer
 
 object TaxonCounts {
 
+  def fromPairs(ordinal: Int, pairs: Iterable[(Taxon, Int)]): TaxonCounts = {
+    val (taxa, counts) = pairs.toArray.unzip
+    TaxonCounts(ordinal, taxa, counts)
+  }
+
   /** Concatenate adjacent TaxonCounts (in order corresponding to the subject sequence)
    * into a single TaxonCounts object
    */
