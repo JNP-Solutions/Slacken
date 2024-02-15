@@ -9,6 +9,7 @@ import com.jnpersson.discount.TestGenerators._
 import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, InputFragment, MinSplitter, RandomXOR}
 import com.jnpersson.discount.spark.{Discount, IndexParams, SparkSessionTestWrapper}
 import com.jnpersson.discount.{NTSeq, SeqTitle, Testing => DTesting}
+import com.jnpersson.slacken.Taxonomy.ROOT
 import org.scalacheck.Gen
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
@@ -27,7 +28,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   val taxonomy = DTesting.getSingle(Testing.taxonomies(numberOfGenomes * 8))
 
   val leafNodes = taxonomy.taxa.filter(taxonomy.isLeafNode).toList
-  val genomes = com.jnpersson.discount.Testing.getList(Testing.genomes, leafNodes.size).
+  val genomes = DTesting.getList(Testing.genomes, leafNodes.size).
     zip(leafNodes).
     map(g => (s"Taxon${g._2 + 2}", g._1))
   val seqIdToTaxId = (leafNodes).map(i => (s"Taxon$i", i))
@@ -105,6 +106,18 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     randomGenomes((params, taxonomy) => new KeyValueIndex(params, taxonomy), 63)
   }
 
+  /**
+   * A hardcoded taxonomy for the tiny test dataset in testData/slacken/slacken_tinydata.fna.
+   * Make both strains direct children of root as a simple way to generate test data.
+   */
+  def testDataTaxonomy =
+    Taxonomy.fromNodesAndNames(
+      Array((455631, ROOT, "strain"),
+        (526997, ROOT, "strain")),
+      Iterator((455631, "Clostridioides difficile QCD-66c26"),
+        (526997, "Bacillus mycoides DSM 2048"))
+    )
+
   /* Build a tiny index and write it to disk, then reading it back.
   * At this point there's no correctness check, but the code path is tested.
   */
@@ -117,7 +130,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
 
     val splitter = MinSplitter(mp, k)
     val params = IndexParams(spark.sparkContext.broadcast(splitter), 16, "")
-    val idx = makeIdx(params, TestTaxonomy.testDataTaxonomy)
+    val idx = makeIdx(params, testDataTaxonomy)
     val discount = Discount(k)
     val bkts = idx.makeBuckets(discount, List("testData/slacken/slacken_tinydata.fna"),
       "testData/slacken/seqid2taxid.map", addRC = false)
@@ -128,14 +141,14 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   test("Tiny index, supermer method") {
     val dir = System.getProperty("user.dir")
     makeTinyIndex((params, taxonomy) => new SupermerIndex(params, taxonomy),
-      location => SupermerIndex.load(location, TestTaxonomy.testDataTaxonomy),
+      location => SupermerIndex.load(location, testDataTaxonomy),
       s"$dir/testData/slacken/slacken_test_sm")
   }
 
   test("Tiny index, KeyValue method") {
     val dir = System.getProperty("user.dir")
     makeTinyIndex((params, taxonomy) => new KeyValueIndex(params, taxonomy),
-      location => KeyValueIndex.load(location, TestTaxonomy.testDataTaxonomy),
+      location => KeyValueIndex.load(location, testDataTaxonomy),
       s"$dir/testData/slacken/slacken_test_kv")
   }
 }
