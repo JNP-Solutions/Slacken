@@ -5,10 +5,11 @@
 
 package com.jnpersson.slacken
 
+import com.jnpersson.discount
 import com.jnpersson.discount.TestGenerators._
-import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, InputFragment, MinSplitter, RandomXOR}
+import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, ExtendedTable, InputFragment, MinSplitter, MinimizerPriorities, RandomXOR}
 import com.jnpersson.discount.spark.{Discount, IndexParams, SparkSessionTestWrapper}
-import com.jnpersson.discount.{NTSeq, SeqTitle, Testing => DTesting}
+import com.jnpersson.discount.{NTSeq, Testing => DTesting}
 import com.jnpersson.slacken.Taxonomy.ROOT
 import org.scalacheck.Gen
 import org.scalatest.funsuite.AnyFunSuite
@@ -28,7 +29,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   val taxonomy = DTesting.getSingle(Testing.taxonomies(numberOfGenomes * 8))
 
   val leafNodes = taxonomy.taxa.filter(taxonomy.isLeafNode).toList
-  val genomes = DTesting.getList(Testing.genomes, leafNodes.size).
+  val genomes = DTesting.getList(dnaStrings(1000, 10000), leafNodes.size).
     zip(leafNodes).
     map(g => (s"Taxon${g._2 + 2}", g._1))
   val seqIdToTaxId = (leafNodes).map(i => (s"Taxon$i", i))
@@ -40,8 +41,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   }
 
   @tailrec
-  private def simulateReads(genomes: Seq[(SeqTitle, NTSeq)], length: Int, id: Int,
-                            acc: List[InputFragment] = Nil): List[InputFragment] = {
+  private def simulateReads(length: Int, id: Int, acc: List[InputFragment] = Nil): List[InputFragment] = {
     if (id == 0) {
       acc
     } else {
@@ -50,25 +50,44 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
       val taxon = genome + 2
       val title = s"$id:$taxon"
       val f = InputFragment(title, 0, read, None)
-      simulateReads(genomes, length, id - 1, f :: acc)
+      simulateReads(length, id - 1, f :: acc)
+    }
+  }
+
+  def randomReads(minLen: Int, maxLen: Int): Gen[InputFragment] =
+    dnaStrings(minLen, maxLen).map(ntseq => InputFragment("", 0, ntseq, None))
+
+  def extendedTable(e: Int, m: Int): Gen[ExtendedTable] = {
+    val inner = discount.Testing.minTable(m)
+    for { canonical <- Gen.oneOf(true, false)
+          withSuf <- Gen.oneOf(true, false) }
+    yield ExtendedTable(inner, e, canonical, withSuf)
+  }
+
+  def minimizerPriorities(m: Int): Gen[MinimizerPriorities] = {
+    if (m >= 30) {
+      //ExtendedTable only works for somewhat large m
+      Gen.oneOf(discount.TestGenerators.minimizerPriorities(m), extendedTable(m, 10))
+    } else {
+      discount.TestGenerators.minimizerPriorities(m)
     }
   }
 
   /* Note: this test is probabilistic and relies on randomly generated DNA sequences
      not having enough k-mers in common.
    */
-  def randomGenomes[R](makeIdx: (IndexParams, Taxonomy) => TaxonomicIndex[R], maxM: Int): Unit = {
+  def randomGenomesTest[R](makeIdx: (IndexParams, Taxonomy) => TaxonomicIndex[R], maxM: Int): Unit = {
     //Simulate very long reads to reduce the risk of misclassification by chance in random data
-    val reads = simulateReads(genomes, 200, 1000).toDS()
+    val reads = simulateReads(200, 1000).toDS()
     val genomesDS = genomes.toDS
     val labels = seqIdToTaxId.toDS.cache()
-    val noiseReads = DTesting.getList(Testing.reads(200, 200), 1000).
+    val noiseReads = DTesting.getList(randomReads(200, 200), 1000).
       zipWithIndex.map(x => x._1.copy(header = x._2.toString)).toDS()
 
     //As this test is slow, we limit the number of checks
     forAll((Gen.choose(15, 91), "k"), (ms(maxM), "m"), minSuccessful(5)) { (k, m) =>
       whenever (15 <= m && m <= k) {
-        forAll(Testing.minimizerPriorities(m), minSuccessful(2)) { mp =>
+        forAll(minimizerPriorities(m), minSuccessful(2)) { mp =>
           println(mp)
           val splitter = MinSplitter(mp, k)
           val params = IndexParams(spark.sparkContext.broadcast(splitter), 16, "")
@@ -99,11 +118,11 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   }
 
   test("Random genomes, supermer method") {
-    randomGenomes((params, taxonomy) => new SupermerIndex(params, taxonomy), 31)
+    randomGenomesTest((params, taxonomy) => new SupermerIndex(params, taxonomy), 31)
   }
 
   test("Random genomes, KeyValue method") {
-    randomGenomes((params, taxonomy) => new KeyValueIndex(params, taxonomy), 63)
+    randomGenomesTest((params, taxonomy) => new KeyValueIndex(params, taxonomy), 63)
   }
 
   /**
