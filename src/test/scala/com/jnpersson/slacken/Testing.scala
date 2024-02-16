@@ -5,29 +5,10 @@
 
 package com.jnpersson.slacken
 
-import com.jnpersson.discount
-import com.jnpersson.discount.NTSeq
-import com.jnpersson.discount.TestGenerators.dnaStrings
-import com.jnpersson.discount.hash.{ExtendedTable, InputFragment, MinimizerPriorities}
 import com.jnpersson.slacken.Taxonomy.{NONE, ROOT, Rank, Root}
 import org.scalacheck.{Gen, Shrink}
 
 object Testing {
-  def extendedTable(e: Int, m: Int): Gen[ExtendedTable] = {
-    val inner = discount.Testing.minTable(m)
-    for { canonical <- Gen.oneOf(true, false)
-          withSuf <- Gen.oneOf(true, false) }
-    yield ExtendedTable(inner, e, canonical, withSuf)
-  }
-
-  def minimizerPriorities(m: Int): Gen[MinimizerPriorities] = {
-    if (m >= 30) {
-      //ExtendedTable only works for somewhat large m
-      Gen.oneOf(discount.TestGenerators.minimizerPriorities(m), extendedTable(m, 10))
-    } else {
-      discount.TestGenerators.minimizerPriorities(m)
-    }
-  }
 
   //Construct a smaller taxonomy by removing a single node
   private def withoutNode(tax: Taxonomy, n: Taxon): Taxonomy = {
@@ -75,10 +56,5 @@ object Testing {
     })
   }
 
-  val genomes: Gen[NTSeq] = dnaStrings(1000, 10000)
-
-  /** Random reads */
-  def reads(minLen: Int, maxLen: Int): Gen[InputFragment] =
-    dnaStrings(minLen, maxLen).map(ntseq => InputFragment("", 0, ntseq, None))
 
 }
