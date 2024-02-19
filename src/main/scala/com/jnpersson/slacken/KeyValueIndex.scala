@@ -7,13 +7,15 @@ package com.jnpersson.slacken
 import com.jnpersson.discount.hash.{BucketId, InputFragment}
 import com.jnpersson.discount.spark.Index.randomTableName
 import com.jnpersson.discount.spark.Output.formatPerc
-import com.jnpersson.discount.spark.{Discount, IndexParams}
+import com.jnpersson.discount.spark.{Discount, HDFSUtil, IndexParams}
 import com.jnpersson.discount.{NTSeq, SeqTitle}
-import com.jnpersson.slacken.TaxonomicIndex.ClassifiedRead
+import com.jnpersson.slacken.TaxonomicIndex.{ClassifiedRead, getTaxonLabels}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.expressions.Aggregator
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql._
+
+import scala.collection.mutable
 
 
 /** Metagenomic index compatible with the Kraken 2 algorithm.
@@ -221,6 +223,31 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     val recTotal = allTaxa.map(_._2).sum
     val leafTotal = leafTaxa.map(_._2).sum
     println(s"Total $m-minimizers: $recTotal, of which leaf records: $leafTotal (${formatPerc(leafTotal.toDouble/recTotal)})")
+  }
+
+  def report(checkLabelFile: Option[String], output: String): Unit = {
+    val indexBuckets = loadBuckets()
+    //Report the contents of the index, count minimizers
+    val allTaxa = indexBuckets.groupBy("taxon").agg(count("taxon")).as[(Taxon, Long)].collect()
+    HDFSUtil.usingWriter(output + "_min_report.txt", wr =>
+      new KrakenReport(taxonomy, allTaxa).print(wr)
+    )
+
+    //count of 1 per genome
+    HDFSUtil.usingWriter(output + "_genome_report.txt", wr =>
+      new KrakenReport(taxonomy, allTaxa.map(t => (t._1, 1L))).print(wr)
+    )
+
+    //Report missing genomes that were present in the input label file but are not in the index
+    for { labels <- checkLabelFile } {
+      val presentTaxa = allTaxa.iterator.map(_._1)
+      val inputTaxa = getTaxonLabels(labels).select("_2").distinct().as[Taxon].collect()
+      //count of 1 per genome
+      val missingLeaf = (mutable.BitSet.empty ++ inputTaxa -- presentTaxa).toArray.map(t => (t, 1L))
+      HDFSUtil.usingWriter(output + "_missing.txt", wr =>
+        new KrakenReport(taxonomy, missingLeaf).print(wr)
+      )
+    }
   }
 
   /** An iterator of (k-mer, taxonomic depth) pairs where the root level has depth zero. */

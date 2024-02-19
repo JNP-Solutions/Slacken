@@ -134,9 +134,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
       outputRows.coalesce(200).write.mode(SaveMode.Overwrite).
         text(s"${location}_classified")
       val report = new KrakenReport(bcTax.value, countByTaxon)
-      val writer = HDFSUtil.getPrintWriter(s"${location}_kreport.txt")
-      report.print(writer)
-      writer.close()
+      HDFSUtil.usingWriter(s"${location}_kreport.txt", wr => report.print(wr))
     } finally {
       reads.unpersist()
     }

@@ -49,6 +49,16 @@ object HDFSUtil {
     fs.exists(p)
   }
 
+  /** Create a PrintWriter, use it to write output, then close it safely. */
+  def usingWriter(location: String, writeFun: PrintWriter => Unit)(implicit spark: SparkSession): Unit = {
+    val w = getPrintWriter(location)
+    try {
+      writeFun(w)
+    } finally {
+      w.close()
+    }
+  }
+
   /** Obtain a PrintWriter for an HDFS location, creating or overwriting a file */
   def getPrintWriter(location: String)(implicit spark: SparkSession): PrintWriter = {
     val hadoopPath = new HPath(location)
@@ -69,14 +79,8 @@ object HDFSUtil {
     Source.fromInputStream(getInputStream(location))
 
   /** Write a text file to a HDFS location */
-  def writeTextFile(location: String, data: String)(implicit spark: SparkSession): Unit = {
-    val writer = getPrintWriter(location)
-    try {
-      writer.write(data)
-    } finally {
-      writer.close()
-    }
-  }
+  def writeTextFile(location: String, data: String)(implicit spark: SparkSession): Unit =
+    usingWriter(location, wr => wr.write(data))
 
   /** Write lines of text to a HDFS location */
   def writeTextLines(location: String, lines: Iterator[String])(implicit spark: SparkSession): Unit = {
@@ -92,14 +96,8 @@ object HDFSUtil {
   }
 
   /** Write a properties object to a HDFS location */
-  def writeProperties(location: String, data: Properties, comment: String)(implicit spark: SparkSession): Unit = {
-    val writer = getPrintWriter(location)
-    try {
-      data.store(writer, comment)
-    } finally {
-      writer.close()
-    }
-  }
+  def writeProperties(location: String, data: Properties, comment: String)(implicit spark: SparkSession): Unit =
+    usingWriter(location, wr => data.store(wr, comment))
 
   /** Read a properties object from a HDFS location */
   def readProperties(location: String)(implicit spark: SparkSession): Properties = {
