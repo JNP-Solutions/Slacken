@@ -221,7 +221,7 @@ object TaxonomicIndex {
       println(invalidLeafNodes.toList)
     }
     val validLeafNodes = leafNodes.filter(x => tax.isDefined(x))
-    val max = tax.countDistinctTaxaWithParents(validLeafNodes)
+    val max = tax.countDistinctTaxaWithAncestors(validLeafNodes)
     println(s"${validLeafNodes.size} valid leaf taxa in input sequences described by $labelFile (maximal implied tree size $max)")
   }
 

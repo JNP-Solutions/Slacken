@@ -216,7 +216,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     val allTaxa = indexBuckets.groupBy("taxon").agg(count("taxon")).as[(Taxon, Long)].collect()
 
     val leafTaxa = allTaxa.filter(x => taxonomy.isLeafNode(x._1))
-    val treeSize = taxonomy.countDistinctTaxaWithParents(allTaxa.map(_._1))
+    val treeSize = taxonomy.countDistinctTaxaWithAncestors(allTaxa.map(_._1))
     println(s"Tree size: $treeSize taxa, stored taxa: ${allTaxa.size}, of which ${leafTaxa.size} " +
       s"leaf taxa (${formatPerc(leafTaxa.size.toDouble/allTaxa.size)})")
 

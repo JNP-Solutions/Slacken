@@ -301,16 +301,20 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
    * @param taxa leaf taxa to start from
    * @return number of distinct taxa in the tree
    */
-  def countDistinctTaxaWithParents(taxa: Iterable[Taxon]): Int = {
+  def countDistinctTaxaWithAncestors(taxa: Iterable[Taxon]): Int =
+    taxaWithAncestors(taxa).size
+
+  /** Complete a taxonomic tree upwards to ROOT by including all ancestors */
+  def taxaWithAncestors(taxa: Iterable[Taxon]): mutable.BitSet = {
     val r = mutable.BitSet.empty
     for { a <- taxa} {
       var p = a
-      while (p != NONE) {
+      while (p != NONE && !r.contains(p)) {
         r += p
         p = parents(p)
       }
     }
-    r.size
+    r
   }
 
   @tailrec

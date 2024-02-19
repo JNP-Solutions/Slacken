@@ -7,7 +7,7 @@ package com.jnpersson.slacken.analysis
 
 import com.jnpersson.discount.SeqTitle
 import com.jnpersson.discount.spark.Output.formatPerc
-import com.jnpersson.slacken.Taxonomy.{Genus, Rank, Species}
+import com.jnpersson.slacken.Taxonomy.{Genus, ROOT, Rank, Species}
 import com.jnpersson.slacken.{Taxon, Taxonomy}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.functions.udf
@@ -131,6 +131,7 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     val refTaxa = mutable.BitSet.empty ++ refClass.
       select("taxon").distinct().
       as[Taxon].collect()
+    val vagueTaxa = tax.value.taxaWithAncestors(refTaxa) -- refTaxa
 
     val cmpClass = cmpData.
       groupBy("taxon").agg(functions.count("*").as("count")).
@@ -138,20 +139,24 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     val cmpVector = abundanceVector(
       cmpClass.select("taxon", "count").as[(Taxon, Long)].collect()
     )
+
+    //when ranks are not rounded to a standard level, we remove every classification above species level instead
     val cmpTaxa = mutable.BitSet.empty ++ cmpClass.select("taxon").
-      as[Taxon].collect()
+      as[Taxon].collect().filter(
+      x => rank.nonEmpty || tax.value.depth(x) >= Species.depth)
 
     val truePos = refTaxa.intersect(cmpTaxa).size
-    val falsePos = (cmpTaxa -- refTaxa).size
+    val falsePos = (cmpTaxa -- refTaxa -- vagueTaxa).size
+    val vaguePos = cmpTaxa.intersect(vagueTaxa).size
     val falseNeg = (refTaxa -- cmpTaxa).size
-    val precision = truePos.toDouble / cmpTaxa.size
+    val precision = truePos.toDouble / (cmpTaxa -- vagueTaxa).size
     val recall = truePos.toDouble / refTaxa.size
     val l1 = l1Dist(cmpVector, refVector)
     val unifrac = new UniFrac(tax.value, cmpTaxa, refTaxa).distance
 
     println(s"*** Per taxon comparison (minimum $minCountTaxon) at level $rank")
     println(s"Total ref taxa ${refTaxa.size}, total classified taxa ${cmpTaxa.size}")
-    println(s"TP $truePos, FP $falsePos, FN $falseNeg, L1 dist. ${"%.3g".format(l1)} unifrac dist. ${"%.3g".format(unifrac)}")
+    println(s"TP $truePos, VP $vaguePos FP $falsePos, FN $falseNeg, L1 dist. ${"%.3g".format(l1)} unifrac dist. ${"%.3g".format(unifrac)}")
     println(s"Precision ${formatPerc(precision)} recall ${formatPerc(recall)}")
     println("")
 
@@ -254,7 +259,8 @@ object MappingComparison {
         val levelAncestor = tax.ancestorAtLevel(ref, level)
         if (ref == test) TruePos
         else if (levelAncestor != Taxonomy.ROOT && tax.hasAncestor(test, levelAncestor)) TruePos
-        else if (tax.hasAncestor(ref, test)) VaguePos //classified as some ancestor of ref
+        else if (levelAncestor == Taxonomy.ROOT || tax.hasAncestor(ref, test)) VaguePos //classified as some ancestor of ref
+        else if (test == Taxonomy.ROOT) VaguePos //We never consider ROOT to be a TruePos since this contains no information
         else FalsePos
       case (Some(_), None) => FalseNeg
       case (None, Some(_)) =>
