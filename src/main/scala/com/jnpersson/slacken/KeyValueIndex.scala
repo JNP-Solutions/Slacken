@@ -343,7 +343,7 @@ final case class TaxonLCA(bcTaxonomy: Broadcast[Taxonomy]) extends Aggregator[Ta
   lazy val taxonomy = bcTaxonomy.value
 
   @transient
-  private lazy val lca = new taxonomy.LCAFinder
+  private lazy val lca = new LowestCommonAncestor(taxonomy)
 
   override def reduce(b: Taxon, a: Taxon): Taxon = lca(b, a)
 
