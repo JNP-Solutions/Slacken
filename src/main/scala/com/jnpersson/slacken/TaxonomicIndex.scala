@@ -293,7 +293,7 @@ object TaxonomicIndex {
     val classified = taxon != Taxonomy.NONE && sufficientHits
 
     val reportTaxon = if (classified) taxon else Taxonomy.NONE
-    ClassifiedRead(classified, title, reportTaxon, summary.lengthString(k), summary.groupsInOrder)
+    ClassifiedRead(classified, title, reportTaxon, summary.lengthString(k), summary.pairsInOrderString)
   }
 }
 
