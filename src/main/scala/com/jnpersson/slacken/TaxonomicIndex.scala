@@ -214,15 +214,24 @@ object TaxonomicIndex {
   /** Show statistics for a taxon label file */
   def inputStats(labelFile: String, tax: Taxonomy)(implicit spark: SparkSession): Unit = {
     import spark.sqlContext.implicits._
-    val leafNodes = getTaxonLabels(labelFile).select("_2").distinct().as[Taxon].collect()
-    val invalidLeafNodes = leafNodes.filter(x => !tax.isDefined(x))
-    if (invalidLeafNodes.nonEmpty) {
-      println(s"${invalidLeafNodes.size} unknown leaf nodes in input (missing from taxonomy):")
-      println(invalidLeafNodes.toList)
+
+    //Taxa from the taxon to genome mapping file
+    val labelledNodes = getTaxonLabels(labelFile).select("_2").distinct().as[Taxon].collect()
+    val invalidLabelledNodes = labelledNodes.filter(x => !tax.isDefined(x))
+    if (invalidLabelledNodes.nonEmpty) {
+      println(s"${invalidLabelledNodes.size} unknown genomes in $labelFile (missing from taxonomy):")
+      println(invalidLabelledNodes.toList)
     }
-    val validLeafNodes = leafNodes.filter(x => tax.isDefined(x))
-    val max = tax.countDistinctTaxaWithAncestors(validLeafNodes)
-    println(s"${validLeafNodes.size} valid leaf taxa in input sequences described by $labelFile (maximal implied tree size $max)")
+    val nonLeafLabelled = labelledNodes.filter(x => !tax.isLeafNode(x))
+    if (nonLeafLabelled.nonEmpty) {
+      println(s"${nonLeafLabelled.size} non-leaf genomes in $labelFile")
+//      println(nonLeafLabelled.toList)
+    }
+
+    val validLabelled = labelledNodes.filter(x => tax.isDefined(x))
+    val max = tax.countDistinctTaxaWithAncestors(validLabelled)
+    println(s"${validLabelled.size} valid taxa in input sequences described by $labelFile (maximal implied tree size $max)")
+    println(s"Max leaf nodes in resulting database: ${validLabelled.size - nonLeafLabelled.size}")
   }
 
   /**
