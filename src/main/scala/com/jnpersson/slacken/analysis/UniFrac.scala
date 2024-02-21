@@ -1,3 +1,8 @@
+
+/*
+ * This file is part of Slacken. Copyright (c) 2019-2024 Johan Nyström-Persson.
+ */
+
 package com.jnpersson.slacken.analysis
 
 import com.jnpersson.slacken.Taxonomy
