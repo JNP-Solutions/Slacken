@@ -301,7 +301,7 @@ final case class TaxonLCAReducer(params: ReduceParams, taxonomy: Taxonomy) exten
   override def shouldKeep(table: KmerTable, kmer: Int): Boolean =
     table.kmers(tagOffset)(kmer) != Taxonomy.NONE
 
-  private val lca = new taxonomy.LCAFinder
+  private val lca = new LowestCommonAncestor(taxonomy)
 
   def reduceEqualKmers(table: KmerTable, into: Int, from: Int): Unit = {
     val tax1 = table.kmers(tagOffset)(from).toInt

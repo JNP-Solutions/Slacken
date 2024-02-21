@@ -288,7 +288,8 @@ object TaxonomicIndex {
    */
   def classify(taxonomy: Taxonomy, title: SeqTitle, summary: TaxonCounts,
                sufficientHits: Boolean, confidenceThreshold: Double, k: Int): ClassifiedRead = {
-    val taxon = taxonomy.resolveTree(summary, confidenceThreshold)
+    val lca = new LowestCommonAncestor(taxonomy)
+    val taxon = lca.resolveTree(summary, confidenceThreshold)
     val classified = taxon != Taxonomy.NONE && sufficientHits
 
     val reportTaxon = if (classified) taxon else Taxonomy.NONE

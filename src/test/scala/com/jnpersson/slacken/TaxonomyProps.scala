@@ -68,7 +68,7 @@ class TaxonomyProps extends AnyFunSuite with ScalaCheckPropertyChecks {
 
   test("LCA") {
     forAll(taxonomies(100)) { tax =>
-      val finder = new tax.LCAFinder
+      val finder = new LowestCommonAncestor(tax)
       for {t <- tax.taxa
            u <- tax.taxa
            } {
