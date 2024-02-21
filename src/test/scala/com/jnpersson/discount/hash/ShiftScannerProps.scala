@@ -32,8 +32,13 @@ class ShiftScannerProps extends AnyFunSuite with ScalaCheckPropertyChecks {
         whenever(m <= x.size && m > 0) {
           val space = Testing.minTable(m)
           val scanner = space.scanner
-          scanner.allMatches(x)._2.bitArraySeq.drop(m - 1).map(
-            x => space.motifArray(x.toInt).toString).toList should equal(x.sliding(m).toList)
+          val expected = x.sliding(m).toList
+
+          scanner.allMatches(x)._2.bitArraySeq.drop(m - 1). //first m-1 positions can't have an m-length match
+            map(x => space.motifArray(x.toInt).toString) should equal(expected)
+
+          scanner.allMatches(x)._2.validBitArrayIterator.
+            map(m => space.motifArray(m.toInt).toString).toList should equal(expected)
         }
       }
     }
