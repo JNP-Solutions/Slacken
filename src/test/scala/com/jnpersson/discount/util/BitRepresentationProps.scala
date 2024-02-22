@@ -27,19 +27,15 @@ class BitRepresentationProps extends AnyFunSuite with ScalaCheckPropertyChecks {
 
   test("bytesToString reversible") {
     forAll(dnaStrings) { x =>
-      whenever (x.nonEmpty) {
-        val len = x.length
-        val builder = new StringBuilder
-        bytesToString(stringToBytes(x), builder, 0, len) should equal(x)
-      }
+      val len = x.length
+      val builder = new StringBuilder
+      bytesToString(stringToBytes(x), builder, 0, len) should equal(x)
     }
   }
 
   test("DNAHelpers reverseComplement") {
     forAll(dnaStrings) { x =>
-      whenever (x.nonEmpty) {
-        DNAHelpers.reverseComplement(DNAHelpers.reverseComplement(x)) should equal(x)
-      }
+      DNAHelpers.reverseComplement(DNAHelpers.reverseComplement(x)) should equal(x)
     }
   }
 
