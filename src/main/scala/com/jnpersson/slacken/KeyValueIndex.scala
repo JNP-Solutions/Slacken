@@ -169,18 +169,20 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   /** Classify subject sequences using the supplied index (as a dataset) */
   def classify(buckets: Dataset[(BucketId, BucketId, Taxon)], subjects: Dataset[InputFragment],
                cpar: ClassifyParams): Dataset[ClassifiedRead] = {
-    val bcSplit = this.bcSplit
     val k = this.k
     val bcTax = this.bcTaxonomy
+    val bcSplit = this.bcSplit
 
     //Split input sequences by minimizer, preserving sequence ID and ordinal of the super-mer
-    val taggedSegments = subjects.flatMap(s => {
-      val splitter = bcSplit.value
-      Supermers.splitFragment(s, splitter).map(x => {
-        //Drop the sequence data
-        OrdinalSpan(x.segment.id1, x.segment.id2,
-          x.segment.segment.size - (k - 1), x.flag, x.ordinal, x.seqTitle)
-      })
+    val taggedSegments = subjects.mapPartitions(fs => {
+      val supermers = new Supermers(bcSplit.value)
+      fs.flatMap(s =>
+        supermers.splitFragment(s).map(x =>
+          //Drop the sequence data
+          OrdinalSpan(x.segment.id1, x.segment.id2,
+            x.segment.segment.size - (k - 1), x.flag, x.ordinal, x.seqTitle)
+        )
+      )
     }).
       //The 'subject' struct constructs an S2OrdinalSegment.
       select($"id1", $"id2",

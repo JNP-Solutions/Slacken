@@ -26,6 +26,7 @@ import com.jnpersson.discount.spark.{Index, IndexParams}
 import com.jnpersson.discount.util.{BitRepresentation, NTBitArray}
 import org.apache.spark.sql.SparkSession
 import org.scalacheck.Gen.Parameters
+import org.scalacheck.Shrink.{shrink, shrinkContainer}
 import org.scalacheck.rng.Seed
 import org.scalacheck.util.Buildable
 import org.scalacheck.{Gen, Shrink}
@@ -103,9 +104,23 @@ object TestGenerators {
     shrinkContainer[List,Char].shrink(s.toList).map(_.mkString)
   }
 
-  val ks: Gen[Int] = Gen.choose(1, 91).filter(_ % 2 == 1)
-  val ms: Gen[Int] = Gen.choose(1, 63) //TODO parameterize with k
+  val ks: Gen[Int] = ks(1)
+  def ks(min: Int): Gen[Int] = Gen.choose(min, 91).filter(_ % 2 == 1)
+  val ms: Gen[Int] = Gen.choose(1, 63)
   def ms(k: Int): Gen[Int] = Gen.choose(1, k)
+
+  def mAndKPairs: Gen[(Int, Int)] =
+    for {
+      k <- ks
+      m <- ms(k)
+    } yield (m, k)
+
+  /** Shrink m and k while maintaining the invariants we expect from them */
+  implicit def shrinkMAndK: Shrink[(Int, Int)] =
+    Shrink { case (t1,t2) =>
+      shrink(t1).filter(_ >= 1).map((_,t2)) append
+        shrink(t2).filter(_ >= t1).map((t1,_))
+    }
 
   val dnaLetterTwobits: Gen[Byte] = Gen.choose(0, 3).map(x => twobits(x))
   val dnaLetters: Gen[Char] = dnaLetterTwobits.map(x => twobitToChar(x))
