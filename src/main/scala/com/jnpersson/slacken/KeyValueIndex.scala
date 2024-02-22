@@ -188,10 +188,10 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       select($"id1", $"id2",
         struct($"id1", $"id2", $"kmers", $"flag", $"ordinal", $"seqTitle").as("subject"))
 
-    val setTaxonUdf = udf(setTaxon(_, _)) //TODO don't return NONE
+    val setTaxonUdf = udf(setTaxon(_, _))
     //Shuffling of the index in this join can be avoided when the partitioning column
     //and number of partitions is the same in both tables
-    val taxonHits = taggedSegments.join(buckets, List("id1", "id2"), "left"). //TODO inner join
+    val taxonHits = taggedSegments.join(buckets, List("id1", "id2"), "left").
       select($"subject.seqTitle".as("seqTitle"),
         setTaxonUdf($"taxon", $"subject").as("hit"))
 
@@ -202,11 +202,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       val sortedHits = hits.sortBy(_.ordinal)
 
       val sufficientHits = sufficientHitGroups(sortedHits, cpar.minHitGroups)
-      val summariesInOrder = TaxonCounts.concatenate(sortedHits.map(_.summary)) //TODO rewrite
-
-      //More detailed output format for debugging purposes, may be passed instead of summariesInOrder below to
-      //see it in the final output
-      //      hits.sortBy(_.ordinal).mkString(" ")
+      val summariesInOrder = TaxonCounts.concatenate(sortedHits.map(_.summary))
 
       TaxonomicIndex.classify(bcTax.value, title, summariesInOrder, sufficientHits, cpar.confidenceThreshold, k)
     }
@@ -227,6 +223,15 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     println(s"Total $m-minimizers: $recTotal, of which leaf records: $leafTotal (${formatPerc(leafTotal.toDouble/recTotal)})")
   }
 
+  /**
+   * Produce Kraken-style quasi reports detailing:
+   * 1) contents of the index in minimizers (_min_report)
+   * 2) contents of the index in genomes (_genome_report)
+   * 3) missing genomes that are not uniquely identifiable by the index (_missing)
+   *
+   * @param checkLabelFile sequence label file used to build the index
+   * @param output         output filename prefix
+   */
   def report(checkLabelFile: Option[String], output: String): Unit = {
     val indexBuckets = loadBuckets()
     //Report the contents of the index, count minimizers
@@ -246,7 +251,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       val inputTaxa = getTaxonLabels(labels).select("_2").distinct().as[Taxon].collect()
       //count of 1 per genome
       val missingLeaf = (mutable.BitSet.empty ++ inputTaxa -- presentTaxa).toArray.map(t => (t, 1L))
-      HDFSUtil.usingWriter(output + "_missing.txt", wr =>
+      HDFSUtil.usingWriter(output + "_missing_report.txt", wr =>
         new KrakenReport(taxonomy, missingLeaf).print(wr)
       )
     }
@@ -283,12 +288,7 @@ object KeyValueIndex {
     val reportTaxon =
       if (segment.flag == AMBIGUOUS_FLAG) AMBIGUOUS_SPAN
       else if (segment.flag == MATE_PAIR_BORDER_FLAG) MATE_PAIR_BORDER
-      else {
-        taxon match {
-          case Some(taxon) => taxon
-          case None => Taxonomy.NONE
-        }
-      }
+      else taxon.getOrElse(Taxonomy.NONE)
     TaxonHit(segment.id1, segment.id2, segment.ordinal, reportTaxon, segment.kmers)
   }
 
