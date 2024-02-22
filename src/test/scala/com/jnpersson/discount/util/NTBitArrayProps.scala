@@ -154,19 +154,15 @@ class NTBitArrayProps extends AnyFunSuite with ScalaCheckPropertyChecks {
 
   test("toLong") {
     forAll(dnaStrings(1, 31)) { x =>
-      whenever(x.size <= 31) {
-        val enc = NTBitArray.encode(x)
-        NTBitArray.fromLong(enc.toLong, x.size) should equal(enc)
-      }
+      val enc = NTBitArray.encode(x)
+      NTBitArray.fromLong(enc.toLong, x.size) should equal(enc)
     }
   }
 
   test("toInt") {
     forAll(dnaStrings(1, 15)) { x =>
-      whenever(x.size <= 15) {
-        val enc = NTBitArray.encode(x)
-        NTBitArray.fromLong(enc.toInt, x.size) should equal(enc)
-      }
+      val enc = NTBitArray.encode(x)
+      NTBitArray.fromLong(enc.toInt, x.size) should equal(enc)
     }
   }
 

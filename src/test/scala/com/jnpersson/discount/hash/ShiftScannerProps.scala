@@ -28,7 +28,7 @@ class ShiftScannerProps extends AnyFunSuite with ScalaCheckPropertyChecks {
 
   test("Find all m-mers") {
     forAll(ms(10)) { m =>
-      forAll(dnaStrings(m, 100)) { x =>
+      forAll(dnaStrings(m)) { x =>
         whenever(m <= x.size && m > 0) {
           val space = Testing.minTable(m)
           val scanner = space.scanner
@@ -46,7 +46,7 @@ class ShiftScannerProps extends AnyFunSuite with ScalaCheckPropertyChecks {
 
   test("Encoding of NT sequence") {
     forAll(ms(10)) { m =>
-      forAll(dnaStrings(m, 100)) { x =>
+      forAll(dnaStrings(m)) { x =>
         val space = Testing.minTable(m)
         val scanner = space.scanner
         scanner.allMatches(x)._1.toString should equal(x)

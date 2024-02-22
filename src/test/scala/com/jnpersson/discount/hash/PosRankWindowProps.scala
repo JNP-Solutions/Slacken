@@ -28,18 +28,16 @@ import com.jnpersson.discount.TestGenerators._
   //going from beginning to end.
   test("Monotonically increasing rank and position in list") {
     forAll(mAndKPairs) { case (m, k) =>
-      forAll(dnaStrings(k, 200)) { x =>
+      forAll(dnaStrings(k), minimizerPriorities(m)) { (x, pri) =>
         whenever(k <= x.length) {
-          forAll((minimizerPriorities(m), "pri")) { pri =>
-            val scanner = ShiftScanner(pri)
-            val motifRanks = scanner.allMatches(x)._2
-            val window = new PosRankWindow(m, k, motifRanks)
+          val scanner = ShiftScanner(pri)
+          val motifRanks = scanner.allMatches(x)._2
+          val window = new PosRankWindow(m, k, motifRanks)
 
-            while (window.hasNext) {
-              window.motifRanks.bitArraySeq.slice(window.leftBound, window.rightBound).
-                filter(_ != MinSplitter.INVALID) shouldBe sorted
-              window.advanceWindow()
-            }
+          while (window.hasNext) {
+            window.motifRanks.bitArraySeq.slice(window.leftBound, window.rightBound).
+              filter(_ != MinSplitter.INVALID) shouldBe sorted
+            window.advanceWindow()
           }
         }
       }
