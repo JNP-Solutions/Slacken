@@ -99,10 +99,8 @@ object TestGenerators {
 
   //The standard Shrink[String] will shrink the characters into non-ACTG chars, which we do not want
   implicit def shrinkNTSeq: Shrink[NTSeq] = Shrink { s =>
-    if (s.length == 0) Stream(s)
-    else Stream.cons(s.substring(0, s.length - 1),
-      (1 until s.length).map(i => s.substring(0, i) + s.substring(i + 1, s.length)).toStream
-    )
+    implicit val shrinkChar: Shrink[Char] = Shrink.shrinkAny //do not shrink the chars in the string
+    shrinkContainer[List,Char].shrink(s.toList).map(_.mkString)
   }
 
   val ks: Gen[Int] = Gen.choose(1, 91).filter(_ % 2 == 1)
