@@ -34,9 +34,10 @@ class NTBitArrayProps extends AnyFunSuite with ScalaCheckPropertyChecks {
     }
   }
 
-  test("decoding") {
-    forAll(dnaStrings) { x =>
-      NTBitArray.encode(x).toString should equal(x)
+  //Encoding must accept mixed case characters, decoding should return uppercase
+  test("encode/decode") {
+    forAll(dnaStringsMixedCase(1, 200)) { x =>
+      NTBitArray.encode(x).toString should equal(x.toUpperCase())
     }
   }
 

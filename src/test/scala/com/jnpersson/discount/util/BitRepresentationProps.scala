@@ -26,10 +26,10 @@ class BitRepresentationProps extends AnyFunSuite with ScalaCheckPropertyChecks {
   import BitRepresentation._
 
   test("bytesToString reversible") {
-    forAll(dnaStrings) { x =>
+    forAll(dnaStringsMixedCase(1, 200)) { x =>
       val len = x.length
       val builder = new StringBuilder
-      bytesToString(stringToBytes(x), builder, 0, len) should equal(x)
+      bytesToString(stringToBytes(x), builder, 0, len) should equal(x.toUpperCase())
     }
   }
 

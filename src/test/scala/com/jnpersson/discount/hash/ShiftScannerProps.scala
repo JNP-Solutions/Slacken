@@ -28,11 +28,11 @@ class ShiftScannerProps extends AnyFunSuite with ScalaCheckPropertyChecks {
 
   test("Find all m-mers") {
     forAll(ms(10)) { m =>
-      forAll(dnaStrings(m)) { x =>
+      forAll(dnaStringsMixedCase(m, 200)) { x =>
         whenever(m <= x.size && m > 0) {
           val space = Testing.minTable(m)
           val scanner = space.scanner
-          val expected = x.sliding(m).toList
+          val expected = x.sliding(m).toList.map(_.toUpperCase())
 
           scanner.allMatches(x)._2.bitArraySeq.drop(m - 1). //first m-1 positions can't have an m-length match
             map(x => space.motifArray(x.toInt).toString) should equal(expected)
@@ -46,10 +46,10 @@ class ShiftScannerProps extends AnyFunSuite with ScalaCheckPropertyChecks {
 
   test("Encoding of NT sequence") {
     forAll(ms(10)) { m =>
-      forAll(dnaStrings(m)) { x =>
+      forAll(dnaStringsMixedCase(m, 200)) { x =>
         val space = Testing.minTable(m)
         val scanner = space.scanner
-        scanner.allMatches(x)._1.toString should equal(x)
+        scanner.allMatches(x)._1.toString should equal(x.toUpperCase())
       }
     }
   }

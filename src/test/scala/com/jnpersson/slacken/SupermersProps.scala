@@ -16,8 +16,8 @@ class SupermersProps extends AnyFunSuite with ScalaCheckPropertyChecks with Matc
   import com.jnpersson.discount.TestGenerators.shrinkNTSeq
   import com.jnpersson.discount.TestGenerators.shrinkMAndK
 
-  val dnaRnaChars = "ACTGUactgu".toArray
-  val nonDnaRnaChars = (('A' to 'Z') ++ ('a' to 'z')).filter(x => !dnaRnaChars.contains(x)).toArray
+  val nonDnaRnaChars = (('A' to 'Z') ++ ('a' to 'z')).
+    filter(x => !dnaRnaCharsArrayMixedCase.contains(x)).toArray
 
   def ambiguousSequence(minLen: Int, maxLen: Int): Gen[String] = for {
     length <- Gen.choose(minLen, maxLen)

@@ -72,10 +72,19 @@ object Testing {
 object TestGenerators {
   import BitRepresentation._
 
+  val dnaCharsArray = "ACTG".toArray
+  val dnaCharsArrayMixedCase = "ACTGactg".toArray
+  val dnaRnaCharsArrayMixedCase = "ACTGUactgu".toArray
+  val dnaLetterTwobits: Gen[Byte] = Gen.choose(0, 3).map(x => twobits(x))
+
   def dnaStrings(minLen: Int, maxLen: Int): Gen[NTSeq] = for {
     length <- Gen.choose(minLen, maxLen)
-    chars <- Gen.listOfN(length, dnaLetters)
-    x = new String(chars.toArray)
+    x <- Gen.stringOfN(length, Gen.oneOf(dnaCharsArray))
+  } yield x
+
+  def dnaStringsMixedCase(minLen: Int, maxLen: Int): Gen[NTSeq] = for {
+    length <- Gen.choose(minLen, maxLen)
+    x <- Gen.stringOfN(length, Gen.oneOf(dnaCharsArrayMixedCase))
   } yield x
 
   def dnaStrings(minLen: Int): Gen[NTSeq] = dnaStrings(minLen, 200)
@@ -123,9 +132,6 @@ object TestGenerators {
       shrink(t1).filter(_ >= 1).map((_,t2)) append
         shrink(t2).filter(_ >= t1).map((t1,_))
     }
-
-  val dnaLetterTwobits: Gen[Byte] = Gen.choose(0, 3).map(x => twobits(x))
-  val dnaLetters: Gen[Char] = dnaLetterTwobits.map(x => twobitToChar(x))
 
   val abundances: Gen[Int] = Gen.choose(1, 10000)
   def encodedSupermers(minLen: Int): Gen[NTBitArray] = dnaStrings(minLen, 200).map(x => NTBitArray.encode(x))
