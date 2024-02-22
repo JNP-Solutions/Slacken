@@ -78,7 +78,9 @@ object TestGenerators {
     x = new String(chars.toArray)
   } yield x
 
-  val dnaStrings: Gen[NTSeq] = dnaStrings(1, 200)
+  def dnaStrings(minLen: Int): Gen[NTSeq] = dnaStrings(minLen, 200)
+
+  val dnaStrings: Gen[NTSeq] = dnaStrings(1)
 
   def seedMaskSpaces(m: Int): Gen[SeqID] = Gen.choose(0, m / 3)
   def withSpacedSeed(p: MinimizerPriorities, spaces: Int): MinimizerPriorities =
