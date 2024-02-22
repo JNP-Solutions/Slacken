@@ -165,35 +165,6 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
   def writeDepthHistogram(output: String): Unit =
     kmerDepthHistogram().
       write.mode(SaveMode.Overwrite).option("sep", "\t").csv(s"${output}_taxonDepths")
-
-  def writeKmerDepthOrdering(buckets: Dataset[Record], location: String): Unit = {
-    val k = this.k
-    kmersDepths(buckets).map(x => (NTBitArray.fromLong(x._1, k).toString, x._3)).
-      write.option("sep", "\t").csv(s"${location}_minimizers")
-  }
-
-  /** Construct a taxon depth-based minimizer ordering of k-mers (here, k is assumed to equal m for the
-   * new minimizer ordering). Deep (more specific) minimizers will appear first, having higher priority.
-   * The resulting minimizer ordering is encoded as integers, so only k <= 15 is supported.
-   * @param buckets Taxon bucket index to construct from
-   * @param complete Whether to extend the set with k-mers that were not seen in the index, so as to
-   *                 include all k-mers (4<sup>m</sup> values)
-   */
-  def minimizerDepthOrdering(buckets: Dataset[Record], complete: Boolean): Array[Int] = {
-    assert(this.k <= 15)
-
-    val k = this.k
-    val decodeToInt = udf((x: Long) => (x >>> (64 - k * 2)).toInt)
-    val counted = kmersDepths(buckets).select(decodeToInt($"id1")).as[Int].
-      collect()
-    if (!complete) {
-      counted
-    } else {
-      val asSet = scala.collection.mutable.BitSet.empty ++ counted
-      val notInSet = Iterator.range(0, 1 << (2 * k)).filter(x => !asSet.contains(x)).toArray
-      counted ++ notInSet
-    }
-  }
 }
 
 object TaxonomicIndex {
