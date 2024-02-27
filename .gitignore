@@ -1,0 +1,7 @@
+target/**
+.idea/**
+project/**
+/.bsp/
+*.crc
+*.parquet
+testData/**
