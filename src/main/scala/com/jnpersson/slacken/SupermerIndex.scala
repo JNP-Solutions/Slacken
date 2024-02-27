@@ -131,23 +131,14 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       select("id", "subjects", "supermers", "taxa").
       as[(BucketId, Array[OrdinalSupermer], Array[NTBitArray], Array[Array[Taxon]])]
 
-    val taxonSummaries = subjectWithIndex.flatMap { data =>
+    subjectWithIndex.flatMap { data =>
       val tbkt = if (data._3 != null) TaxonBucket(data._1, data._3, data._4)
       else TaxonBucket(data._1, Array(), Array())
-      tbkt.classifyKmers(k, data._2)
-    }
-
-    //Group by sequence ID
-    taxonSummaries.groupBy("_1").agg(collect_list($"_2")).
-      as[(String, Array[TaxonCounts])].map(x => {
-      val summariesInOrder = TaxonCounts.concatenate(x._2.sortBy(_.ordinal))
-
-      //Useful alternative for debugging
-      //x._2.sortBy(_.order).mkString(" ")
-
-      TaxonomicIndex.classify(bcTax.value, x._1, summariesInOrder, sufficientHits = true, 0, k)
-    })
-    ???
+      tbkt.classifyKmers(k, data._2).flatMap{ case (title, counts) =>
+        for { p <- counts.asPairs } yield (title, TaxonHit(data._1, 0, counts.ordinal, p._1, p._2))
+      }
+    }.groupBy("_1").agg(collect_list("_2")).
+      as[(SeqTitle, Array[TaxonHit])]
   }
 
   def showIndexStats(): Unit = {
