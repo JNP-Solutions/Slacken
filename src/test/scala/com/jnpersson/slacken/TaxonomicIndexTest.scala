@@ -57,22 +57,6 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   def randomReads(minLen: Int, maxLen: Int): Gen[InputFragment] =
     dnaStrings(minLen, maxLen).map(ntseq => InputFragment("", 0, ntseq, None))
 
-  def extendedTable(e: Int, m: Int): Gen[ExtendedTable] = {
-    val inner = discount.Testing.minTable(m)
-    for { canonical <- Gen.oneOf(true, false)
-          withSuf <- Gen.oneOf(true, false) }
-    yield ExtendedTable(inner, e, canonical, withSuf)
-  }
-
-  def minimizerPriorities(m: Int): Gen[MinimizerPriorities] = {
-    if (m >= 30) {
-      //ExtendedTable only works for somewhat large m
-      Gen.oneOf(discount.TestGenerators.minimizerPriorities(m), extendedTable(m, 10))
-    } else {
-      discount.TestGenerators.minimizerPriorities(m)
-    }
-  }
-
   /* Note: this test is probabilistic and relies on randomly generated DNA sequences
      not having enough k-mers in common.
    */

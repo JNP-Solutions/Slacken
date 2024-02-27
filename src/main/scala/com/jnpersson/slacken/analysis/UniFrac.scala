@@ -1,3 +1,8 @@
+
+/*
+ * This file is part of Slacken. Copyright (c) 2019-2024 Johan Nyström-Persson.
+ */
+
 package com.jnpersson.slacken.analysis
 
 import com.jnpersson.slacken.Taxonomy
@@ -16,15 +21,7 @@ class UniFrac(tax: Taxonomy, sample1: BitSet, sample2: BitSet) {
 
   /** Compute the full phylogenetic tree to the root starting from the given leaf nodes */
   def fullTree(sample: BitSet): BitSet = {
-    val r = BitSet.empty
-    for { t <- sample } {
-      var n = t
-      while (n != ROOT && !r.contains(n)) {
-        r += n
-        n = tax.parents(n)
-      }
-    }
-    r
+    tax.taxaWithAncestors(sample) - ROOT
   }
 
   def distance: Double = {

@@ -189,128 +189,25 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
     }
   }
 
-  /**
-   * Lowest common ancestor algorithm. The calculation needs a data buffer,
-   * so it is recommended to create one instance of this class in each thread and reuse it.
-   */
-  final class LCAFinder {
-    private val PATH_MAX_LENGTH = 256
-
-    private val taxonPath: Array[Taxon] = Array.fill(PATH_MAX_LENGTH)(NONE)
-
-    /**
-     * Lowest common ancestor of two taxa.
-     * Algorithm from krakenutil.cpp (Kraken 1). This algorithm has the advantage that parents do not need to have a
-     * taxid smaller than their children.
-     * Note that this algorithm is quadratic in the average path length.
-     * @param tax1 taxon 1
-     * @param tax2 taxon 2
-     * @return LCA(taxon1, taxon2)
-     */
-    def apply(tax1: Taxon, tax2: Taxon): Taxon = {
-      if (tax1 == NONE || tax2 == NONE) {
-        return if (tax2 == NONE) tax1 else tax2
-      }
-
-      var a = tax1
-
-      //Step 1: store the entire path from taxon a to root in the buffer
-      var i = 0
-      while (a != NONE) {
-        //The path length must never exceed the buffer size - if it does, increase PATH_MAX_LENGTH above
-        taxonPath(i) = a
-        i += 1
-        a = parents(a)
-      }
-      taxonPath(i) = NONE // mark end
-
-      //Step 2: traverse the path from b to root, checking whether each step is
-      //contained in the path of a (in the buffer). If it is, we have found the LCA.
-      var b = tax2
-      while (b != NONE) {
-        var i = 0
-        while (taxonPath(i) != NONE) {
-          if (taxonPath(i) == b) return b
-          i += 1
-        }
-        b = parents(b)
-      }
-      NONE
-    }
-  }
-
-  /**
-   * Take all hit taxa plus ancestors, then return the leaf of the highest weighted leaf-to-root path.
-   * If the highest weighted path has a score below the confidence threshold, the taxon may move up in the tree to
-   * increase the score of that clade.
-   *
-   * Based on the algorithm in Kraken 2 classify.cc.
-   * @param hitSummary taxon hit counts
-   * @param confidenceThreshold the minimum fraction of minimizers that must be included below the clade of the
-   *                            matching taxon (if not, the taxon will move up in the tree)
-   */
-  def resolveTree(hitSummary: TaxonCounts, confidenceThreshold: Double): Taxon = {
-    val lca = new LCAFinder
-    var maxTaxon = 0
-    var maxScore = 0
-
-    //the number of times each taxon was seen in a read, excluding ambiguous
-    val hitCounts = hitSummary.toMap
-    val requiredScore = Math.ceil(confidenceThreshold * hitSummary.totalTaxa)
-
-    for { (taxon, _) <- hitCounts } {
-      var node = taxon
-      var score = 0
-      //Accumulate score across this path to the root
-      while (node != NONE) {
-        score += hitCounts.getOrElse(node, 0)
-        node = parents(node)
-      }
-
-      if (score > maxScore) {
-        maxTaxon = taxon
-        maxScore = score
-      } else if (score == maxScore) {
-        maxTaxon = lca(maxTaxon, taxon)
-      }
-    }
-
-    //Gradually lift maxTaxon to try to achieve the required score
-    maxScore = hitCounts.getOrElse(maxTaxon, 0)
-    while (maxTaxon != NONE && maxScore < requiredScore) {
-      maxScore = 0
-      for {
-        (taxon, score) <- hitCounts
-        if hasAncestor(taxon, maxTaxon)
-      } {
-        //Add score if taxon is in max_taxon's clade
-        maxScore += score
-      }
-      if (maxScore >= requiredScore) {
-        return maxTaxon
-      }
-      //Move up the tree, yielding a higher total score.
-      //Run off the tree (NONE) if the required score is never met
-      maxTaxon = parents(maxTaxon)
-    }
-    maxTaxon
-  }
-
   /** By traversing the tree upward from a given starting set of leaf taxa, count the total number of distinct taxa
    * present in the entire tree.
    * @param taxa leaf taxa to start from
    * @return number of distinct taxa in the tree
    */
-  def countDistinctTaxaWithParents(taxa: Iterable[Taxon]): Int = {
+  def countDistinctTaxaWithAncestors(taxa: Iterable[Taxon]): Int =
+    taxaWithAncestors(taxa).size
+
+  /** Complete a taxonomic tree upwards to ROOT by including all ancestors */
+  def taxaWithAncestors(taxa: Iterable[Taxon]): mutable.BitSet = {
     val r = mutable.BitSet.empty
     for { a <- taxa} {
       var p = a
-      while (p != NONE) {
+      while (p != NONE && !r.contains(p)) {
         r += p
         p = parents(p)
       }
     }
-    r.size
+    r
   }
 
   @tailrec
