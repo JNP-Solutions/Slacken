@@ -5,3 +5,4 @@ project/**
 *.crc
 *.parquet
 testData/**
+metastore_db/**
