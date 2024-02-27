@@ -9,7 +9,7 @@ import com.jnpersson.discount.hash.{BucketId, InputFragment}
 import com.jnpersson.discount.spark.{AnyMinSplitter, Discount, HDFSUtil, IndexParams}
 import com.jnpersson.discount.util.NTBitArray
 import com.jnpersson.discount.{NTSeq, SeqTitle}
-import com.jnpersson.slacken.TaxonomicIndex.{ClassifiedRead, getTaxonLabels}
+import com.jnpersson.slacken.TaxonomicIndex.{ClassifiedRead, getTaxonLabels, sufficientHitGroups}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.functions.{count, desc, udf}
 import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
@@ -31,11 +31,9 @@ case object LCARequireAll extends LCAMethod
 
 /** Parameters for classification of reads
  * @param minHitGroups min number of hit groups
- * @param confidenceThreshold min. confidence score (fraction of k-mers/minimizers that must be in the classified
- *                            taxon's clade)
  * @param withUnclassified whether to include unclassified reads in the outputh
  */
-final case class ClassifyParams(minHitGroups: Int, confidenceThreshold: Double, withUnclassified: Boolean)
+final case class ClassifyParams(minHitGroups: Int, withUnclassified: Boolean)
 
 /** Parameters for a Kraken1/2 compatible taxonomic index for read classification. Associates k-mers with LCA taxa.
  * @param params Parameters for k-mers, index bucketing and persistence
@@ -97,19 +95,52 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
 
   /** Classify subject sequences using the index configured at the IndexParams location */
   def classify(buckets: Dataset[Record], subjects: Dataset[InputFragment],
-               cpar: ClassifyParams): Dataset[ClassifiedRead]
+               cpar: ClassifyParams): Dataset[(SeqTitle, Array[TaxonHit])]
+
+
+
+  def classifyForThreshold(subjectsHits: Dataset[(SeqTitle, Array[TaxonHit])],
+                           cpar: ClassifyParams, threshold: Double): Dataset[ClassifiedRead] = {
+    val bcTax = this.bcTaxonomy
+    val k = this.k
+    subjectsHits.map({ case (title, hits) =>
+      val sortedHits = hits.sortBy(_.ordinal)
+
+      val sufficientHits = sufficientHitGroups(sortedHits, cpar.minHitGroups)
+      val summariesInOrder = TaxonCounts.concatenate(sortedHits.map(_.summary)) //TODO rewrite
+
+      //More detailed output format for debugging purposes, may be passed instead of summariesInOrder below to
+      //see it in the final output
+      //      hits.sortBy(_.ordinal).mkString(" ")
+
+      TaxonomicIndex.classify(bcTax.value, title, summariesInOrder, sufficientHits, threshold, k)
+    })
+
+  }
 
   /** Classify subject sequences using the index configured at the IndexParams location,
-   * writing the results to a designated output location */
-  def classifyAndWrite(subjects: Dataset[InputFragment], outputLocation: String, cpar: ClassifyParams): Unit = {
-    val cs = classify(loadBuckets(), subjects, cpar)
-    writeOutput(cs, outputLocation, cpar)
+   * writing the results to a designated output location
+   *
+   * @param thresholds min. confidence scores (fraction of k-mers/minimizers that must be in the classified
+   *                            taxon's clade) */
+  def classifyAndWrite(buckets: Dataset[Record], subjects: Dataset[InputFragment], outputLocation: String, cpar: ClassifyParams,
+                       thresholds: List[Double]): Unit = {
+    val subjectsHits = classify(buckets, subjects, cpar)
+      .cache()
+    try {
+      for {t <- thresholds} {
+        val classified = classifyForThreshold(subjectsHits, cpar, t)
+        writeOutput(classified, outputLocation + s"_t${t}", cpar)
+      }
+    } finally {
+      subjectsHits.unpersist()
+    }
   }
 
   /** Classify subject sequences using the given buckets, writing the results to a designated output location */
-  def classifyAndWrite(buckets: Dataset[Record], subjects: Dataset[InputFragment], output: String,
-                       cpar: ClassifyParams): Unit =
-    writeOutput(classify(buckets, subjects, cpar), output, cpar)
+  def classifyAndWrite(subjects: Dataset[InputFragment], output: String,
+                       cpar: ClassifyParams, thresholds: List[Double]): Unit =
+    classifyAndWrite(loadBuckets(), subjects, output, cpar, thresholds)
 
   /**
    * Write classified reads to a directory, with the _classified suffix, as well as a kraken-style kreport.txt
@@ -287,5 +318,24 @@ object TaxonomicIndex {
     val reportTaxon = if (classified) taxon else Taxonomy.NONE
     ClassifiedRead(classified, title, reportTaxon, summary.lengthString(k), summary.groupsInOrder)
   }
+
+  /** For the given set of sorted hits, was there a sufficient number of hit groups wrt the given minimum? */
+  def sufficientHitGroups(sortedHits: Array[TaxonHit], minimum: Int): Boolean = {
+    var hitCount = 0
+    var lastHash1 = sortedHits(0).id1
+    var lastHash2 = sortedHits(0).id2
+
+    //count separate hit groups (adjacent but with different minimizers) for each sequence, imitating kraken2 classify.cc
+    for {hit <- sortedHits} {
+      if (hit.taxon != AMBIGUOUS_SPAN && hit.taxon != Taxonomy.NONE && hit.taxon != MATE_PAIR_BORDER &&
+        (hitCount == 0 || (hit.id1 != lastHash1 || hit.id2 != lastHash2))) {
+        hitCount += 1
+      }
+      lastHash1 = hit.id1
+      lastHash2 = hit.id2
+    }
+    hitCount >= minimum
+  }
+
 }
 

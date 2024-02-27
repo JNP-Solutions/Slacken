@@ -108,7 +108,7 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   }
 
   def classify(buckets: Dataset[TaxonBucket], subjects: Dataset[InputFragment],
-               cpar: ClassifyParams): Dataset[ClassifiedRead] = {
+               cpar: ClassifyParams): Dataset[(SeqTitle, Array[TaxonHit])] = {
     val bcSplit = this.bcSplit
     val bcTax = this.bcTaxonomy
     val k = this.k
@@ -147,6 +147,7 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
 
       TaxonomicIndex.classify(bcTax.value, x._1, summariesInOrder, sufficientHits = true, 0, k)
     })
+    ???
   }
 
   def showIndexStats(): Unit = {

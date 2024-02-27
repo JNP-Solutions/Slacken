@@ -65,12 +65,12 @@ class SlackenConf(args: Array[String]) extends Configuration(args) {
       val unclassified = toggle(descrYes = "Output unclassified reads", default = Some(true))
       val output = opt[String](descr = "Output location", required = true)
 
-      def cpar = ClassifyParams(2, 0, unclassified())
+      def cpar = ClassifyParams(2, unclassified())
       def run(implicit spark: SparkSession): Unit = {
         val i = index
         val d = discount(i.params)
         val input = d.inputReader(paired(), inFiles(): _*).getInputFragments(withRC = false, withAmbiguous = true)
-        i.classifyAndWrite(input, output(), cpar)
+        i.classifyAndWrite(input, output(), cpar, List(0)) // TODO: parse the thesholds properly!
       }
     }
     addSubcommand(classify)
