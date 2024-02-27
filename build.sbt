@@ -4,7 +4,7 @@ version := "0.1.0"
 
 scalaVersion := "2.12.18"
 
-val sparkVersion = "3.3.0"
+val sparkVersion = "3.5.0"
 
 //If compiling on JDK 8, the --release 8 flag can be safely removed (needed for backwards compatibility on later JDKs).
 //Also applies to javacOptions below.
