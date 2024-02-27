@@ -10,6 +10,7 @@ import scala.collection.mutable.ArrayBuffer
 
 object TaxonCounts {
 
+  /** Construct a TaxonCounts object from an ordinal and (taxon, count) pairs */
   def fromPairs(ordinal: Int, pairs: Iterable[(Taxon, Int)]): TaxonCounts = {
     val (taxa, counts) = pairs.toArray.unzip
     TaxonCounts(ordinal, taxa, counts)
@@ -44,28 +45,10 @@ object TaxonCounts {
     new TaxonCounts(summaries.headOption.map(_.ordinal).getOrElse(0), taxonRet, countRet)
   }
 
+  /** Construct a TaxonCounts object for a single counted taxon */
   def forTaxon(ordinal: Int, taxon: Taxon, kmers: Int): TaxonCounts =
     TaxonCounts(ordinal, Array(taxon), Array(kmers))
 
-  def taxonRepr(t: Taxon): String =
-    if (t == AMBIGUOUS_SPAN) "A" else s"$t"
-
-  def stringFromPairs(pairs: Iterator[(Taxon, Int)]): String = {
-    val sb = new StringBuilder
-    for ((t, c) <- pairs) {
-      if (t == MATE_PAIR_BORDER) {
-        sb.append("|:|")
-      } else {
-        sb.append(taxonRepr(t))
-        sb.append(":")
-        sb.append(c)
-      }
-      if (pairs.hasNext) {
-        sb.append(" ")
-      }
-    }
-    sb.toString()
-  }
 }
 
 /**
@@ -79,18 +62,7 @@ object TaxonCounts {
  */
 final case class TaxonCounts(ordinal: Int, taxa: mutable.IndexedSeq[Taxon], counts: mutable.IndexedSeq[Int]) {
 
-  def groupsInOrder: String =
-    TaxonCounts.stringFromPairs(asPairs)
-
-  def lengthString(k: Int): String = {
-    val border = taxa.indexOf(MATE_PAIR_BORDER)
-    if (border == -1) {
-      (counts.sum + (k - 1)).toString
-    } else {
-      (counts.take(border).sum + (k-1)) + "|" + (counts.drop(border + 1).sum + (k-1))
-    }
-  }
-
+  /** Obtain counts for each taxon as pairs */
   def asPairs: Iterator[(Taxon, Int)] =
     taxa.iterator zip counts.iterator
 
@@ -118,4 +90,39 @@ final case class TaxonCounts(ordinal: Int, taxa: mutable.IndexedSeq[Taxon], coun
     asPairs.
       filter(_._1 != MATE_PAIR_BORDER).
       map(_._2).sum
+
+
+  private def taxonRepr(t: Taxon): String =
+    if (t == AMBIGUOUS_SPAN) "A" else s"$t"
+
+  /** Obtain a string representation from (taxon, count) pairs, suitable for the report */
+  def pairsInOrderString: String = {
+    val sb = new StringBuilder
+    val pairs = asPairs
+    for ((t, c) <- pairs) {
+      if (t == MATE_PAIR_BORDER) {
+        sb.append("|:|")
+      } else {
+        sb.append(taxonRepr(t))
+        sb.append(":")
+        sb.append(c)
+      }
+      if (pairs.hasNext) {
+        sb.append(" ")
+      }
+    }
+    sb.toString()
+  }
+
+  /** A string that summarises the length of these taxon counts, including potential mate pair separator.
+   * Suitable for the report. */
+  def lengthString(k: Int): String = {
+    val border = taxa.indexOf(MATE_PAIR_BORDER)
+    if (border == -1) {
+      (counts.sum + (k - 1)).toString
+    } else {
+      (counts.take(border).sum + (k-1)) + "|" + (counts.drop(border + 1).sum + (k-1))
+    }
+  }
+
 }

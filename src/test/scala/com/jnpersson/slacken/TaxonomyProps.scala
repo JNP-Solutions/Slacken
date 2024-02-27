@@ -1,3 +1,7 @@
+/*
+ * This file is part of Slacken. Copyright (c) 2019-2024 Johan Nyström-Persson.
+ */
+
 package com.jnpersson.slacken
 
 import com.jnpersson.slacken.Taxonomy.{ROOT, Root}
@@ -68,7 +72,7 @@ class TaxonomyProps extends AnyFunSuite with ScalaCheckPropertyChecks {
 
   test("LCA") {
     forAll(taxonomies(100)) { tax =>
-      val finder = new tax.LCAFinder
+      val finder = new LowestCommonAncestor(tax)
       for {t <- tax.taxa
            u <- tax.taxa
            } {

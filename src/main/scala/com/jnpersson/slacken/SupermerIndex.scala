@@ -45,7 +45,6 @@ object SupermerIndex {
  */
 final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit spark: SparkSession)
   extends TaxonomicIndex[TaxonBucket](params, taxonomy) {
-  import Supermers._
   import spark.sqlContext.implicits._
 
   assert(params.m <= 31) //Support for wider minimizers yet to be implemented
@@ -110,13 +109,15 @@ final class SupermerIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   def classify(buckets: Dataset[TaxonBucket], subjects: Dataset[InputFragment],
                cpar: ClassifyParams): Dataset[(SeqTitle, Array[TaxonHit])] = {
     val bcSplit = this.bcSplit
-    val bcTax = this.bcTaxonomy
     val k = this.k
-
     println("Warning: SupermerIndex does not yet respect minHitGroups (to be implemented)")
 
+    //TODO supermer initialization
     //Segments will be tagged with sequence ID
-    val taggedSegments = subjects.flatMap(s => splitFragment(s, bcSplit.value)).
+    val taggedSegments = subjects.mapPartitions(ss => {
+      val supermers = new Supermers(bcSplit.value)
+      ss.flatMap(supermers.splitFragment)
+    }).
       //aliasing the hash column before grouping (rather than after) avoids an unnecessary
       // shuffle in the join with indexBuckets further down
       select($"segment.id1".as("id"), $"segment", $"ordinal", $"flag", $"seqTitle").
@@ -293,7 +294,7 @@ final case class TaxonLCAReducer(params: ReduceParams, taxonomy: Taxonomy) exten
   override def shouldKeep(table: KmerTable, kmer: Int): Boolean =
     table.kmers(tagOffset)(kmer) != Taxonomy.NONE
 
-  private val lca = new taxonomy.LCAFinder
+  private val lca = new LowestCommonAncestor(taxonomy)
 
   def reduceEqualKmers(table: KmerTable, into: Int, from: Int): Unit = {
     val tax1 = table.kmers(tagOffset)(from).toInt

@@ -7,13 +7,15 @@ package com.jnpersson.slacken
 import com.jnpersson.discount.hash.{BucketId, InputFragment}
 import com.jnpersson.discount.spark.Index.randomTableName
 import com.jnpersson.discount.spark.Output.formatPerc
-import com.jnpersson.discount.spark.{Discount, IndexParams}
+import com.jnpersson.discount.spark.{Discount, HDFSUtil, IndexParams}
 import com.jnpersson.discount.{NTSeq, SeqTitle}
-import com.jnpersson.slacken.TaxonomicIndex.ClassifiedRead
+import com.jnpersson.slacken.TaxonomicIndex.{ClassifiedRead, getTaxonLabels}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.expressions.Aggregator
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql._
+
+import scala.collection.mutable
 
 
 /** Metagenomic index compatible with the Kraken 2 algorithm.
@@ -169,25 +171,26 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
                cpar: ClassifyParams): Dataset[(SeqTitle, Array[TaxonHit])] = {
     val bcSplit = this.bcSplit
     val k = this.k
-    //val bcTax = this.bcTaxonomy
 
     //Split input sequences by minimizer, preserving sequence ID and ordinal of the super-mer
-    val taggedSegments = subjects.flatMap(s => {
-      val splitter = bcSplit.value
-      Supermers.splitFragment(s, splitter).map(x => {
-        //Drop the sequence data
-        OrdinalSpan(x.segment.id1, x.segment.id2,
-          x.segment.segment.size - (k - 1), x.flag, x.ordinal, x.seqTitle)
-      })
+    val taggedSegments = subjects.mapPartitions(fs => {
+      val supermers = new Supermers(bcSplit.value)
+      fs.flatMap(s =>
+        supermers.splitFragment(s).map(x =>
+          //Drop the sequence data
+          OrdinalSpan(x.segment.id1, x.segment.id2,
+            x.segment.segment.size - (k - 1), x.flag, x.ordinal, x.seqTitle)
+        )
+      )
     }).
       //The 'subject' struct constructs an S2OrdinalSegment.
       select($"id1", $"id2",
         struct($"id1", $"id2", $"kmers", $"flag", $"ordinal", $"seqTitle").as("subject"))
 
-    val setTaxonUdf = udf(setTaxon(_, _)) //TODO don't return NONE
+    val setTaxonUdf = udf(setTaxon(_, _))
     //Shuffling of the index in this join can be avoided when the partitioning column
     //and number of partitions is the same in both tables
-    val taxonHits = taggedSegments.join(buckets, List("id1", "id2"), "left"). //TODO inner join
+    val taxonHits = taggedSegments.join(buckets, List("id1", "id2"), "left").
       select($"subject.seqTitle".as("seqTitle"),
         setTaxonUdf($"taxon", $"subject").as("hit"))
 
@@ -208,7 +211,6 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
 //    }
     taxonHits.groupBy("seqTitle").agg(collect_list("hit")).
       as[(SeqTitle, Array[TaxonHit])]
-
     }
 
   /** Print statistics for this index. */
@@ -217,13 +219,47 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     val allTaxa = indexBuckets.groupBy("taxon").agg(count("taxon")).as[(Taxon, Long)].collect()
 
     val leafTaxa = allTaxa.filter(x => taxonomy.isLeafNode(x._1))
-    val treeSize = taxonomy.countDistinctTaxaWithParents(allTaxa.map(_._1))
+    val treeSize = taxonomy.countDistinctTaxaWithAncestors(allTaxa.map(_._1))
     println(s"Tree size: $treeSize taxa, stored taxa: ${allTaxa.size}, of which ${leafTaxa.size} " +
       s"leaf taxa (${formatPerc(leafTaxa.size.toDouble/allTaxa.size)})")
 
     val recTotal = allTaxa.map(_._2).sum
     val leafTotal = leafTaxa.map(_._2).sum
     println(s"Total $m-minimizers: $recTotal, of which leaf records: $leafTotal (${formatPerc(leafTotal.toDouble/recTotal)})")
+  }
+
+  /**
+   * Produce Kraken-style quasi reports detailing:
+   * 1) contents of the index in minimizers (_min_report)
+   * 2) contents of the index in genomes (_genome_report)
+   * 3) missing genomes that are not uniquely identifiable by the index (_missing)
+   *
+   * @param checkLabelFile sequence label file used to build the index
+   * @param output         output filename prefix
+   */
+  def report(checkLabelFile: Option[String], output: String): Unit = {
+    val indexBuckets = loadBuckets()
+    //Report the contents of the index, count minimizers
+    val allTaxa = indexBuckets.groupBy("taxon").agg(count("taxon")).as[(Taxon, Long)].collect()
+    HDFSUtil.usingWriter(output + "_min_report.txt", wr =>
+      new KrakenReport(taxonomy, allTaxa).print(wr)
+    )
+
+    //count of 1 per genome
+    HDFSUtil.usingWriter(output + "_genome_report.txt", wr =>
+      new KrakenReport(taxonomy, allTaxa.map(t => (t._1, 1L))).print(wr)
+    )
+
+    //Report missing genomes that were present in the input label file but are not in the index
+    for { labels <- checkLabelFile } {
+      val presentTaxa = allTaxa.iterator.map(_._1)
+      val inputTaxa = getTaxonLabels(labels).select("_2").distinct().as[Taxon].collect()
+      //count of 1 per genome
+      val missingLeaf = (mutable.BitSet.empty ++ inputTaxa -- presentTaxa).toArray.map(t => (t, 1L))
+      HDFSUtil.usingWriter(output + "_missing_report.txt", wr =>
+        new KrakenReport(taxonomy, missingLeaf).print(wr)
+      )
+    }
   }
 
   /** An iterator of (k-mer, taxonomic depth) pairs where the root level has depth zero. */
@@ -258,12 +294,7 @@ object KeyValueIndex {
     val reportTaxon =
       if (segment.flag == AMBIGUOUS_FLAG) AMBIGUOUS_SPAN
       else if (segment.flag == MATE_PAIR_BORDER_FLAG) MATE_PAIR_BORDER
-      else {
-        taxon match {
-          case Some(taxon) => taxon
-          case None => Taxonomy.NONE
-        }
-      }
+      else taxon.getOrElse(Taxonomy.NONE)
     TaxonHit(segment.id1, segment.id2, segment.ordinal, reportTaxon, segment.kmers)
   }
 
@@ -303,7 +334,7 @@ final case class TaxonLCA(bcTaxonomy: Broadcast[Taxonomy]) extends Aggregator[Ta
   lazy val taxonomy = bcTaxonomy.value
 
   @transient
-  private lazy val lca = new taxonomy.LCAFinder
+  private lazy val lca = new LowestCommonAncestor(taxonomy)
 
   override def reduce(b: Taxon, a: Taxon): Taxon = lca(b, a)
 

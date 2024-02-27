@@ -151,6 +151,15 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
     }
     addSubcommand(histogram)
 
+    def report = new RunCmd("report") {
+      val output = opt[String](descr = "Output location", required = true)
+      val labels = opt[String](descr = "Labels file to check for missing nodes")
+
+      def run(implicit spark: SparkSession): Unit = {
+        index.report(labels.toOption, output())
+      }
+    }
+    addSubcommand(report)
   }
   addSubcommand(taxonIndex)
 

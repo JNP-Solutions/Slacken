@@ -165,9 +165,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
       outputRows.coalesce(200).write.mode(SaveMode.Overwrite).
         text(s"${location}_classified")
       val report = new KrakenReport(bcTax.value, countByTaxon)
-      val writer = HDFSUtil.getPrintWriter(s"${location}_kreport.txt")
-      report.print(writer)
-      writer.close()
+      HDFSUtil.usingWriter(s"${location}_kreport.txt", wr => report.print(wr))
     } finally {
       reads.unpersist()
     }
@@ -198,35 +196,6 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
   def writeDepthHistogram(output: String): Unit =
     kmerDepthHistogram().
       write.mode(SaveMode.Overwrite).option("sep", "\t").csv(s"${output}_taxonDepths")
-
-  def writeKmerDepthOrdering(buckets: Dataset[Record], location: String): Unit = {
-    val k = this.k
-    kmersDepths(buckets).map(x => (NTBitArray.fromLong(x._1, k).toString, x._3)).
-      write.option("sep", "\t").csv(s"${location}_minimizers")
-  }
-
-  /** Construct a taxon depth-based minimizer ordering of k-mers (here, k is assumed to equal m for the
-   * new minimizer ordering). Deep (more specific) minimizers will appear first, having higher priority.
-   * The resulting minimizer ordering is encoded as integers, so only k <= 15 is supported.
-   * @param buckets Taxon bucket index to construct from
-   * @param complete Whether to extend the set with k-mers that were not seen in the index, so as to
-   *                 include all k-mers (4<sup>m</sup> values)
-   */
-  def minimizerDepthOrdering(buckets: Dataset[Record], complete: Boolean): Array[Int] = {
-    assert(this.k <= 15)
-
-    val k = this.k
-    val decodeToInt = udf((x: Long) => (x >>> (64 - k * 2)).toInt)
-    val counted = kmersDepths(buckets).select(decodeToInt($"id1")).as[Int].
-      collect()
-    if (!complete) {
-      counted
-    } else {
-      val asSet = scala.collection.mutable.BitSet.empty ++ counted
-      val notInSet = Iterator.range(0, 1 << (2 * k)).filter(x => !asSet.contains(x)).toArray
-      counted ++ notInSet
-    }
-  }
 }
 
 object TaxonomicIndex {
@@ -247,15 +216,24 @@ object TaxonomicIndex {
   /** Show statistics for a taxon label file */
   def inputStats(labelFile: String, tax: Taxonomy)(implicit spark: SparkSession): Unit = {
     import spark.sqlContext.implicits._
-    val leafNodes = getTaxonLabels(labelFile).select("_2").distinct().as[Taxon].collect()
-    val invalidLeafNodes = leafNodes.filter(x => !tax.isDefined(x))
-    if (invalidLeafNodes.nonEmpty) {
-      println(s"${invalidLeafNodes.size} unknown leaf nodes in input (missing from taxonomy):")
-      println(invalidLeafNodes.toList)
+
+    //Taxa from the taxon to genome mapping file
+    val labelledNodes = getTaxonLabels(labelFile).select("_2").distinct().as[Taxon].collect()
+    val invalidLabelledNodes = labelledNodes.filter(x => !tax.isDefined(x))
+    if (invalidLabelledNodes.nonEmpty) {
+      println(s"${invalidLabelledNodes.size} unknown genomes in $labelFile (missing from taxonomy):")
+      println(invalidLabelledNodes.toList)
     }
-    val validLeafNodes = leafNodes.filter(x => tax.isDefined(x))
-    val max = tax.countDistinctTaxaWithParents(validLeafNodes)
-    println(s"${validLeafNodes.size} valid leaf taxa in input sequences described by $labelFile (maximal implied tree size $max)")
+    val nonLeafLabelled = labelledNodes.filter(x => !tax.isLeafNode(x))
+    if (nonLeafLabelled.nonEmpty) {
+      println(s"${nonLeafLabelled.size} non-leaf genomes in $labelFile")
+//      println(nonLeafLabelled.toList)
+    }
+
+    val validLabelled = labelledNodes.filter(x => tax.isDefined(x))
+    val max = tax.countDistinctTaxaWithAncestors(validLabelled)
+    println(s"${validLabelled.size} valid taxa in input sequences described by $labelFile (maximal implied tree size $max)")
+    println(s"Max leaf nodes in resulting database: ${validLabelled.size - nonLeafLabelled.size}")
   }
 
   /**
@@ -312,11 +290,12 @@ object TaxonomicIndex {
    */
   def classify(taxonomy: Taxonomy, title: SeqTitle, summary: TaxonCounts,
                sufficientHits: Boolean, confidenceThreshold: Double, k: Int): ClassifiedRead = {
-    val taxon = taxonomy.resolveTree(summary, confidenceThreshold)
+    val lca = new LowestCommonAncestor(taxonomy)
+    val taxon = lca.resolveTree(summary, confidenceThreshold)
     val classified = taxon != Taxonomy.NONE && sufficientHits
 
     val reportTaxon = if (classified) taxon else Taxonomy.NONE
-    ClassifiedRead(classified, title, reportTaxon, summary.lengthString(k), summary.groupsInOrder)
+    ClassifiedRead(classified, title, reportTaxon, summary.lengthString(k), summary.pairsInOrderString)
   }
 
   /** For the given set of sorted hits, was there a sufficient number of hit groups wrt the given minimum? */

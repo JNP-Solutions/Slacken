@@ -92,7 +92,7 @@ class IndexTest extends AnyFunSuite with Matchers with SparkSessionTestWrapper w
   test("random index") {
     import Testing._
     val k = 31
-    forAll(index(k, m)) { (i) =>
+    forAll(index(k, m)) { i =>
       val total = i.buckets.map(_.totalCount).collect.sum
       val distinct = i.buckets.map(_.distinctKmers).collect.sum
       val ts = i.totalStats()
