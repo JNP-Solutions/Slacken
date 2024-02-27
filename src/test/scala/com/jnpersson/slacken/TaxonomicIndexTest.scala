@@ -95,9 +95,10 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
 
           val minimizers = idx.makeBuckets(genomesDS, labels, LCAAtLeastTwo)
 
-          val cpar = ClassifyParams(2, 0, true)
+          val cpar = ClassifyParams(2, true)
           //The property of known reads classifying correctly.
-          idx.classify(minimizers, reads, cpar).filter(r => {
+          val subjectsHits = idx.classify(minimizers, reads, cpar)
+          idx.classifyForThreshold(subjectsHits, cpar, 0.0).filter(r => {
             //Check that each read got classified to the expected taxon. In the generated reads
             //the title contains the taxon, as a bookkeeping trick.
             val expTaxon = r.title.split(":")(1).toInt
@@ -108,7 +109,8 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
           //the property of noise reads not classifying. Hard to check with random data for
           //small m. In the future we could generate better test data to get around this.
           if (m >= 25) {
-            idx.classify(minimizers, noiseReads, cpar).filter(r =>
+            val subjectsHits = idx.classify(minimizers, noiseReads, cpar)
+            idx.classifyForThreshold(subjectsHits, cpar, 0.0).filter(r =>
               r.classified
             ).isEmpty should be(true)
           }
