@@ -163,6 +163,12 @@ class Configuration(args: Seq[String]) extends ScallopConf(args) {
     }
   }
 
+  def inputReader(files: List[String], pairedEnd: Boolean = false)(implicit spark: SparkSession) =
+    new Inputs(files, k(), maxSequenceLength(), pairedEnd)
+
+  def inputReader(files: List[String], k: Int, pairedEnd: Boolean)(implicit spark: SparkSession) =
+    new Inputs(files, k, maxSequenceLength(), pairedEnd)
+
   def discount(implicit spark: SparkSession): Discount = {
     requireSuppliedK()
     new Discount(k(), parseMinimizerSource, minimizerWidth(), ordering(), sample(), maxSequenceLength(), normalize(),

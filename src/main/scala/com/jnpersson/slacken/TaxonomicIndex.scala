@@ -5,9 +5,9 @@
 
 package com.jnpersson.slacken
 
-import com.jnpersson.discount.hash.{BucketId, InputFragment}
-import com.jnpersson.discount.spark.{AnyMinSplitter, Discount, HDFSUtil, IndexParams}
-import com.jnpersson.discount.util.NTBitArray
+import com.jnpersson.discount.hash.InputFragment
+import com.jnpersson.discount.spark.{AnyMinSplitter, HDFSUtil, IndexParams, Inputs}
+
 import com.jnpersson.discount.{NTSeq, SeqTitle}
 import com.jnpersson.slacken.TaxonomicIndex.{ClassifiedRead, getTaxonLabels, sufficientHitGroups}
 import org.apache.spark.broadcast.Broadcast
@@ -60,21 +60,20 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
   lazy val bcTaxonomy = sc.broadcast(taxonomy)
 
   /** Sanity check input data */
-  def checkInput(discount: Discount, inFiles: List[String]): Unit = {}
+  def checkInput(inputs: Inputs): Unit = {}
 
   /**
    * Construct buckets for a new index from genomes.
    *
-   * @param discount         Discount object, used to get an InputReader only.
-   * @param inFiles          Files with genomic sequences to index
+   * @param reader           Input data
    * @param seqLabelLocation Location of a file that labels each genome with a taxon
    * @param addRC            Whether to add reverse complements
    * @param method           LCA calculation method
    * @return index buckets
    */
-  def makeBuckets(discount: Discount, inFiles: List[String], seqLabelLocation: String,
-                  addRC: Boolean, method: LCAMethod = LCAAtLeastTwo): Dataset[Record] = {
-    val input = discount.inputReader(inFiles: _*).getInputFragments(addRC).map(x =>
+  def makeBuckets(reader: Inputs, seqLabelLocation: String, addRC: Boolean,
+                  method: LCAMethod = LCAAtLeastTwo): Dataset[Record] = {
+    val input = reader.getInputFragments(addRC).map(x =>
       (x.header, x.nucleotides))
     val seqLabels = getTaxonLabels(seqLabelLocation)
     makeBuckets(input, seqLabels, method)
@@ -158,9 +157,11 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
    *                       e.g. ".*\\|(.*)\\|.*"
    *                       If none is specified, then single-sample mode is assumed.
    */
-  def classifyAndWrite(subjects: Dataset[InputFragment], outputLocation: String,
-                       cpar: ClassifyParams, sampleRegex: Option[String]): Unit =
+  def classifyAndWrite(inputs: Inputs, outputLocation: String,
+                       cpar: ClassifyParams, sampleRegex: Option[String]): Unit = {
+    val subjects = inputs.getInputFragments(withRC = false, withAmbiguous = true)
     classifyAndWrite(loadBuckets(), subjects, outputLocation, cpar, sampleRegex)
+  }
 
   /**
    * Finalize classification for a single sample, writing the results to the given output location
@@ -192,7 +193,6 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
       TaxonomicIndex.classify(bcTax.value, title, summariesInOrder, sufficientHits, threshold, k)
     })
   }
-
 
   /**
    * Write classified reads to a directory, with the _classified suffix, as well as a kraken-style kreport.txt

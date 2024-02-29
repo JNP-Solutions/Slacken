@@ -7,7 +7,7 @@ package com.jnpersson.slacken
 import com.jnpersson.discount.hash.{BucketId, InputFragment}
 import com.jnpersson.discount.spark.Index.randomTableName
 import com.jnpersson.discount.spark.Output.formatPerc
-import com.jnpersson.discount.spark.{Discount, HDFSUtil, IndexFormat4, IndexParams}
+import com.jnpersson.discount.spark.{Discount, HDFSUtil, IndexFormat4, IndexParams, Inputs}
 import com.jnpersson.discount.{NTSeq, SeqTitle}
 import com.jnpersson.slacken.TaxonomicIndex.{ClassifiedRead, getTaxonLabels}
 import org.apache.spark.broadcast.Broadcast
@@ -33,9 +33,8 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   val recordColumnNames: List[String] = idColumnNames :+ "taxon"
   val recordColumns: List[Column] = idColumns :+ $"taxon"
 
-  override def checkInput(discount: Discount, inFiles: List[String]): Unit = {
-    val fragments = discount.inputReader(inFiles: _*).getInputFragments(false).map(x =>
-      (x.header, x.nucleotides))
+  override def checkInput(inputs: Inputs): Unit = {
+    val fragments = inputs.getInputFragments(false).map(x => (x.header, x.nucleotides))
 
     /* Check if there are input sequences with no valid minimizers.
     * If so, report them.  */

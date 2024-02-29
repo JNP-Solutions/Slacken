@@ -7,7 +7,7 @@ package com.jnpersson.slacken
 
 import com.jnpersson.discount.TestGenerators._
 import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, InputFragment, MinSplitter, RandomXOR}
-import com.jnpersson.discount.spark.{Discount, IndexParams, SparkSessionTestWrapper}
+import com.jnpersson.discount.spark.{IndexParams, Inputs, SparkSessionTestWrapper}
 import com.jnpersson.discount.{NTSeq, Testing => DTesting}
 import com.jnpersson.slacken.Taxonomy.ROOT
 import org.scalacheck.Gen
@@ -131,8 +131,9 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     val splitter = MinSplitter(mp, k)
     val params = IndexParams(spark.sparkContext.broadcast(splitter), 16, "")
     val idx = makeIdx(params, testDataTaxonomy)
-    val discount = Discount(k)
-    val bkts = idx.makeBuckets(discount, List("testData/slacken/slacken_tinydata.fna"),
+
+    val bkts = idx.makeBuckets(
+      new Inputs(List("testData/slacken/slacken_tinydata.fna"), k, 10000000),
       "testData/slacken/seqid2taxid.map", addRC = false)
     idx.writeBuckets(bkts, location)
     loadIdx(location).loadBuckets(location).count() should be > 0L
