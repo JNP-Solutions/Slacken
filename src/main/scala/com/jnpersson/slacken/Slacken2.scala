@@ -5,7 +5,7 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, MinSplitter, RandomXOR, SpacedSeed}
-import com.jnpersson.discount.spark.{Commands, Configuration, HDFSUtil, IndexParams, RunCmd, SparkTool}
+import com.jnpersson.discount.spark.{Commands, Configuration, HDFSUtil, IndexParams, Inputs, RunCmd, SparkTool}
 import com.jnpersson.slacken.analysis.{MappingComparison, Metrics}
 import org.apache.spark.sql.SparkSession
 import org.rogach.scallop.Subcommand
@@ -54,8 +54,6 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
       val check = opt[Boolean](descr = "Only check input files", hidden = true, default = Some(false))
 
       def run(implicit spark: SparkSession): Unit = {
-        val d = discount
-
         val params = IndexParams(
           spark.sparkContext.broadcast(
             MinSplitter(seedMask(discount.getSplitter(inFiles.toOption).priorities), k())
@@ -67,9 +65,9 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
         val index = new KeyValueIndex(params, tax)
 
         if (check()) {
-          index.checkInput(d, inFiles())
+          index.checkInput(inputReader(inFiles()))
         } else { //build index
-          val bkts = index.makeBuckets(d, inFiles(), labels(), addRC = false, method)
+          val bkts = index.makeBuckets(inputReader(inFiles()), labels(), addRC = false, method)
           index.writeBuckets(bkts, params.location)
           TaxonomicIndex.copyTaxonomy(taxonomy(), location() + "_taxonomy")
           index.showIndexStats()
@@ -133,9 +131,8 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
 
       def run(implicit spark: SparkSession): Unit = {
         val i = index
-        val d = discount(i.params)
-        val input = d.inputReader(paired(), inFiles(): _*).getInputFragments(withRC = false, withAmbiguous = true)
-        i.classifyAndWrite(input, output(), cpar, sampleRegex.toOption)
+        val inputs = inputReader(inFiles(), i.params.k, paired())
+        i.classifyAndWrite(inputs, output(), cpar, sampleRegex.toOption)
       }
     }
     addSubcommand(classify)
