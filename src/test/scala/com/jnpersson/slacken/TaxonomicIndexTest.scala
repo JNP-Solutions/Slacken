@@ -5,9 +5,8 @@
 
 package com.jnpersson.slacken
 
-import com.jnpersson.discount
 import com.jnpersson.discount.TestGenerators._
-import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, ExtendedTable, InputFragment, MinSplitter, MinimizerPriorities, RandomXOR}
+import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, InputFragment, MinSplitter, RandomXOR}
 import com.jnpersson.discount.spark.{Discount, IndexParams, SparkSessionTestWrapper}
 import com.jnpersson.discount.{NTSeq, Testing => DTesting}
 import com.jnpersson.slacken.Taxonomy.ROOT
@@ -103,10 +102,6 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     }
   }
 
-  test("Random genomes, supermer method") {
-    randomGenomesTest((params, taxonomy) => new SupermerIndex(params, taxonomy), 31)
-  }
-
   test("Random genomes, KeyValue method") {
     randomGenomesTest((params, taxonomy) => new KeyValueIndex(params, taxonomy), 63)
   }
@@ -141,13 +136,6 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
       "testData/slacken/seqid2taxid.map", addRC = false)
     idx.writeBuckets(bkts, location)
     loadIdx(location).loadBuckets(location).count() should be > 0L
-  }
-
-  test("Tiny index, supermer method") {
-    val dir = System.getProperty("user.dir")
-    makeTinyIndex((params, taxonomy) => new SupermerIndex(params, taxonomy),
-      location => SupermerIndex.load(location, testDataTaxonomy),
-      s"$dir/testData/slacken/slacken_test_sm")
   }
 
   test("Tiny index, KeyValue method") {
