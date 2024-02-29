@@ -98,7 +98,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
                cpar: ClassifyParams): Dataset[(SeqTitle, Array[TaxonHit])]
 
 
-
+  /** Classify input sequence-hit dataset for a single confidence threshold value */
   def classifyForThreshold(subjectsHits: Dataset[(SeqTitle, Array[TaxonHit])],
                            cpar: ClassifyParams, threshold: Double): Dataset[ClassifiedRead] = {
     val bcTax = this.bcTaxonomy
@@ -128,9 +128,13 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
     val subjectsHits = classify(buckets, subjects, cpar)
       .cache()
     try {
+      // find the maximum number of digits after the decimal point for values in the threshold list
+      // to enable proper sorting of file names with threshold values
+      val maxDecimalLength = thresholds.map(num => num.toString.split("\\.")(1).length).max
       for {t <- thresholds} {
         val classified = classifyForThreshold(subjectsHits, cpar, t)
-        writeOutput(classified, outputLocation + s"_t${t}", cpar)
+        val thresholdStr = s"%.${maxDecimalLength}f".format(t)
+        writeOutput(classified, outputLocation + s"_t"+thresholdStr, cpar)
       }
     } finally {
       subjectsHits.unpersist()
