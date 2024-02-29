@@ -196,19 +196,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
 
     //Group all hits by sequence title again so that we can reassemble (the hits from) each sequence according
     // to the original order.
-//    taxonHits.groupBy("seqTitle").agg(collect_list("hit")).
-//      as[(SeqTitle, Array[TaxonHit])].map { case (title, hits) =>
-//      val sortedHits = hits.sortBy(_.ordinal)
-//
-//      val sufficientHits = sufficientHitGroups(sortedHits, cpar.minHitGroups)
-//      val summariesInOrder = TaxonCounts.concatenate(sortedHits.map(_.summary)) //TODO rewrite
-//
-//      //More detailed output format for debugging purposes, may be passed instead of summariesInOrder below to
-//      //see it in the final output
-//      //      hits.sortBy(_.ordinal).mkString(" ")
-//
-//      TaxonomicIndex.classify(bcTax.value, title, summariesInOrder, sufficientHits, cpar.confidenceThreshold, k)
-//    }
+
     taxonHits.groupBy("seqTitle").agg(collect_list("hit")).
       as[(SeqTitle, Array[TaxonHit])]
     }
