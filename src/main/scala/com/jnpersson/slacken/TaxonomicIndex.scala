@@ -134,7 +134,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
       for {t <- thresholds} {
         val classified = classifyForThreshold(subjectsHits, cpar, t)
         val thresholdStr = s"%.${maxDecimalLength}f".format(t)
-        writeOutput(classified, outputLocation + s"_t"+thresholdStr, cpar)
+        writeOutput(classified, outputLocation + s"_c"+thresholdStr, cpar)
       }
     } finally {
       subjectsHits.unpersist()
