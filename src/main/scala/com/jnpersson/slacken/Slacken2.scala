@@ -106,15 +106,16 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
       val paired = opt[Boolean](descr = "Inputs are paired-end reads", default = Some(false))
       val unclassified = toggle(descrYes = "Output unclassified reads", default = Some(true))
       val output = opt[String](descr = "Output location", required = true)
-      val thresholds = opt[List[Double]](
-        descr = "Confidence thresholds (default [0], should be a list with values in [0, 1])", default = Some(List(0.0)))
+      val confidence = opt[List[Double]](
+        descr = "Confidence thresholds (default 0.0, should be a space separated list with values in [0, 1])",
+        default = Some(List(0.0)), short = 'c')
       def cpar = ClassifyParams(minHitGroups(), unclassified())
 
       def run(implicit spark: SparkSession): Unit = {
         val i = index
         val d = discount(i.params)
         val input = d.inputReader(paired(), inFiles(): _*).getInputFragments(withRC = false, withAmbiguous = true)
-        i.classifyAndWrite(input, output(), cpar, thresholds())
+        i.classifyAndWrite(input, output(), cpar, confidence())
       }
     }
     addSubcommand(classify)
