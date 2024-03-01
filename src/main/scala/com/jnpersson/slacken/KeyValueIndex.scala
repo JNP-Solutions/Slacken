@@ -168,10 +168,9 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
 
   /** Classify subject sequences using the supplied index (as a dataset) */
   def classify(buckets: Dataset[(BucketId, BucketId, Taxon)], subjects: Dataset[InputFragment],
-               cpar: ClassifyParams): Dataset[ClassifiedRead] = {
-    val k = this.k
-    val bcTax = this.bcTaxonomy
+               cpar: ClassifyParams): Dataset[(SeqTitle, Array[TaxonHit])] = {
     val bcSplit = this.bcSplit
+    val k = this.k
 
     //Split input sequences by minimizer, preserving sequence ID and ordinal of the super-mer
     val taggedSegments = subjects.mapPartitions(fs => {
@@ -197,16 +196,10 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
 
     //Group all hits by sequence title again so that we can reassemble (the hits from) each sequence according
     // to the original order.
+
     taxonHits.groupBy("seqTitle").agg(collect_list("hit")).
-      as[(SeqTitle, Array[TaxonHit])].map { case (title, hits) =>
-      val sortedHits = hits.sortBy(_.ordinal)
-
-      val sufficientHits = sufficientHitGroups(sortedHits, cpar.minHitGroups)
-      val summariesInOrder = TaxonCounts.concatenate(sortedHits.map(_.summary))
-
-      TaxonomicIndex.classify(bcTax.value, title, summariesInOrder, sufficientHits, cpar.confidenceThreshold, k)
+      as[(SeqTitle, Array[TaxonHit])]
     }
-  }
 
   /** Print statistics for this index. */
   def showIndexStats(): Unit = {
@@ -271,6 +264,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     buckets.select($"taxon").distinct.select($"taxon", depth($"taxon").as("depth")).
       sort(desc("depth")).as[(Taxon, Int)]
   }
+
 }
 
 object KeyValueIndex {
@@ -292,23 +286,6 @@ object KeyValueIndex {
     TaxonHit(segment.id1, segment.id2, segment.ordinal, reportTaxon, segment.kmers)
   }
 
-  /** For the given set of sorted hits, was there a sufficient number of hit groups wrt the given minimum? */
-  def sufficientHitGroups(sortedHits: Array[TaxonHit], minimum: Int): Boolean = {
-    var hitCount = 0
-    var lastHash1 = sortedHits(0).id1
-    var lastHash2 = sortedHits(0).id2
-
-    //count separate hit groups (adjacent but with different minimizers) for each sequence, imitating kraken2 classify.cc
-    for { hit <- sortedHits } {
-      if (hit.taxon != AMBIGUOUS_SPAN && hit.taxon != Taxonomy.NONE && hit.taxon != MATE_PAIR_BORDER &&
-        (hitCount == 0 || (hit.id1 != lastHash1 || hit.id2 != lastHash2))) {
-        hitCount += 1
-      }
-      lastHash1 = hit.id1
-      lastHash2 = hit.id2
-    }
-    hitCount >= minimum
-  }
 
   /** Build an empty KeyValueIndex.
    * @param inFiles Input files used for minimizer ordering construction only
