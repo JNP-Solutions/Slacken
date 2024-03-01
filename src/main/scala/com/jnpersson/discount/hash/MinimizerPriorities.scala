@@ -245,7 +245,7 @@ final case class MinTable(byPriority: Array[Int], width: Int, override val numLa
 final case class SpacedSeed(s: Int, inner: MinimizerPriorities) extends MinimizerPriorities {
 
   val width = inner.width
-  assert (s < inner.width / 2)
+  assert (s <= inner.width / 2)
 
   final val spaceMask: NTBitArray = {
 

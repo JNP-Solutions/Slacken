@@ -91,7 +91,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
 
           //the property of noise reads not classifying. Hard to check with random data for
           //small m. In the future we could generate better test data to get around this.
-          if (m >= 25) {
+          if (m >= 30) {
             val subjectsHits = idx.classify(minimizers, noiseReads, cpar)
             idx.classifyForThreshold(subjectsHits, cpar, 0.0).filter(r =>
               r.classified

@@ -91,9 +91,9 @@ object TestGenerators {
 
   val dnaStrings: Gen[NTSeq] = dnaStrings(1)
 
-  def seedMaskSpaces(m: Int): Gen[SeqID] = Gen.choose(0, m / 3)
+  def seedMaskSpaces(m: Int): Gen[SeqID] = Gen.choose(0, m / 2)
   def withSpacedSeed(p: MinimizerPriorities, spaces: Int): MinimizerPriorities =
-    if (spaces == 0 || spaces >= p.width / 3) p else SpacedSeed(spaces, p)
+    if (spaces == 0 || spaces > p.width / 2) p else SpacedSeed(spaces, p)
 
   def minimizerPriorities(m: Int): Gen[MinimizerPriorities] = {
     val DEFAULT_TOGGLE_MASK = 0xe37e28c4271b5a2dL
