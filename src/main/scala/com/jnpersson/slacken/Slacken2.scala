@@ -11,6 +11,7 @@ import org.apache.spark.sql.SparkSession
 import org.rogach.scallop.Subcommand
 
 import java.io.FileNotFoundException
+import java.util.regex.PatternSyntaxException
 
 class Slacken2Conf(args: Array[String]) extends Configuration(args) {
   version(s"Slacken 2 ${getClass.getPackage.getImplementationVersion} beta (c) 2019-2023 Johan Nyström-Persson")
@@ -109,13 +110,32 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
       val confidence = opt[List[Double]](
         descr = "Confidence thresholds (default 0.0, should be a space separated list with values in [0, 1])",
         default = Some(List(0.0)), short = 'c')
-      def cpar = ClassifyParams(minHitGroups(), unclassified())
+      val sampleRegex = opt[String](descr = "Regular expression for extracting sample ID from read header (e.g. \"@(.*):\")")
+      def cpar = ClassifyParams(minHitGroups(), unclassified(), confidence())
+
+      validate (confidence) { cs =>
+        cs.find(c => c < 0 || c > 1) match {
+          case Some(c) => Left(s"--confidence values must be >= 0 and <= 1 ($c was given)")
+          case None => Right(Unit)
+        }
+      }
+
+      validate(sampleRegex) { reg =>
+        try {
+          reg.r
+          Right(Unit)
+        } catch {
+          case pse: PatternSyntaxException =>
+            println(pse.getMessage)
+            Left(s"--sampleRegex was not a valid regular expression ($reg was given)")
+        }
+      }
 
       def run(implicit spark: SparkSession): Unit = {
         val i = index
         val d = discount(i.params)
         val input = d.inputReader(paired(), inFiles(): _*).getInputFragments(withRC = false, withAmbiguous = true)
-        i.classifyAndWrite(input, output(), cpar, confidence())
+        i.classifyAndWrite(input, output(), cpar, sampleRegex.toOption)
       }
     }
     addSubcommand(classify)

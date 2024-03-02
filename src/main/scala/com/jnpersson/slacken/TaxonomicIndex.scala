@@ -11,7 +11,7 @@ import com.jnpersson.discount.util.NTBitArray
 import com.jnpersson.discount.{NTSeq, SeqTitle}
 import com.jnpersson.slacken.TaxonomicIndex.{ClassifiedRead, getTaxonLabels, sufficientHitGroups}
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.sql.functions.{count, desc, udf}
+import org.apache.spark.sql.functions.{count, desc, regexp_extract, udf}
 import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
 
 /** A method for calculating LCA's (least common ancestors) */
@@ -30,10 +30,13 @@ case object LCAAtLeastTwo extends LCAMethod
 case object LCARequireAll extends LCAMethod
 
 /** Parameters for classification of reads
- * @param minHitGroups min number of hit groups
- * @param withUnclassified whether to include unclassified reads in the outputh
+ *
+ * @param minHitGroups     min number of hit groups
+ * @param withUnclassified whether to include unclassified reads in the output
+ * @param thresholds       min. confidence scores (fraction of k-mers/minimizers that must be in the classified
+ *                         taxon's clade)
  */
-final case class ClassifyParams(minHitGroups: Int, withUnclassified: Boolean)
+final case class ClassifyParams(minHitGroups: Int, withUnclassified: Boolean, thresholds: List[Double] = List(0.0))
 
 /** Parameters for a Kraken1/2 compatible taxonomic index for read classification. Associates k-mers with LCA taxa.
  * @param params Parameters for k-mers, index bucketing and persistence
@@ -97,8 +100,82 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
   def classify(buckets: Dataset[Record], subjects: Dataset[InputFragment],
                cpar: ClassifyParams): Dataset[(SeqTitle, Array[TaxonHit])]
 
+  /** Classify subject sequences using the given index, optionally for multiple samples,
+   * writing the results to a designated output location
+   *
+   * @param buckets        minimizer index
+   * @param subjects       sequences to be classified
+   * @param outputLocation location (directory, if multi-sample or prefix, if single sample) to write output
+   * @param cpar           classification parameters
+   * @param sampleRegex    regular expression that identifies the sample ID of each read (for multi-sample mode).
+   *                       e.g. ".*\\|(.*)\\|.*"
+   *                       If none is specified, then single-sample mode is assumed.
+   */
+  def classifyAndWrite(buckets: Dataset[Record], subjects: Dataset[InputFragment], outputLocation: String,
+                       cpar: ClassifyParams, sampleRegex: Option[String]): Unit = {
+    sampleRegex match {
+      case Some(re) =>
+        //Multi-sample mode
+        val subjectsHits = classify(buckets, subjects, cpar).
+          withColumn("sampleId", regexp_extract($"seqTitle", re, 1)).
+          cache()
 
-  /** Classify input sequence-hit dataset for a single confidence threshold value */
+        try {
+          val samples = subjectsHits.select("sampleId").distinct().as[String].collect().toList
+          println(s"Identified samples: $samples")
+          for { s <- samples } {
+            classifyAndWriteForSample(
+              subjectsHits.where($"sampleId" === s).
+                select("seqTitle", "hits").as[(SeqTitle, Array[TaxonHit])],
+              outputLocation + s"/$s", cpar)
+          }
+        } finally {
+          subjectsHits.unpersist()
+        }
+
+      case None =>
+        //Single sample mode
+        val subjectsHits = classify(buckets, subjects, cpar)
+          .cache()
+        try {
+          classifyAndWriteForSample(subjectsHits, outputLocation, cpar)
+        } finally {
+          subjectsHits.unpersist()
+        }
+    }
+  }
+
+  /** Classify subject sequences using the index stored at the default location, optionally for multiple samples,
+   * writing the results to a designated output location
+   *
+   * @param subjects       sequences to be classified
+   * @param outputLocation (directory, if multi-sample or prefix, if single sample) to write output
+   * @param cpar           classification parameters
+   * @param sampleRegex    regular expression that identifies the sample ID of each read (for multi-sample mode).
+   *                       e.g. ".*\\|(.*)\\|.*"
+   *                       If none is specified, then single-sample mode is assumed.
+   */
+  def classifyAndWrite(subjects: Dataset[InputFragment], outputLocation: String,
+                       cpar: ClassifyParams, sampleRegex: Option[String]): Unit =
+    classifyAndWrite(loadBuckets(), subjects, outputLocation, cpar, sampleRegex)
+
+  /**
+   * Finalize classification for a single sample, writing the results to the given output location
+   */
+  def classifyAndWriteForSample(subjectsHits: Dataset[(SeqTitle, Array[TaxonHit])],
+                        outputLocation: String, cpar: ClassifyParams): Unit = {
+    val thresholds = cpar.thresholds
+    // find the maximum number of digits after the decimal point for values in the threshold list
+    // to enable proper sorting of file names with threshold values
+    val maxDecimalLength = thresholds.map(num => num.toString.split("\\.")(1).length).max
+    for {t <- thresholds} {
+      val classified = classifyForThreshold(subjectsHits, cpar, t)
+      val thresholdStr = s"%.${maxDecimalLength}f".format(t)
+      writeOutput(classified, outputLocation + s"_c" + thresholdStr, cpar)
+    }
+  }
+
+  /** Classify input sequence-hit dataset for a single sample and single confidence threshold value */
   def classifyForThreshold(subjectsHits: Dataset[(SeqTitle, Array[TaxonHit])],
                            cpar: ClassifyParams, threshold: Double): Dataset[ClassifiedRead] = {
     val bcTax = this.bcTaxonomy
@@ -109,42 +186,10 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
       val sufficientHits = sufficientHitGroups(sortedHits, cpar.minHitGroups)
       val summariesInOrder = TaxonCounts.concatenate(sortedHits.map(_.summary)) //TODO rewrite
 
-      //More detailed output format for debugging purposes, may be passed instead of summariesInOrder below to
-      //see it in the final output
-      //      hits.sortBy(_.ordinal).mkString(" ")
-
       TaxonomicIndex.classify(bcTax.value, title, summariesInOrder, sufficientHits, threshold, k)
     })
-
   }
 
-  /** Classify subject sequences using the index configured at the IndexParams location,
-   * writing the results to a designated output location
-   *
-   * @param thresholds min. confidence scores (fraction of k-mers/minimizers that must be in the classified
-   *                            taxon's clade) */
-  def classifyAndWrite(buckets: Dataset[Record], subjects: Dataset[InputFragment], outputLocation: String, cpar: ClassifyParams,
-                       thresholds: List[Double]): Unit = {
-    val subjectsHits = classify(buckets, subjects, cpar)
-      .cache()
-    try {
-      // find the maximum number of digits after the decimal point for values in the threshold list
-      // to enable proper sorting of file names with threshold values
-      val maxDecimalLength = thresholds.map(num => num.toString.split("\\.")(1).length).max
-      for {t <- thresholds} {
-        val classified = classifyForThreshold(subjectsHits, cpar, t)
-        val thresholdStr = s"%.${maxDecimalLength}f".format(t)
-        writeOutput(classified, outputLocation + s"_c"+thresholdStr, cpar)
-      }
-    } finally {
-      subjectsHits.unpersist()
-    }
-  }
-
-  /** Classify subject sequences using the given buckets, writing the results to a designated output location */
-  def classifyAndWrite(subjects: Dataset[InputFragment], output: String,
-                       cpar: ClassifyParams, thresholds: List[Double]): Unit =
-    classifyAndWrite(loadBuckets(), subjects, output, cpar, thresholds)
 
   /**
    * Write classified reads to a directory, with the _classified suffix, as well as a kraken-style kreport.txt
