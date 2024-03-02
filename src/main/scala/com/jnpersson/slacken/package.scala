@@ -36,13 +36,12 @@ package object slacken {
 
   /**
    * A super-mer with a specific minimizer, which is potentially ambiguous, but without sequence data (so just a span)
-   * @param id1 first part of the minimizer
-   * @param id2 second part of the minimizer
+   * @param minimizer minimizer
    * @param kmers number of k-mers in this span
    * @param flag ambiguous flag
    * @param ordinal the relative position of this span in the original sequence
    * @param seqTitle title of the original sequence
    * */
-  final case class OrdinalSpan(id1: Long, id2: Long, kmers: Int, flag: SegmentFlag, ordinal: Int,
+  final case class OrdinalSpan(minimizer: Array[Long], kmers: Int, flag: SegmentFlag, ordinal: Int,
                                seqTitle: SeqTitle)
 }

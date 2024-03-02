@@ -16,15 +16,17 @@ import scala.collection.mutable.ArrayBuffer
 import scala.util.Random
 
 /** A super-mer with a single minimizer.
- * @param id1 First part of the minimizer
- * @param id2 Second part of the minimizer
+ * @param minimizer the minimizer
  * @param segment Sequence data
  */
-final case class Supermer(id1: BucketId, id2: BucketId, segment: NTBitArray)
+final case class Supermer(minimizer: Array[Long], segment: NTBitArray)
 
 /** Helper functions for splitting segments into supermers in the presence of ambiguous data. */
-final class Supermers(splitter: AnyMinSplitter) extends Serializable {
+final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializable {
   val k = splitter.k
+
+  def randomMinimizer: Array[BucketId] =
+    Array.fill(idLongs)(Random.nextLong())
 
    /**
     * Splits reads by hash (minimizer), including an ordinal, so that the ordering inside a read can be reconstructed
@@ -36,7 +38,7 @@ final class Supermers(splitter: AnyMinSplitter) extends Serializable {
       case Some(nt2) =>
         //mate pair, insert the flag in the correct location and process both sides
         val emptySequence = NTBitArray(Array(), 0)
-        val emptySupermer = Supermer(Random.nextLong(), 0, emptySequence)
+        val emptySupermer = Supermer(Array(Random.nextLong()), emptySequence)
         splitFragment(sequence.nucleotides) ++
           Iterator((emptySupermer, MATE_PAIR_BORDER_FLAG)) ++
             splitFragment(nt2)
@@ -48,6 +50,17 @@ final class Supermers(splitter: AnyMinSplitter) extends Serializable {
     for {
       ((segment, flag), index) <- flaggedSegments.zipWithIndex
     } yield OrdinalSupermer(segment, flag, index, sequence.header)
+  }
+
+  /** Ensure that the minimizer has the required length */
+  private def padMinimizer(min: NTBitArray) = {
+    val r = new Array[Long](idLongs)
+    var i = 0
+    while (i < idLongs) {
+      r(i) = min.dataOrBlank(i)
+      i += 1
+    }
+    r
   }
 
   /**
@@ -63,11 +76,11 @@ final class Supermers(splitter: AnyMinSplitter) extends Serializable {
       if ntseq.length >= k
       sm <- flag match {
         case AMBIGUOUS_FLAG =>
-          Iterator((Supermer(Random.nextLong(), 0, NTBitArray(Array(), ntseq.length)), AMBIGUOUS_FLAG))
+          Iterator((Supermer(randomMinimizer, NTBitArray(Array(), ntseq.length)), AMBIGUOUS_FLAG))
         case SEQUENCE_FLAG =>
           for {
             (_, hash, segment, _) <- splitter.splitEncode(ntseq)
-          } yield (Supermer(hash.data(0), hash.dataOrBlank(1), segment), SEQUENCE_FLAG)
+          } yield (Supermer(padMinimizer(hash), segment), SEQUENCE_FLAG)
       }
     } yield sm
 

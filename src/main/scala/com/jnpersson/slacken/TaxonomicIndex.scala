@@ -11,8 +11,11 @@ import com.jnpersson.discount.util.NTBitArray
 import com.jnpersson.discount.{NTSeq, SeqTitle}
 import com.jnpersson.slacken.TaxonomicIndex.{ClassifiedRead, getTaxonLabels, sufficientHitGroups}
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.sql.functions.{count, desc, regexp_extract, udf}
-import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
+import org.apache.spark.sql.functions.{count, desc, regexp_extract}
+import org.apache.spark.sql.{DataFrame, Dataset, SaveMode, SparkSession}
+
+import java.util
+
 
 /** A method for calculating LCA's (least common ancestors) */
 sealed trait LCAMethod
@@ -221,7 +224,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
   }
 
   /** K-mers or minimizers in this index (keys) sorted by taxon depth from deep to shallow */
-  def kmersDepths(buckets: Dataset[Record]): Dataset[(BucketId, BucketId, Int)]
+  def kmersDepths(buckets: Dataset[Record]): DataFrame
 
   /** Taxons in this index (values) together with their depths */
   def taxonDepths(buckets: Dataset[Record]): Dataset[(Taxon, Int)]
@@ -350,17 +353,15 @@ object TaxonomicIndex {
   /** For the given set of sorted hits, was there a sufficient number of hit groups wrt the given minimum? */
   def sufficientHitGroups(sortedHits: Array[TaxonHit], minimum: Int): Boolean = {
     var hitCount = 0
-    var lastHash1 = sortedHits(0).id1
-    var lastHash2 = sortedHits(0).id2
+    var lastMin = sortedHits(0).minimizer
 
     //count separate hit groups (adjacent but with different minimizers) for each sequence, imitating kraken2 classify.cc
-    for {hit <- sortedHits} {
+    for { hit <- sortedHits } {
       if (hit.taxon != AMBIGUOUS_SPAN && hit.taxon != Taxonomy.NONE && hit.taxon != MATE_PAIR_BORDER &&
-        (hitCount == 0 || (hit.id1 != lastHash1 || hit.id2 != lastHash2))) {
+        (hitCount == 0 || !util.Arrays.equals(hit.minimizer, lastMin))) {
         hitCount += 1
       }
-      lastHash1 = hit.id1
-      lastHash2 = hit.id2
+      lastMin = hit.minimizer
     }
     hitCount >= minimum
   }
