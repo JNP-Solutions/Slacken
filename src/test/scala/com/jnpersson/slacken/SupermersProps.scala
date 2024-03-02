@@ -30,7 +30,7 @@ class SupermersProps extends AnyFunSuite with ScalaCheckPropertyChecks with Matc
         dnaStrings(1, 2 * k), ambiguousSequence(1, 2 * k),
         dnaStrings(1, 2 * k), ambiguousSequence(1, 2 * k)
       ) { (mp, ua1, a1, ua2, a2) =>
-        val sm = new Supermers(MinSplitter(mp, k))
+        val sm = new Supermers(MinSplitter(mp, k), 1)
         val test = s"$ua1$a1$ua2$a2"
         val (ambig, unambig) = sm.splitByAmbiguity(test).partition(_._2 == AMBIGUOUS_FLAG)
 

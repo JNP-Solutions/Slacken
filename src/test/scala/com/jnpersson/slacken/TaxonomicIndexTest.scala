@@ -68,7 +68,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
       zipWithIndex.map(x => x._1.copy(header = x._2.toString)).toDS()
 
     //As this test is slow, we limit the number of checks
-    forAll((Gen.choose(15, 91), "k"), (ms(maxM), "m"), minSuccessful(5)) { (k, m) =>
+    forAll((Gen.choose(15, maxM + 30), "k"), (ms(maxM), "m"), minSuccessful(5)) { (k, m) =>
       whenever (15 <= m && m <= k) {
         forAll(minimizerPriorities(m), minSuccessful(2)) { mp =>
           println(mp)
@@ -103,7 +103,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   }
 
   test("Random genomes, KeyValue method") {
-    randomGenomesTest((params, taxonomy) => new KeyValueIndex(params, taxonomy), 63)
+    randomGenomesTest((params, taxonomy) => new KeyValueIndex(params, taxonomy), 128)
   }
 
   /**
