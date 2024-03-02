@@ -197,7 +197,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     //Group all hits by sequence title again so that we can reassemble (the hits from) each sequence according
     // to the original order.
 
-    taxonHits.groupBy("seqTitle").agg(collect_list("hit")).
+    taxonHits.groupBy("seqTitle").agg(collect_list("hit").as("hits")).
       as[(SeqTitle, Array[TaxonHit])]
     }
 
