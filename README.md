@@ -1,7 +1,7 @@
 ## Overview
 
 Slacken implements metagenomic classification based on k-mers and minimizers. It can emulate the behaviour of 
-Kraken 1 and Kraken 2, while also supporting a wider parameter space and additional algorithms.
+Kraken 2, while also supporting a wider parameter space and additional algorithms.
 
 Copyright (c) Johan Nystrom-Persson 2019-2024.
 
@@ -61,11 +61,6 @@ After the genomes have been downloaded, it is necessary to generate faidx index 
 This generates the index file `library.fna.fai`, which Slacken needs. This step must be repeated for every fasta/fna file
 that will be indexed.
 
-### Minimal demo data
-
-For testing purposes, as an alternative to using kraken2-build above, a minimal demo library is available in Amazon S3 at `s3://jnp-public/slackenTestLib`.
-This is a small selection of bacterial genomes.
-
 ### Building the index
 
 ```
@@ -86,6 +81,19 @@ While the build process is running, the Spark UI may be inspected at [http://loc
 locally.
 
 More help: `./submit-slacken2.sh --help`
+
+### Minimal demo data
+
+For testing purposes, as an alternative to using kraken2-build above, a minimal demo library is available in Amazon S3 at `s3://jnp-public/slackenTestLib`.
+This is a small random selection of bacterial genomes.
+
+To build the demo library in the location `/tmp/library`:
+
+```
+./submit-slacken2.sh -k 35 -m 31 -t slackenTestLib/taxonomy taxonIndex /tmp/library \                                     
+    build -l slackenTestLib/seqid2taxid.map  slackenTestLib/bacteria_small.fna
+```
+
 ## Classifying reads
 
 
@@ -111,3 +119,4 @@ While the process is running, the Spark UI may be inspected at [http://localhost
 locally.
 
 More help: `./submit-slacken2.sh --help`
+
