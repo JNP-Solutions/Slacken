@@ -272,7 +272,7 @@ class Kmers(val discount: Discount, val inFiles: Seq[String], knownSplitter: Opt
 /** Main command-line interface to Discount. */
 object Discount extends SparkTool("Hypercut") {
   def main(args: Array[String]): Unit = {
-    val conf = new DiscountConf(args)
-    Commands.run(conf)(sparkSession(conf))
+    val spark = sparkSession()
+    Commands.run(new DiscountConf(args)(spark).finishSetup())
   }
 }

@@ -5,7 +5,7 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, MinSplitter, RandomXOR, SpacedSeed}
-import com.jnpersson.discount.spark.{Commands, Configuration, HDFSUtil, IndexParams, Inputs, RunCmd, SparkTool}
+import com.jnpersson.discount.spark.{Commands, Configuration, HDFSUtil, IndexParams, RunCmd, SparkConfiguration, SparkTool}
 import com.jnpersson.slacken.analysis.{MappingComparison, Metrics}
 import org.apache.spark.sql.SparkSession
 import org.rogach.scallop.Subcommand
@@ -13,7 +13,7 @@ import org.rogach.scallop.Subcommand
 import java.io.FileNotFoundException
 import java.util.regex.PatternSyntaxException
 
-class Slacken2Conf(args: Array[String]) extends Configuration(args) {
+class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends SparkConfiguration(args) {
   version(s"Slacken 2 ${getClass.getPackage.getImplementationVersion} beta (c) 2019-2023 Johan Nyström-Persson")
   banner("Usage:")
 
@@ -29,7 +29,7 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
   override def frequencyBySequence: Boolean = true
 
   /** Get the Taxonomy from the default location or from the user-overridden location */
-  def getTaxonomy(indexLocation: String)(implicit spark: SparkSession) = taxonomy.toOption match {
+  def getTaxonomy(indexLocation: String) = taxonomy.toOption match {
     case Some(l) => TaxonomicIndex.getTaxonomy(l)
     case _ =>
       try {
@@ -44,7 +44,7 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
   val taxonIndex = new Subcommand("taxonIndex") {
     val location = trailArg[String](required = true, descr = "Path to location where index is stored")
 
-    def index(implicit spark: SparkSession) =
+    def index() =
       KeyValueIndex.load(location(), getTaxonomy(location()))
 
     val build = new RunCmd("build") {
@@ -53,7 +53,7 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
       val all = toggle(descrYes = "Require minimizers to be present in all LCA genomes", default = Some(false))
       val check = opt[Boolean](descr = "Only check input files", hidden = true, default = Some(false))
 
-      def run(implicit spark: SparkSession): Unit = {
+      def run(): Unit = {
         val params = IndexParams(
           spark.sparkContext.broadcast(
             MinSplitter(seedMask(discount.getSplitter(inFiles.toOption).priorities), k())
@@ -77,22 +77,22 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
     }
     addSubcommand(build)
 
-    val rebucket = new RunCmd("rebucket") {
-      val outputLocation = opt[String](required = true, descr = "Path to write rebucketed index to")
-      override def run(implicit spark: SparkSession): Unit = {
+//    val rebucket = new RunCmd("rebucket") {
+//      val outputLocation = opt[String](required = true, descr = "Path to write rebucketed index to")
+//      override def run(): Unit = {
         //TODO implement functionality
 
 //        val i = index
 //        val bkts = i.loadIndex()
 //        i.writeIndex(bkts, outputLocation())
-      }
-    }
-    addSubcommand(rebucket)
+//      }
+//    }
+//    addSubcommand(rebucket)
 
     val union = new RunCmd("union") {
       val indexes = trailArg[List[String]](required = true, descr = "Indexes to union with")
       val outputLocation = opt[String](required = true, descr = "Path to write union index to")
-      override def run(implicit spark: SparkSession): Unit = {
+      override def run(): Unit = {
         val unionIndexes = indexes()
         index.unionIndexes(location() :: unionIndexes, outputLocation())
       }
@@ -100,6 +100,8 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
     addSubcommand(union)
 
     val classify = new RunCmd("classify") {
+      banner("Classify genomic sequences")
+
       val minHitGroups = opt[Int](name = "minHits", descr = "Minimum hit groups (default 2)", default = Some(2))
       val inFiles = trailArg[List[String]](required = true, descr = "Input sequence files")
       val paired = opt[Boolean](descr = "Inputs are paired-end reads", default = Some(false))
@@ -129,7 +131,7 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
         }
       }
 
-      def run(implicit spark: SparkSession): Unit = {
+      def run(): Unit = {
         val i = index
         val inputs = inputReader(inFiles(), i.params.k, paired())
         i.classifyAndWrite(inputs, output(), cpar, sampleRegex.toOption)
@@ -138,7 +140,9 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
     addSubcommand(classify)
 
     val stats = new RunCmd("stats") {
-      def run(implicit spark: SparkSession): Unit = {
+      banner("Get index statistics")
+
+      def run(): Unit = {
         val i = index
         val p = i.params
         p.splitter.priorities match {
@@ -158,9 +162,11 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
     }
     addSubcommand(stats)
 
-    def histogram = new RunCmd("histogram") {
+    val histogram = new RunCmd("histogram") {
+      banner("Get index statistics as a histogram")
+
 //      val output = opt[String](descr = "Output location", required = true) //TODO
-      def run(implicit spark: SparkSession): Unit = {
+      def run(): Unit = {
         println("Minimizer depths")
         index.kmerDepthHistogram().show()
         println("Taxon depths")
@@ -169,11 +175,13 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
     }
     addSubcommand(histogram)
 
-    def report = new RunCmd("report") {
+    val report = new RunCmd("report") {
+      banner("Generate an index contents report")
+
       val output = opt[String](descr = "Output location", required = true)
       val labels = opt[String](descr = "Labels file to check for missing nodes")
 
-      def run(implicit spark: SparkSession): Unit = {
+      def run(): Unit = {
         index.report(labels.toOption, output())
       }
     }
@@ -191,7 +199,7 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
     val testFiles = trailArg[List[String]]("testFiles", descr = "Mappings to compare (Slacken/Kraken format)",
       required = true)
 
-    def run(implicit spark: SparkSession): Unit = {
+    def run(): Unit = {
 
       val t = spark.sparkContext.broadcast(TaxonomicIndex.getTaxonomy(taxonomy()))
       val mc = new MappingComparison(t, reference(), idCol(), taxonCol(), skipHeader(), 100)
@@ -207,7 +215,7 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
   val inputCheck = new RunCmd("inputCheck") {
     val labels = opt[String](descr = "Path to sequence taxonomic label file")
 
-    def run(implicit spark: SparkSession): Unit = {
+    def run(): Unit = {
       val t = getTaxonomy(taxonomy())
       for { l <- labels } {
         TaxonomicIndex.inputStats (l, t)
@@ -222,7 +230,7 @@ class Slacken2Conf(args: Array[String]) extends Configuration(args) {
 /** Implements the Kraken 2 method for taxonomic classification. */
 object Slacken2 extends SparkTool("Slacken 2") {
   def main(args: Array[String]): Unit = {
-    val conf = new Slacken2Conf(args)
-    Commands.run(conf)(sparkSession(conf))
+    val conf = new Slacken2Conf(args)(sparkSession()).finishSetup()
+    Commands.run(conf)
   }
 }
