@@ -6,7 +6,7 @@ package com.jnpersson.slacken
 
 import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, MinSplitter, RandomXOR, SpacedSeed}
 import com.jnpersson.discount.spark.{Commands, Configuration, HDFSUtil, IndexParams, RunCmd, SparkConfiguration, SparkTool}
-import com.jnpersson.slacken.analysis.{MappingComparison, Metrics}
+import com.jnpersson.slacken.analysis.{MappingComparison, Metrics, MinimizerMigration}
 import org.apache.spark.sql.SparkSession
 import org.rogach.scallop.Subcommand
 
@@ -186,6 +186,17 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       }
     }
     addSubcommand(report)
+
+    def compare = new RunCmd("compare") {
+      val reference = opt[String](descr = "Location of reference index", required = true)
+      val output = opt[String](descr = "Output location", required = true)
+
+      def run(): Unit = {
+        val ref = KeyValueIndex.load(reference(), getTaxonomy(reference()))
+        new MinimizerMigration(index, ref).run(output())
+      }
+    }
+    addSubcommand(compare)
   }
   addSubcommand(taxonIndex)
 
