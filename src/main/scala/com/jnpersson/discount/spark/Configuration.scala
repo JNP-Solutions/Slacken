@@ -26,18 +26,18 @@ import scala.util.Random
 
 /** Runnable commands for a command-line tool */
 private[jnpersson] object Commands {
-  def run(conf: ScallopConf)(spark: SparkSession) : Unit = {
+  def run(conf: ScallopConf): Unit = {
     conf.verify()
     val cmds = conf.subcommands.collect { case rc: RunCmd => rc }
     if (cmds.isEmpty) {
       throw new Exception("No command supplied (please see --help). Nothing to do.")
     }
-    for { c <- cmds } c.run(spark)
+    for { c <- cmds } c.run()
   }
 }
 
 private[jnpersson] abstract class RunCmd(title: String) extends Subcommand(title) {
-  def run(implicit spark: SparkSession): Unit
+  def run(): Unit
 }
 
 /**
@@ -112,8 +112,6 @@ class Configuration(args: Seq[String]) extends ScallopConf(args) {
       case "pregrouped" => Pregrouped
     }
 
-  val partitions = opt[Int](descr = "Number of shuffle partitions/parquet buckets for indexes (default 200)", default = Some(200))
-
   val extendMinimizers = opt[Int](descr = "Extended width of minimizers")
 
   protected def extendedWithSuffix: Boolean = false
@@ -161,23 +159,5 @@ class Configuration(args: Seq[String]) extends ScallopConf(args) {
       case None | Some(0) => inner
       case Some(s) => SpacedSeed(s, inner)
     }
-  }
-
-  def inputReader(files: List[String], pairedEnd: Boolean = false)(implicit spark: SparkSession) =
-    new Inputs(files, k(), maxSequenceLength(), pairedEnd)
-
-  def inputReader(files: List[String], k: Int, pairedEnd: Boolean)(implicit spark: SparkSession) =
-    new Inputs(files, k, maxSequenceLength(), pairedEnd)
-
-  def discount(implicit spark: SparkSession): Discount = {
-    requireSuppliedK()
-    new Discount(k(), parseMinimizerSource, minimizerWidth(), ordering(), sample(), maxSequenceLength(), normalize(),
-      method(), partitions())
-  }
-
-  def discount(p: IndexParams)(implicit spark: SparkSession): Discount = {
-    val session = SparkTool.newSession(spark, p.buckets)
-    new Discount(p.k, parseMinimizerSource, p.m, ordering(), sample(), maxSequenceLength(), normalize(), method(),
-      p.buckets)(session)
   }
 }
