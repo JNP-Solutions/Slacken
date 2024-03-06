@@ -87,3 +87,27 @@ final class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
   def print(output: PrintWriter, reportZeros: Boolean = false): Unit =
     reportDFS(output, reportZeros)
 }
+
+object KrakenReport {
+  def numRankForCode(code: String): Taxon =
+    Taxonomy.ranks.find(_.code == code).
+      getOrElse(Taxonomy.Unclassified).depth
+
+  def main(args: Array[String]): Unit = {
+    val level = args(0)
+    val cutoff = numRankForCode(level.toUpperCase)
+    val digits = "[0-9]+".r
+    for {
+      l <- scala.io.Source.stdin.getLines()
+      if ! l.startsWith("#")
+      spl = l.split("\t")
+    } {
+      //Figure out the taxonomic level of this line and only print it if it's at or above the cutoff
+      val level = digits.replaceAllIn(spl(3), "")
+      val numLevel = numRankForCode(level)
+      if (numLevel <= cutoff) {
+        println(l)
+      }
+    }
+  }
+}
