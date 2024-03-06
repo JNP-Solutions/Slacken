@@ -21,8 +21,8 @@ class MinimizerMigration(index: KeyValueIndex, reference: KeyValueIndex)(implici
   import spark.sqlContext.implicits._
 
   /** Compute triples of: (taxon in index, taxon in reference, number of steps that the taxon moved up),
-   * final depth */
-  def taxaDistances(): Dataset[(Taxon, Taxon, Int, Int)] = {
+   */
+  def taxaDistances(): Dataset[(Taxon, Taxon, Int)] = {
 
     val b1 = index.loadBuckets()
     val b2 = reference.loadBuckets()
@@ -39,26 +39,30 @@ class MinimizerMigration(index: KeyValueIndex, reference: KeyValueIndex)(implici
       val l2 = bcTax.value.depth(t2)
       if (l1 == -1) {
         println("Warning: found depth -1 in subject index")
-        (t1, t2, -100, l2) //assign special value -100 so that we can identify these
+        (t1, t2, -100) //assign special value -100 so that we can identify these
       } else if (l2 == -1) {
         println("Warning: found depth -1 in reference index")
-        (t1, t2, -200, l2) //assign special value -200 so that we can identify these
+        (t1, t2, -200) //assign special value -200 so that we can identify these
       } else {
         //number of steps that this record moved up the taxonomic tree in the reference.
         //e.g. 3 for species to order.
         val steps = l1 - l2
-        (t1, t2, steps, l2)
+        (t1, t2, steps)
       }
-    }).as[(Taxon, Taxon, Int, Int)]
+    }).as[(Taxon, Taxon, Int)]
   }
 
   def run(output: String): Unit = {
-    val dist = taxaDistances().toDF("t1", "t2", "steps", "l2").cache()
+    val dist = taxaDistances().toDF("t1", "t2", "steps").cache()
     dist.select("steps").groupBy("steps").agg(count("steps")).
       sort("steps").
       show()
 
-    val toRoot = dist.where($"t2" === ROOT && $"t1" =!= ROOT).select("t1").
+    val cellularOrganismsTaxon = 131567
+    //The level of ROOT and cellular organisms can be seen as broadly equivalent to "almost nothing known".
+    //Moving into or out of the set comprised by these two taxa is significant.
+    val toRoot = dist.where(($"t2" === ROOT || $"t2" === cellularOrganismsTaxon)
+      && $"t1" =!= ROOT && $"t1" =!= cellularOrganismsTaxon).select("t1").
       groupBy("t1").agg(count("t1")).as[(Int, Long)].collect()
 
     HDFSUtil.usingWriter(output + "_taxaToRoot_report.txt", wr =>
