@@ -191,7 +191,6 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       required = true)
 
     def run(): Unit = {
-
       val t = spark.sparkContext.broadcast(TaxonomicIndex.getTaxonomy(taxonomy()))
       val mc = new MappingComparison(t, reference(), idCol(), taxonCol(), skipHeader(), 100)
       val metrics =
