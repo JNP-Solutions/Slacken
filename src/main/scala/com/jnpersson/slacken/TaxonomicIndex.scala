@@ -150,7 +150,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
   /** Classify subject sequences using the index stored at the default location, optionally for multiple samples,
    * writing the results to a designated output location
    *
-   * @param subjects       sequences to be classified
+   * @param inputs         sequences to be classified
    * @param outputLocation (directory, if multi-sample or prefix, if single sample) to write output
    * @param cpar           classification parameters
    * @param sampleRegex    regular expression that identifies the sample ID of each read (for multi-sample mode).
@@ -198,7 +198,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
    * Write classified reads to a directory, with the _classified suffix, as well as a kraken-style kreport.txt
    * @param reads classified reads
    * @param location directory/prefix to write to
-   * @param cpar
+   * @param cpar parameters for classification
    */
   def writeOutput(reads: Dataset[ClassifiedRead], location: String, cpar: ClassifyParams): Unit = {
     reads.cache
@@ -226,7 +226,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
   /** K-mers or minimizers in this index (keys) sorted by taxon depth from deep to shallow */
   def kmersDepths(buckets: Dataset[Record]): DataFrame
 
-  /** Taxons in this index (values) together with their depths */
+  /** Taxa in this index (values) together with their depths */
   def taxonDepths(buckets: Dataset[Record]): Dataset[(Taxon, Int)]
 
   def kmerDepthHistogram(): Dataset[(Int, Long)] = {
@@ -273,19 +273,19 @@ object TaxonomicIndex {
     val labelledNodes = getTaxonLabels(labelFile).select("_2").distinct().as[Taxon].collect()
     val invalidLabelledNodes = labelledNodes.filter(x => !tax.isDefined(x))
     if (invalidLabelledNodes.nonEmpty) {
-      println(s"${invalidLabelledNodes.size} unknown genomes in $labelFile (missing from taxonomy):")
+      println(s"${invalidLabelledNodes.length} unknown genomes in $labelFile (missing from taxonomy):")
       println(invalidLabelledNodes.toList)
     }
     val nonLeafLabelled = labelledNodes.filter(x => !tax.isLeafNode(x))
     if (nonLeafLabelled.nonEmpty) {
-      println(s"${nonLeafLabelled.size} non-leaf genomes in $labelFile")
+      println(s"${nonLeafLabelled.length} non-leaf genomes in $labelFile")
 //      println(nonLeafLabelled.toList)
     }
 
     val validLabelled = labelledNodes.filter(x => tax.isDefined(x))
     val max = tax.countDistinctTaxaWithAncestors(validLabelled)
-    println(s"${validLabelled.size} valid taxa in input sequences described by $labelFile (maximal implied tree size $max)")
-    println(s"Max leaf nodes in resulting database: ${validLabelled.size - nonLeafLabelled.size}")
+    println(s"${validLabelled.length} valid taxa in input sequences described by $labelFile (maximal implied tree size $max)")
+    println(s"Max leaf nodes in resulting database: ${validLabelled.length - nonLeafLabelled.length}")
   }
 
   /**
@@ -351,7 +351,7 @@ object TaxonomicIndex {
   }
 
   /** For the given set of sorted hits, was there a sufficient number of hit groups wrt the given minimum? */
-  def ksufficientHitGroups(sortedHits: Array[TaxonHit], minimum: Int): Boolean = {
+  def sufficientHitGroups(sortedHits: Array[TaxonHit], minimum: Int): Boolean = {
     var hitCount = 0
     var lastMin = sortedHits(0).minimizer
 
