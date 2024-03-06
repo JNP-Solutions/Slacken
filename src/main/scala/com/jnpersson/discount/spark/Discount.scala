@@ -215,7 +215,6 @@ final case class Discount(k: Int, minimizers: MinimizerSource = Bundled, m: Int 
  * @param inFiles Input files
  * @param knownSplitter The splitter/minimizer scheme to use, if one is available.
  *                      Otherwise, a new one will be constructed.
- * @param spark
  */
 class Kmers(val discount: Discount, val inFiles: Seq[String], knownSplitter: Option[Broadcast[AnyMinSplitter]] = None,
             syntheticReads: Option[Long] = None)(implicit spark: SparkSession) {

@@ -36,7 +36,7 @@ object SyntheticReads {
     spark.range(0, n, 1, part).mapPartitions(it => {
       val decoder = NTBitArray.fixedSizeDecoder(size)
       it.map(i => {
-        val data = start.map(i => scala.util.Random.nextLong())
+        val data = start.map(_ => scala.util.Random.nextLong())
         (decoder.longsToString(data, 0, size), i)
       })
     }).as[(NTSeq, Long)]

@@ -122,7 +122,7 @@ object ReadSplitDemo {
     try {
       for {
         read <- conf.getInputSequences(conf.inFile())
-        (pos, rank, supermer, _) <- spl.splitEncode(read)
+        (_, rank, supermer, _) <- spl.splitEncode(read)
       } {
         w.println(s"${spl.priorities.humanReadable(rank)}\t${supermer.toString}")
       }
@@ -184,7 +184,7 @@ private class ReadSplitConf(args: Array[String]) extends Configuration(args) {
     val useTable = ordering() match {
       case Given =>
         MinTable.usingRaw(validMotifs, minimizerWidth())
-      case Frequency(bySequence) =>
+      case Frequency(_) =>
         //bySequence case not supported here
         getFrequencyTable(validMotifs)
       case Lexicographic =>

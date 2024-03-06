@@ -239,7 +239,7 @@ class IndexedFastaReader extends RecordReader[Text, PartialSequence] {
  * Additional records may be included before or after, so the start position of each record should still be checked.
  *
  * @param path Path to the fai file
- * @param job
+ * @param job The Hadoop configuration
  * @param startByte start byte in the fasta file
  * @param fullSize total size of the fasta file
  */
