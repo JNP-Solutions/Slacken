@@ -145,7 +145,7 @@ final case class ShiftScanner(priorities: MinimizerPriorities) {
 
     //left-adjust the bits inside the long array
     if (validSize > 0 && validSize % 32 != 0) {
-      val finalShift = (64 - (validSize % 32) * 2)
+      val finalShift = 64 - (validSize % 32) * 2
       encoded(writeLong) = thisLong << finalShift
     }
 

@@ -200,7 +200,6 @@ final case class Discount(k: Int, minimizers: MinimizerSource = Bundled, m: Int 
    * [[Index.newCompatible]] or index(compatible: Index, inFiles: String*)
    *  can then be used to construct compatible indexes with actual k-mers using
    * the resulting ordering.
-   * @param buckets Number of index buckets to use with Spark - for moderately sized indexes, 200 is usually fine
    * @param inFiles The input files to sample for frequency orderings
    * */
   def emptyIndex(inFiles: String*): Index = {

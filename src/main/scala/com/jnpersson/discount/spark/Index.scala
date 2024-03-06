@@ -165,7 +165,7 @@ class Index(val params: IndexParams, val buckets: Dataset[ReducibleBucket])
   def unpersist(): Unit = { buckets.unpersist() }
 
   /** Obtain counts for these k-mers.
-   * @param normalize Whether to filter k-mers by orientation
+   * @param orientation orientation filter for k-mers
    */
   def counted(orientation: Orientation = Both): CountedKmers =
     new CountedKmers(buckets, orientation, bcSplit)

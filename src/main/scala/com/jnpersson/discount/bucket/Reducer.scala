@@ -152,7 +152,7 @@ object Reducer {
 
   /** Configure a union Reducer.
    * @param k The length of k-mers
-   * @param forwardOnly Whether only forward k-mers should be kept
+   * @param orientation k-mer orientation filter
    * @param reduction The reduction rule
    */
   def union(k: Int, reduction: Rule = Sum, orientation: Orientation = Both): Reducer =
