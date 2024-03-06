@@ -78,28 +78,6 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
     }
     addSubcommand(build)
 
-//    val rebucket = new RunCmd("rebucket") {
-//      val outputLocation = opt[String](required = true, descr = "Path to write rebucketed index to")
-//      override def run(): Unit = {
-        //TODO implement functionality
-
-//        val i = index
-//        val bkts = i.loadIndex()
-//        i.writeIndex(bkts, outputLocation())
-//      }
-//    }
-//    addSubcommand(rebucket)
-
-    val union = new RunCmd("union") {
-      val indexes = trailArg[List[String]](required = true, descr = "Indexes to union with")
-      val outputLocation = opt[String](required = true, descr = "Path to write union index to")
-      override def run(): Unit = {
-        val unionIndexes = indexes()
-        index.unionIndexes(location() :: unionIndexes, outputLocation())
-      }
-    }
-    addSubcommand(union)
-
     val classify = new RunCmd("classify") {
       banner("Classify genomic sequences")
 
@@ -202,6 +180,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
   addSubcommand(taxonIndex)
 
   val compare = new RunCmd("compare") {
+    banner("Compare classifications")
     val reference = opt[String](descr = "Reference mapping to compare (TSV format)", required = true)
     val idCol = opt[Int](descr = "Read ID column in reference", default = Some(2))
     val taxonCol = opt[Int](descr = "Taxon column in reference", short = 'T', default = Some(3))
@@ -225,6 +204,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
   addSubcommand(compare)
 
   val inputCheck = new RunCmd("inputCheck") {
+    banner("Inspect input data")
     val labels = opt[String](descr = "Path to sequence taxonomic label file")
 
     def run(): Unit = {
