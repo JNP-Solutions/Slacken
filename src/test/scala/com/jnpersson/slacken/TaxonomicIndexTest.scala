@@ -31,7 +31,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   val genomes = DTesting.getList(dnaStrings(1000, 10000), leafNodes.size).
     zip(leafNodes).
     map(g => (s"Taxon${g._2 + 2}", g._1))
-  val seqIdToTaxId = (leafNodes).map(i => (s"Taxon$i", i))
+  val seqIdToTaxId = leafNodes.map(i => (s"Taxon$i", i))
 
   /** Simulate a random read from the given genome */
   def simulatedRead(genome: NTSeq, length: Int = 101): NTSeq = {

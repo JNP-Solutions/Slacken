@@ -45,6 +45,7 @@ object SparkTool {
   }
 }
 
+//noinspection TypeAnnotation
 class SparkConfiguration(args: Array[String])(implicit val spark: SparkSession) extends Configuration(args) {
   val partitions =
     opt[Int](descr = "Number of shuffle partitions/parquet buckets for indexes (default 200)", default = Some(200))
@@ -76,8 +77,10 @@ class SparkConfiguration(args: Array[String])(implicit val spark: SparkSession) 
 
 /**
  * Command-line configuration for Discount. Run the tool with --help to see the various arguments.
+ *
  * @param args command line arguments
  */
+//noinspection TypeAnnotation
 private[jnpersson] class DiscountConf(args: Array[String])(implicit spark: SparkSession)
   extends SparkConfiguration(args) {
   version(s"Discount ${getClass.getPackage.getImplementationVersion} beta (c) 2019-2022 Johan Nyström-Persson")

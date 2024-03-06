@@ -50,7 +50,7 @@ object SampledFrequencies {
       }
     }
     apply(scanner.priorities.asInstanceOf[MinTable],
-      (Iterator.range(0, counts.length) zip counts.iterator))
+      Iterator.range(0, counts.length) zip counts.iterator)
   }
 
   /**

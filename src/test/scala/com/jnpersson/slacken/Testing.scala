@@ -25,8 +25,9 @@ object Testing {
   }
 
   implicit def shrinkTaxonomy: Shrink[Taxonomy] = Shrink {
-    case tax => tax.taxa.filter(x => x != ROOT).
-      toStream.map(i => withoutNode(tax, i))
+    tax =>
+      tax.taxa.filter(x => x != ROOT).
+        toStream.map(i => withoutNode(tax, i))
   }
 
   private def taxonAtLevel(n: Taxon, rank: Rank, maxParent: Taxon) =

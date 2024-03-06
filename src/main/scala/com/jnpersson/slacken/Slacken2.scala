@@ -13,6 +13,7 @@ import org.rogach.scallop.Subcommand
 import java.io.FileNotFoundException
 import java.util.regex.PatternSyntaxException
 
+//noinspection TypeAnnotation
 class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends SparkConfiguration(args) {
   version(s"Slacken 2 ${getClass.getPackage.getImplementationVersion} beta (c) 2019-2023 Johan Nyström-Persson")
   banner("Usage:")

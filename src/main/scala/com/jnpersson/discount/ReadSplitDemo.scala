@@ -132,6 +132,7 @@ object ReadSplitDemo {
   }
 }
 
+//noinspection TypeAnnotation
 private class ReadSplitConf(args: Array[String]) extends Configuration(args) {
   val inFile = trailArg[String](required = true, descr = "Input file (FASTA)")
 

@@ -42,8 +42,10 @@ private[jnpersson] abstract class RunCmd(title: String) extends Subcommand(title
 
 /**
  * Main command-line configuration
+ *
  * @param args command-line arguments
  */
+//noinspection TypeAnnotation
 class Configuration(args: Seq[String]) extends ScallopConf(args) {
   val k = opt[Int](descr = "Length of each k-mer")
 
