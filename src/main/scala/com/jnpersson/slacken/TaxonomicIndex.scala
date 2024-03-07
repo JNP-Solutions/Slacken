@@ -38,8 +38,12 @@ case object LCARequireAll extends LCAMethod
  * @param withUnclassified whether to include unclassified reads in the output
  * @param thresholds       min. confidence scores (fraction of k-mers/minimizers that must be in the classified
  *                         taxon's clade)
+ * @param sampleRegex      regular expression that identifies the sample ID of each read (for multi-sample mode).
+ *                         e.g. ".*\\|(.*)\\|.*"
+ *                         If none is specified, then single-sample mode is assumed.
  */
-final case class ClassifyParams(minHitGroups: Int, withUnclassified: Boolean, thresholds: List[Double] = List(0.0))
+final case class ClassifyParams(minHitGroups: Int, withUnclassified: Boolean, thresholds: List[Double] = List(0.0),
+                                sampleRegex: Option[String] = None)
 
 /** Parameters for a Kraken1/2 compatible taxonomic index for read classification. Associates k-mers with LCA taxa.
  * @param params Parameters for k-mers, index bucketing and persistence
@@ -109,27 +113,27 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
    * @param subjects       sequences to be classified
    * @param outputLocation location (directory, if multi-sample or prefix, if single sample) to write output
    * @param cpar           classification parameters
-   * @param sampleRegex    regular expression that identifies the sample ID of each read (for multi-sample mode).
-   *                       e.g. ".*\\|(.*)\\|.*"
-   *                       If none is specified, then single-sample mode is assumed.
    */
   def classifyAndWrite(buckets: Dataset[Record], subjects: Dataset[InputFragment], outputLocation: String,
-                       cpar: ClassifyParams, sampleRegex: Option[String]): Unit = {
-    sampleRegex match {
-      case Some(re) =>
-        //Multi-sample mode
-        val subjectsHits = classify(buckets, subjects, cpar).
-          withColumn("sampleId", regexp_extract($"seqTitle", re, 1)).
+                       cpar: ClassifyParams): Unit = {
+    cpar.sampleRegex match {
+      case Some(_) =>
+        //Multi-sample mode. Only a single threshold is respected
+        val t = cpar.thresholds.head
+        val subjectsHits = classify(buckets, subjects, cpar)
+
+        //Cache classified reads and then process one sample at a time.
+        //Amortizes the expensive join with the potentially huge index
+        val classified = classifyForThreshold(subjectsHits, cpar, t).
           cache()
 
         try {
-          val samples = subjectsHits.select("sampleId").distinct().as[String].collect().toList
+          val samples = classified.select("sampleId").distinct().as[String].collect().toList
           println(s"Identified samples: $samples")
           for { s <- samples } {
-            classifyAndWriteForSample(
-              subjectsHits.where($"sampleId" === s).
-                select("seqTitle", "hits").as[(SeqTitle, Array[TaxonHit])],
-              outputLocation + s"/$s", cpar)
+            writeForSample(
+              classified.where($"sampleId" === s),
+              outputLocation + s"/$s", t, cpar)
           }
         } finally {
           subjectsHits.unpersist()
@@ -137,10 +141,16 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
 
       case None =>
         //Single sample mode
+        //Cache taxon hits and then classify for multiple thresholds.
+        //Amortizes the cost of generating taxon hits.
         val subjectsHits = classify(buckets, subjects, cpar)
           .cache()
         try {
-          classifyAndWriteForSample(subjectsHits, outputLocation, cpar)
+          val thresholds = cpar.thresholds
+          for {t <- thresholds} {
+            val classified = classifyForThreshold(subjectsHits, cpar, t)
+            writeForSample(classified, outputLocation, t, cpar)
+          }
         } finally {
           subjectsHits.unpersist()
         }
@@ -153,30 +163,11 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
    * @param inputs         sequences to be classified
    * @param outputLocation (directory, if multi-sample or prefix, if single sample) to write output
    * @param cpar           classification parameters
-   * @param sampleRegex    regular expression that identifies the sample ID of each read (for multi-sample mode).
-   *                       e.g. ".*\\|(.*)\\|.*"
-   *                       If none is specified, then single-sample mode is assumed.
-   */
-  def classifyAndWrite(inputs: Inputs, outputLocation: String,
-                       cpar: ClassifyParams, sampleRegex: Option[String]): Unit = {
-    val subjects = inputs.getInputFragments(withRC = false, withAmbiguous = true)
-    classifyAndWrite(loadBuckets(), subjects, outputLocation, cpar, sampleRegex)
-  }
 
-  /**
-   * Finalize classification for a single sample, writing the results to the given output location
    */
-  def classifyAndWriteForSample(subjectsHits: Dataset[(SeqTitle, Array[TaxonHit])],
-                        outputLocation: String, cpar: ClassifyParams): Unit = {
-    val thresholds = cpar.thresholds
-    // find the maximum number of digits after the decimal point for values in the threshold list
-    // to enable proper sorting of file names with threshold values
-    val maxDecimalLength = thresholds.map(num => num.toString.split("\\.")(1).length).max
-    for {t <- thresholds} {
-      val classified = classifyForThreshold(subjectsHits, cpar, t)
-      val thresholdStr = s"%.${maxDecimalLength}f".format(t)
-      writeOutput(classified, outputLocation + s"_c" + thresholdStr, cpar)
-    }
+  def classifyAndWrite(inputs: Inputs, outputLocation: String, cpar: ClassifyParams): Unit = {
+    val subjects = inputs.getInputFragments(withRC = false, withAmbiguous = true)
+    classifyAndWrite(loadBuckets(), subjects, outputLocation, cpar)
   }
 
   /** Classify input sequence-hit dataset for a single sample and single confidence threshold value */
@@ -184,14 +175,31 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
                            cpar: ClassifyParams, threshold: Double): Dataset[ClassifiedRead] = {
     val bcTax = this.bcTaxonomy
     val k = this.k
+    val sre = cpar.sampleRegex.map(_.r)
     subjectsHits.map({ case (title, hits) =>
       val sortedHits = hits.sortBy(_.ordinal)
 
       val sufficientHits = sufficientHitGroups(sortedHits, cpar.minHitGroups)
       val summariesInOrder = TaxonCounts.concatenate(sortedHits.map(_.summary)) //TODO rewrite
 
-      TaxonomicIndex.classify(bcTax.value, title, summariesInOrder, sufficientHits, threshold, k)
+      val sample = sre match {
+        case Some(re) => re.findFirstMatchIn(title).
+          map(_.group(1)).getOrElse("")
+        case _ => ""
+      }
+
+      TaxonomicIndex.classify(bcTax.value, sample, title, summariesInOrder, sufficientHits, threshold, k)
     })
+  }
+
+  /** Write output for a single classified sample and threshold */
+  private def writeForSample(classified: Dataset[ClassifiedRead], outputLocation: String, threshold: Double, cpar: ClassifyParams): Unit = {
+    val thresholds = cpar.thresholds
+    // find the maximum number of digits after the decimal point for values in the threshold list
+    // to enable proper sorting of file names with threshold values
+    val maxDecimalLength = thresholds.map(num => num.toString.split("\\.")(1).length).max
+    val thresholdStr = s"%.${maxDecimalLength}f".format(threshold)
+    writeOutput(classified, outputLocation + s"_c" + thresholdStr, cpar)
   }
 
   /**
@@ -318,14 +326,15 @@ object TaxonomicIndex {
   }
 
   /** A classified read.
+   * @param sampleId The ID of the sample (if available)
    * @param classified Could the read be classified?
    * @param title Sequence title/ID
    * @param taxon The assigned taxon
    * @param lengthString Length of the classified sequence
    * @param hitDetails Human-readable details for the hits
    */
-  final case class ClassifiedRead(classified: Boolean, title: SeqTitle, taxon: Taxon, lengthString: String,
-                                  hitDetails: String) {
+  final case class ClassifiedRead(sampleId: String, classified: Boolean, title: SeqTitle, taxon: Taxon,
+                                  lengthString: String, hitDetails: String) {
     def classifyFlag: String = if (!classified) "U" else "C"
 
     //Imitate the Kraken output format
@@ -340,14 +349,14 @@ object TaxonomicIndex {
    * @param confidenceThreshold Minimum fraction of k-mers/minimizers that must be in the match (KeyValueIndex only)
    * @param k Length of k-mers
    */
-  def classify(taxonomy: Taxonomy, title: SeqTitle, summary: TaxonCounts,
+  def classify(taxonomy: Taxonomy, sampleId: String, title: SeqTitle, summary: TaxonCounts,
                sufficientHits: Boolean, confidenceThreshold: Double, k: Int): ClassifiedRead = {
     val lca = new LowestCommonAncestor(taxonomy)
     val taxon = lca.resolveTree(summary, confidenceThreshold)
     val classified = taxon != Taxonomy.NONE && sufficientHits
 
     val reportTaxon = if (classified) taxon else Taxonomy.NONE
-    ClassifiedRead(classified, title, reportTaxon, summary.lengthString(k), summary.pairsInOrderString)
+    ClassifiedRead(sampleId, classified, title, reportTaxon, summary.lengthString(k), summary.pairsInOrderString)
   }
 
   /** For the given set of sorted hits, was there a sufficient number of hit groups wrt the given minimum? */
