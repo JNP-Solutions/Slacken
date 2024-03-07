@@ -39,7 +39,7 @@ export AWS_PAGER=""
 RUNNER_ARGS="spark-submit"
 for PARAM in ${COMMAND[@]}
 do
-  RUNNER_ARGS="$RUNNER_ARGS,$PARAM"
+  RUNNER_ARGS=$RUNNER_ARGS,\'$PARAM\'
 done
 
 aws emr add-steps --cluster $AWS_EMR_CLUSTER --steps Type=CUSTOM_JAR,Name=Slacken,ActionOnFailure=CONTINUE,Jar=command-runner.jar,Args=\[$RUNNER_ARGS\]
