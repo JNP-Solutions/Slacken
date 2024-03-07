@@ -25,10 +25,15 @@ final case class Supermer(minimizer: Array[Long], segment: NTBitArray)
 final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializable {
   val k = splitter.k
 
-  def randomMinimizer: Array[BucketId] =
-    Array.fill(idLongs)(Random.nextLong())
+  def randomMinimizer: Array[BucketId] = {
+    val r = Array.fill(idLongs)(0L)
+    //leave the tail longs at zero to increase compressibility in the case of narrow m
+    //(fewer values in the redundant columns)
+    r(0) = Random.nextLong()
+    r
+  }
 
-   /**
+  /**
     * Splits reads by hash (minimizer), including an ordinal, so that the ordering inside a read can be reconstructed
     * later. Also includes ambiguous segments at the correct location.
     * If we are processing a mate pair, a pseudo-sequence will indicate this at the correct location.
