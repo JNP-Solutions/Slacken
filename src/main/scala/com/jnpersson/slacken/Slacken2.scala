@@ -90,7 +90,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
         descr = "Confidence thresholds (default 0.0, should be a space separated list with values in [0, 1])",
         default = Some(List(0.0)), short = 'c')
       val sampleRegex = opt[String](descr = "Regular expression for extracting sample ID from read header (e.g. \"@(.*):\")")
-      def cpar = ClassifyParams(minHitGroups(), unclassified(), confidence())
+      def cpar = ClassifyParams(minHitGroups(), unclassified(), confidence(), sampleRegex.toOption)
 
       validate (confidence) { cs =>
         cs.find(c => c < 0 || c > 1) match {
@@ -102,7 +102,9 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       validate(sampleRegex) { reg =>
         try {
           reg.r
-          Right(Unit)
+          if (confidence().size > 1) {
+            Left(s"Multi-sample classification can only accept a single confidence threshold, you supplied ${confidence()}")
+          } else Right(Unit)
         } catch {
           case pse: PatternSyntaxException =>
             println(pse.getMessage)
@@ -113,7 +115,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       def run(): Unit = {
         val i = index
         val inputs = inputReader(inFiles(), i.params.k, paired())
-        i.classifyAndWrite(inputs, output(), cpar, sampleRegex.toOption)
+        i.classifyAndWrite(inputs, output(), cpar)
       }
     }
     addSubcommand(classify)
