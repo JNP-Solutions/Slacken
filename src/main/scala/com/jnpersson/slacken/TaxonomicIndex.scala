@@ -116,44 +116,28 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
    */
   def classifyAndWrite(buckets: Dataset[Record], subjects: Dataset[InputFragment], outputLocation: String,
                        cpar: ClassifyParams): Unit = {
-    cpar.sampleRegex match {
-      case Some(_) =>
-        //Multi-sample mode. Only a single threshold is respected
-        val t = cpar.thresholds.head
-        val subjectsHits = classify(buckets, subjects, cpar)
+    if (cpar.thresholds.size == 1) {
 
-        //Cache classified reads and then process one sample at a time.
-        //Amortizes the expensive join with the potentially huge index
-        val classified = classifyForThreshold(subjectsHits, cpar, t).
-          cache()
+      val t = cpar.thresholds.head
+      val subjectsHits = classify(buckets, subjects, cpar)
 
-        try {
-          val samples = classified.select("sampleId").distinct().as[String].collect().toList
-          println(s"Identified samples: $samples")
-          for { s <- samples } {
-            writeForSample(
-              classified.where($"sampleId" === s),
-              outputLocation + s"/$s", t, cpar)
-          }
-        } finally {
-          subjectsHits.unpersist()
+      val classified = classifyForThreshold(subjectsHits, cpar, t)
+      writeForSamples(classified, outputLocation, t, cpar)
+
+    } else {
+      //Multi-threshold mode
+      //Cache taxon hits and then classify for multiple thresholds.
+      //Amortizes the cost of generating taxon hits.
+      val subjectsHits = classify(buckets, subjects, cpar)
+        .cache()
+      try {
+        for {t <- cpar.thresholds} {
+          val classified = classifyForThreshold(subjectsHits, cpar, t)
+          writeForSamples(classified, outputLocation, t, cpar)
         }
-
-      case None =>
-        //Single sample mode
-        //Cache taxon hits and then classify for multiple thresholds.
-        //Amortizes the cost of generating taxon hits.
-        val subjectsHits = classify(buckets, subjects, cpar)
-          .cache()
-        try {
-          val thresholds = cpar.thresholds
-          for {t <- thresholds} {
-            val classified = classifyForThreshold(subjectsHits, cpar, t)
-            writeForSample(classified, outputLocation, t, cpar)
-          }
-        } finally {
-          subjectsHits.unpersist()
-        }
+      } finally {
+        subjectsHits.unpersist()
+      }
     }
   }
 
@@ -192,43 +176,60 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
     })
   }
 
-  /** Write output for a single classified sample and threshold */
-  private def writeForSample(classified: Dataset[ClassifiedRead], outputLocation: String, threshold: Double, cpar: ClassifyParams): Unit = {
+  /**
+   * For each sample in the classified reads, write classified reads to a directory, with the _classified suffix,
+   * as well as a kraken-style kreport.txt
+   *
+   * @param reads          classified reads
+   * @param outputLocation directory/prefix to write to
+   * @param threshold      the confidence threshold that was used in this classification
+   * @param cpar           parameters for classification
+   */
+  private def writeForSamples(reads: Dataset[ClassifiedRead], outputLocation: String, threshold: Double, cpar: ClassifyParams): Unit = {
     val thresholds = cpar.thresholds
     // find the maximum number of digits after the decimal point for values in the threshold list
     // to enable proper sorting of file names with threshold values
     val maxDecimalLength = thresholds.map(num => num.toString.split("\\.")(1).length).max
     val thresholdStr = s"%.${maxDecimalLength}f".format(threshold)
-    writeOutput(classified, outputLocation + s"_c" + thresholdStr, cpar)
+    val location = outputLocation + s"_c" + thresholdStr
+
+    val keepLines = if (cpar.withUnclassified) {
+      reads
+    } else {
+      reads.where($"classified" === true)
+    }
+    val outputRows = keepLines.map(r => (r.outputLine, r.sampleId)).
+      toDF("classification", "sample")
+
+    //These tables will be relatively small and we coalesce to avoid generating a lot of small files
+    //in the case of an index with many partitions
+    outputRows.coalesce(200).write.mode(SaveMode.Overwrite).
+      partitionBy("sample").
+      text(s"${location}_classified")
+    makeReportsFromClassifications(s"${location}_classified")
   }
 
-  /**
-   * Write classified reads to a directory, with the _classified suffix, as well as a kraken-style kreport.txt
-   * @param reads classified reads
-   * @param location directory/prefix to write to
-   * @param cpar parameters for classification
-   */
-  def writeOutput(reads: Dataset[ClassifiedRead], location: String, cpar: ClassifyParams): Unit = {
-    reads.cache
-    val bcTax = bcTaxonomy
-    try {
-      val outputRows = if (cpar.withUnclassified) {
-        reads.map(r => r.outputLine)
-      } else {
-        reads.where($"classified" === true).map(r => r.outputLine)
-      }
-      val countByTaxon = reads.groupBy("taxon").agg(count("*").as("count")).
-        sort(desc("count")).as[(Taxon, Long)].collect()
-
-      //This table will be relatively small and we coalesce mainly to avoid generating a lot of small files
-      //in the case of a fine grained index with many partitions
-      outputRows.coalesce(200).write.mode(SaveMode.Overwrite).
-        text(s"${location}_classified")
-      val report = new KrakenReport(bcTax.value, countByTaxon)
-      HDFSUtil.usingWriter(s"${location}_kreport.txt", wr => report.print(wr))
-    } finally {
-      reads.unpersist()
+  /** For each subdirectory (corresponding to a sample), read back written classifications
+   * and produce a KrakenReport. */
+  private def makeReportsFromClassifications(location: String): Unit = {
+    //At this point we don't have the sample IDs, so we have to explicitly traverse the filesystem
+    //and look for the data that we wrote in the previous step
+    for { d <- HDFSUtil.subdirectories(location) } {
+      val loc = s"$location/$d"
+      println(s"Generating Kraken report for $loc")
+      val report = reportFromWrittenClassifications(loc)
+      val sampleId = d.replaceFirst("sample=", "")
+      HDFSUtil.usingWriter(s"$location/${sampleId}_kreport.txt", wr => report.print(wr))
     }
+  }
+
+  /** Read back written classifications from writeOutput to produce a KrakenReport. */
+  private def reportFromWrittenClassifications(location: String): KrakenReport = {
+    val countByTaxon = spark.read.option("sep", "\t").csv(location).
+      map(x => x.getString(2).toInt).toDF("taxon").
+      groupBy("taxon").agg(count("*").as("count")).
+      sort(desc("count")).as[(Taxon, Long)].collect()
+    new KrakenReport(bcTaxonomy.value, countByTaxon)
   }
 
   /** K-mers or minimizers in this index (keys) sorted by taxon depth from deep to shallow */

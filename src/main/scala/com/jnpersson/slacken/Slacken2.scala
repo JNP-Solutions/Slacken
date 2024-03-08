@@ -102,9 +102,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       validate(sampleRegex) { reg =>
         try {
           reg.r
-          if (confidence().size > 1) {
-            Left(s"Multi-sample classification can only accept a single confidence threshold, you supplied ${confidence()}")
-          } else Right(Unit)
+          Right(Unit)
         } catch {
           case pse: PatternSyntaxException =>
             println(pse.getMessage)
