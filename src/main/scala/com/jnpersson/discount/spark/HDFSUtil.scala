@@ -17,7 +17,7 @@
 
 package com.jnpersson.discount.spark
 
-import org.apache.hadoop.fs.{FSDataInputStream, FileUtil, Path => HPath}
+import org.apache.hadoop.fs.{FSDataInputStream, FileSystem, FileUtil, LocatedFileStatus, Path => HPath}
 import org.apache.spark.sql.SparkSession
 
 import java.io.PrintWriter
@@ -47,6 +47,18 @@ object HDFSUtil {
     val p = new HPath(path)
     val fs = p.getFileSystem(spark.sparkContext.hadoopConfiguration)
     fs.exists(p)
+  }
+
+  /** Recursively get all subdirectories of a directory */
+  def subdirectories(path: String)(implicit spark: SparkSession): Seq[String] = {
+    val p = new HPath(path)
+    val fs = p.getFileSystem(spark.sparkContext.hadoopConfiguration)
+    val rit = fs.listLocatedStatus(p)
+    val it = new Iterator[LocatedFileStatus] {
+      def hasNext = rit.hasNext
+      def next = rit.next
+    }
+    it.filter(_.isDirectory).map(_.getPath.getName).toList
   }
 
   /** Create a PrintWriter, use it to write output, then close it safely. */
