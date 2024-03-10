@@ -168,7 +168,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
 
       val sample = sre match {
         case Some(re) => re.findFirstMatchIn(title).
-          map(_.group(1)).getOrElse("")
+          map(_.group(1)).getOrElse("other")
         case _ => ""
       }
 
