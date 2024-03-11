@@ -4,18 +4,17 @@
 
 package com.jnpersson.slacken
 
-import com.jnpersson.discount.hash.{BucketId, InputFragment}
+import com.jnpersson.discount.hash.InputFragment
 import com.jnpersson.discount.spark.Index.randomTableName
 import com.jnpersson.discount.spark.Output.formatPerc
 import com.jnpersson.discount.spark.{Discount, HDFSUtil, IndexFormat4, IndexParams, Inputs}
 import com.jnpersson.discount.{NTSeq, SeqTitle}
-import com.jnpersson.slacken.TaxonomicIndex.{ClassifiedRead, getTaxonLabels}
+import com.jnpersson.slacken.TaxonomicIndex.getTaxonLabels
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.expressions.Aggregator
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql._
 
-import java.util
 import scala.collection.mutable
 
 
@@ -58,10 +57,9 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   /** Given input genomes and their taxon IDs, build an index of minimizers and LCA taxa.
    * @param idsSequences pairs of (genome title, genome DNA)
    * @param seqLabels pairs of (genome title, taxon ID)
-   * @param method LCA calculation method
    */
   def makeBuckets(idsSequences: Dataset[(SeqTitle, NTSeq)],
-                    seqLabels: Dataset[(SeqTitle, Taxon)], method: LCAMethod): DataFrame = {
+                    seqLabels: Dataset[(SeqTitle, Taxon)]): DataFrame = {
     val bcSplit = this.bcSplit
 
     val idSeqDF = idsSequences.toDF("seqId", "seq")
@@ -77,18 +75,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       }
     }).toDF(recordColumnNames: _*)
 
-    method match {
-      case LCAAtLeastTwo =>
-        reduceLCAs(lcas)
-      case LCARequireAll =>
-        //Filter out sequence IDs that are not present in the input data, so that the genome counts
-        //will reflect only data that is actually being considered. E.g. we could be building a small library
-        //using a large label file, and then counts based purely on the label file would not be valid.
-        val onlyPresentLabels = idSeqDF.join(labels, List("seqId")).
-          select("seqId", "taxon")
-        val gc = GenomeCounts.build(taxonomy, onlyPresentLabels)
-        reduceLCAsRequireAll(lcas, gc)
-    }
+    reduceLCAs(lcas)
   }
   /** Write buckets to the given location */
   def writeBuckets(buckets: DataFrame, location: String): Unit = {

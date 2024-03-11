@@ -76,7 +76,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
           val params = IndexParams(spark.sparkContext.broadcast(splitter), 16, "")
           val idx = makeIdx(params, taxonomy)
 
-          val minimizers = idx.makeBuckets(genomesDS, labels, LCAAtLeastTwo)
+          val minimizers = idx.makeBuckets(genomesDS, labels)
 
           val cpar = ClassifyParams(2, true)
           //The property of known reads classifying correctly.
