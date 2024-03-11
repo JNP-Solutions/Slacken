@@ -17,21 +17,6 @@ import org.apache.spark.sql.{DataFrame, Dataset, SaveMode, SparkSession}
 import java.util
 
 
-/** A method for calculating LCA's (least common ancestors) */
-sealed trait LCAMethod
-
-/**
- * Standard Kraken/Kraken2 method. The LCA is assigned if at least two descendants share the k-mer/minimizer.
- * In addition, no node outside the LCA's clade will have it.
- */
-case object LCAAtLeastTwo extends LCAMethod
-
-/**
- * Stronger method. The LCA is assigned only if all genomes under the node share the k-mer/minimizer.
- * In addition, no node outside the LCA's clade will have it.
- */
-case object LCARequireAll extends LCAMethod
-
 /** Parameters for classification of reads
  *
  * @param minHitGroups     min number of hit groups
@@ -72,15 +57,13 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
    * @param reader           Input data
    * @param seqLabelLocation Location of a file that labels each genome with a taxon
    * @param addRC            Whether to add reverse complements
-   * @param method           LCA calculation method
    * @return index buckets
    */
-  def makeBuckets(reader: Inputs, seqLabelLocation: String, addRC: Boolean,
-                  method: LCAMethod = LCAAtLeastTwo): Dataset[Record] = {
+  def makeBuckets(reader: Inputs, seqLabelLocation: String, addRC: Boolean): Dataset[Record] = {
     val input = reader.getInputFragments(addRC).map(x =>
       (x.header, x.nucleotides))
     val seqLabels = getTaxonLabels(seqLabelLocation)
-    makeBuckets(input, seqLabels, method)
+    makeBuckets(input, seqLabels)
   }
 
   /**
@@ -88,10 +71,8 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
    *
    * @param idsSequences Pairs of (genome title, genome)
    * @param taxonLabels  Pairs of (genome title, taxon)
-   * @param method       LCA calculation method
    */
-  def makeBuckets(idsSequences: Dataset[(SeqTitle, NTSeq)], taxonLabels: Dataset[(SeqTitle, Taxon)],
-                  method: LCAMethod): Dataset[Record]
+  def makeBuckets(idsSequences: Dataset[(SeqTitle, NTSeq)], taxonLabels: Dataset[(SeqTitle, Taxon)]): Dataset[Record]
 
   def writeBuckets(buckets: Dataset[Record], location: String): Unit
 
