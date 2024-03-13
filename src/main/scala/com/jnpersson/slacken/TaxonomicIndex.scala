@@ -5,7 +5,7 @@
 
 package com.jnpersson.slacken
 
-import com.jnpersson.discount.hash.InputFragment
+import com.jnpersson.discount.hash.{InputFragment, MinSplitter, SpacedSeed}
 import com.jnpersson.discount.spark.{AnyMinSplitter, HDFSUtil, IndexParams, Inputs}
 
 import com.jnpersson.discount.{NTSeq, SeqTitle}
@@ -75,6 +75,23 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
   def makeBuckets(idsSequences: Dataset[(SeqTitle, NTSeq)], taxonLabels: Dataset[(SeqTitle, Taxon)]): Dataset[Record]
 
   def writeBuckets(buckets: Dataset[Record], location: String): Unit
+
+  /** Respace this index to larger numbers of spaced seeds, creating a new index for
+   * each value. This is possible because an index with s spaces contains all information necessary
+   * to construct an index with s+x spaces (we effectively project it into the new space with some information loss)
+   * Each new index will be written to a separate location.
+   */
+  def respaceMultiple(buckets: Dataset[Record], spaces: List[Int], outputLocation: String): Unit = {
+    for {s <- spaces} {
+      val (idx, bkts) = respace(buckets, s)
+      val outLoc = outputLocation + s"_s$s" //TODO adjust location
+      idx.writeBuckets(bkts, outLoc)
+      TaxonomicIndex.copyTaxonomy(params.location + "_taxonomy", outLoc + "_taxonomy")
+    }
+  }
+
+  /** Remap this index to a larger number of spaces in the bit mask (irreversibly). */
+  def respace(buckets: Dataset[Record], spaces: Int): (TaxonomicIndex[Record], Dataset[Record])
 
   /** Load index bucket from the params location */
   def loadBuckets(): Dataset[Record] =

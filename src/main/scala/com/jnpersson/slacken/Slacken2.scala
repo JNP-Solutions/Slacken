@@ -76,6 +76,19 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
     }
     addSubcommand(build)
 
+    val respace = new RunCmd("respace") {
+      banner("Build a new index from an existing one by increasing the number of spaces in the mask")
+
+      val output = opt[String](required = true, descr = "Output location")
+      val spaces = opt[List[Int]](required = true, descr = "Numbers of spaces to generate indexes for")
+
+      def run(): Unit = {
+        val i = index
+        i.respaceMultiple(i.loadBuckets(), spaces(), output())
+      }
+    }
+    addSubcommand(respace)
+
     val classify = new RunCmd("classify") {
       banner("Classify genomic sequences")
 
