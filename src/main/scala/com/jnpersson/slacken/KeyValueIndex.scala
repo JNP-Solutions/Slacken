@@ -4,10 +4,11 @@
 
 package com.jnpersson.slacken
 
-import com.jnpersson.discount.hash.InputFragment
+import com.jnpersson.discount.hash.{InputFragment, MinSplitter, SpacedSeed}
 import com.jnpersson.discount.spark.Index.randomTableName
 import com.jnpersson.discount.spark.Output.formatPerc
-import com.jnpersson.discount.spark.{Discount, HDFSUtil, IndexFormat4, IndexParams, Inputs}
+import com.jnpersson.discount.spark.{AnyMinSplitter, Discount, HDFSUtil, IndexFormat4, IndexParams, Inputs, SparkTool}
+import com.jnpersson.discount.util.NTBitArray
 import com.jnpersson.discount.{NTSeq, SeqTitle}
 import com.jnpersson.slacken.TaxonomicIndex.getTaxonLabels
 import org.apache.spark.broadcast.Broadcast
@@ -77,6 +78,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
 
     reduceLCAs(lcas)
   }
+
   /** Write buckets to the given location */
   def writeBuckets(buckets: DataFrame, location: String): Unit = {
     params.write(location, s"Properties for Slacken KeyValueIndex $location")
@@ -95,6 +97,37 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       saveAsTable(tableName)
   }
 
+  def respace(buckets: DataFrame, spaces: Int): (KeyValueIndex, DataFrame) = {
+
+    val newPriorities = params.splitter.priorities match {
+      case SpacedSeed(s, inner) =>
+        if (spaces <= s) {
+          throw new Exception(s"Respacing to a smaller or identical number of spaces is not meaningful. (was $s, requested $spaces)")
+        }
+        SpacedSeed(spaces, inner)
+      case p => SpacedSeed(spaces, p)
+    }
+    val newSplitter: AnyMinSplitter = MinSplitter(newPriorities, k)
+    val bcSpl = spark.sparkContext.broadcast(newSplitter)
+    val bcSs = spark.sparkContext.broadcast(newPriorities)
+    val newParams = params.copy(bcSpl, params.buckets, "")
+
+    val applySpaceUdf = udf((data: Array[Long]) => {
+      val min = NTBitArray(data, bcSs.value.width)
+      bcSs.value.priorityOf(min).data
+    })
+
+    val bcTax = this.bcTaxonomy
+    val udafLca = udaf(TaxonLCA(bcTax))
+
+    val nbuckets = buckets.select(applySpaceUdf(array(idColumns :_*)).as("minimizer"), $"taxon").
+      select($"taxon" :: idColumnsFromMinimizer :_*).
+      groupBy(idColumns: _*).
+      agg(udafLca($"taxon").as("taxon"))
+
+    (new KeyValueIndex(newParams, taxonomy), nbuckets)
+  }
+
   /** Given non-combined pairs of minimizers and taxa, combine them using the lowest common ancestor (LCA)
    * function to return only one LCA taxon per minimizer.
    * @param minimizersTaxa tuples of (minimizer part 1, minimizer part 2, taxon)
@@ -102,7 +135,6 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
    */
   def reduceLCAs(minimizersTaxa: DataFrame): DataFrame = {
     val bcTax = this.bcTaxonomy
-
     val udafLca = udaf(TaxonLCA(bcTax))
     minimizersTaxa.
       groupBy(idColumns: _*).
@@ -264,7 +296,8 @@ object KeyValueIndex {
   /** Load index from the given location */
   def load(location: String, taxonomy: Taxonomy)(implicit spark: SparkSession): KeyValueIndex = {
     val params = IndexParams.read(location)
-    new KeyValueIndex(params, taxonomy)
+    val sp = SparkTool.newSession(spark, params.buckets) //Ensure that new datasets have the same number of partitions
+    new KeyValueIndex(params, taxonomy)(sp)
   }
 
   /** For a super-mer with a given minimizer, assign a taxon hit, handling ambiguity flags correctly
