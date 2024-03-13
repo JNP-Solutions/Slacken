@@ -106,21 +106,24 @@ object KrakenReport {
 
   def main(args: Array[String]): Unit = {
     val level = if (args.length > 0) Some(args(0)) else None
+    val minPercent = if(args.length > 1) Some(args(1).toDouble) else None
 
-    val cutoff = level.map(l =>numRankForCode(l.toUpperCase))
+    val cutoff = level.map(l => numRankForCode(l.toUpperCase))
     val digits = "[0-9]+".r
     for {
       l <- scala.io.Source.stdin.getLines()
       if ! l.startsWith("#")
       spl = l.split("\t")
+
+      frac = spl(0).toDouble
+      if minPercent.isEmpty || frac >= minPercent.get
+
+      level = digits.replaceAllIn(spl(3), "")
+      numLevel = numRankForCode(level)
+      if cutoff.isEmpty || numLevel <= cutoff.get
     } {
-      //Figure out the taxonomic level of this line and only print it if it's at or above the cutoff
-      val level = digits.replaceAllIn(spl(3), "")
-      val numLevel = numRankForCode(level)
-      if (cutoff.isEmpty || numLevel <= cutoff.get) {
-        val col = color(numLevel)
-        println(col + l + Console.RESET)
-      }
+      val col = color(numLevel)
+      println(col + l + Console.RESET)
     }
   }
 }
