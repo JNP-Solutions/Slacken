@@ -84,7 +84,12 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
   def respaceMultiple(buckets: Dataset[Record], spaces: List[Int], outputLocation: String): Unit = {
     for {s <- spaces} {
       val (idx, bkts) = respace(buckets, s)
-      val outLoc = outputLocation + s"_s$s" //TODO adjust location
+      val reg = "_s[0-9]+".r
+      if (reg.findFirstIn(outputLocation).isEmpty) {
+        throw new Exception(s"Unable to guess the correct output location for new indexes at: $outputLocation")
+      }
+
+      val outLoc = reg.replaceFirstIn(outputLocation, s"_s$s")
       idx.writeBuckets(bkts, outLoc)
       TaxonomicIndex.copyTaxonomy(params.location + "_taxonomy", outLoc + "_taxonomy")
     }
