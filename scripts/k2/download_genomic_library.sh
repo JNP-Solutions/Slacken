@@ -35,24 +35,32 @@ function download_file() {
   fi
 }
 
+remote_file="assembly_summary.txt"
+
 case $library_name in
-  "archaea" | "bacteria" | "viral" | "fungi" | "plant" | "human" | "protozoa")
+  "archaea" | "bacteria" | "viral" | "fungi" | "plant" | "human" | "protozoa" | "refseq")
     mkdir -p $LIBRARY_DIR/$library_name
     cd $LIBRARY_DIR/$library_name
     rm -f assembly_summary.txt
-    remote_dir_name=$library_name
+    remote_dir_name="refseq/$library_name"
     if [ "$library_name" = "human" ]; then
-      remote_dir_name="vertebrate_mammalian/Homo_sapiens"
+      remote_dir_name="refseq/vertebrate_mammalian/Homo_sapiens"
     fi
-    if ! download_file "/genomes/refseq/$remote_dir_name/assembly_summary.txt"; then
+    if [ "$library_name" = "refseq" ]; then
+      remote_dir_name="refseq"
+      remote_file="assembly_summary_refseq.txt"
+    fi
+    if ! download_file "/genomes/$remote_dir_name/$remote_file"; then
       1>&2 echo "Error downloading assembly summary file for $library_name, exiting."
       exit 1
     fi
+    mv "$remote_file" assembly_summary.txt
     if [ "$library_name" = "human" ]; then
       grep "Genome Reference Consortium" assembly_summary.txt > x
       mv x assembly_summary.txt
     fi
-    rm -rf all/ library.f* manifest.txt rsync.err
+    #rm -rf all/ library.f* manifest.txt rsync.err
+    rm -rf manifest.txt rsync.err
     rsync_from_ncbi.pl assembly_summary.txt
     grep ">" $library_file | scan_fasta_file.pl >> prelim_map.txt
     ;;
