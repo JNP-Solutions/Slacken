@@ -54,7 +54,7 @@ case $library_name in
     fi
     rm -rf all/ library.f* manifest.txt rsync.err
     rsync_from_ncbi.pl assembly_summary.txt
-    scan_fasta_file.pl $library_file >> prelim_map.txt
+    grep ">" $library_file | scan_fasta_file.pl >> prelim_map.txt
     ;;
   "plasmid")
     mkdir -p $LIBRARY_DIR/plasmid
@@ -71,7 +71,7 @@ case $library_name in
     cat manifest.txt | xargs -n1 -I{} wget -q $FTP_SERVER/genomes/refseq/plasmid/{}
     cat manifest.txt | xargs -n1 -I{} gunzip -c {} > $library_file
     rm -f plasmid.* .listing
-    scan_fasta_file.pl $library_file > prelim_map.txt
+    grep ">" $library_file | scan_fasta_file.pl > prelim_map.txt
     1>&2 echo " done."
     ;;
   "nr" | "nt")
@@ -96,7 +96,7 @@ case $library_name in
     1>&2 echo -n "Parsing $library_name FASTA file..."
     # The nr/nt files tend to have non-standard sequence IDs, so
     # --lenient is used here.
-    scan_fasta_file.pl --lenient $library_file >> prelim_map.txt
+    grep ">" $library_file | scan_fasta_file.pl >> prelim_map.txt
     1>&2 echo "done."
     ;;
   "UniVec" | "UniVec_Core")
@@ -113,7 +113,7 @@ case $library_name in
     special_taxid=28384
     1>&2 echo -n "Adding taxonomy ID of $special_taxid to all sequences... "
     sed -e "s/^>/>kraken:taxid|$special_taxid|/" $library_name > library.fna
-    scan_fasta_file.pl library.fna > prelim_map.txt
+    grep ">" library.fna | scan_fasta_file.pl > prelim_map.txt
     1>&2 echo "done."
     ;;
   *)
