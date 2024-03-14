@@ -82,7 +82,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   /** Write buckets to the given location */
   def writeBuckets(buckets: DataFrame, location: String): Unit = {
     params.write(location, s"Properties for Slacken KeyValueIndex $location")
-    println(s"Saving index into ${params.buckets} partitions")
+    println(s"Saving index into ${params.buckets} partitions at $location")
 
     //A unique table name is needed to make saveAsTable happy, but we will not need it again
     //when we read the index back (by HDFS path)
@@ -97,6 +97,13 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       saveAsTable(tableName)
   }
 
+  /** Map buckets into a new set of buckets where a larger number of spaces have been applied
+   * in the spaced seed mask. Loses information, as the new index is expected to be smaller (this is a
+   * dimensionality reduction).
+   * @param buckets buckets to map
+   * @param spaces new number of spaces
+   * @return A new KeyValueIndex with identical parameters to this one (except for spaces) and the new set of buckets
+   */
   def respace(buckets: DataFrame, spaces: Int): (KeyValueIndex, DataFrame) = {
 
     val newPriorities = params.splitter.priorities match {

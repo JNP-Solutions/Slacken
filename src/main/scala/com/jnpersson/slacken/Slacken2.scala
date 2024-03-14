@@ -56,8 +56,9 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       KeyValueIndex.load(location(), getTaxonomy(location()))
 
     val build = new RunCmd("build") {
+      banner("Build a new index (library) from genomes")
       val library = opt[String](required = true, descr = "Location of sequence files (directory containing library/)")
-      val check = opt[Boolean](descr = "Only check input files", hidden = true, default = Some(false))
+      val check = opt[Boolean](descr = "Only check input files for consistency", hidden = true, default = Some(false))
 
       def run(): Unit = {
         val (inFiles, labels) = findInputs(library())
