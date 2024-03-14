@@ -42,6 +42,13 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       }
   }
 
+  private def findInputs(location: String) = {
+    val inFiles = HDFSUtil.findFiles(location + "/library", ".fna")
+    println(s"Discovered input files: $inFiles")
+    val reader = inputReader(inFiles)
+    (reader, s"$location/seqid2taxid.map")
+  }
+
   val taxonIndex = new Subcommand("taxonIndex") {
     val location = trailArg[String](required = true, descr = "Path to location where index is stored")
 
@@ -49,14 +56,15 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       KeyValueIndex.load(location(), getTaxonomy(location()))
 
     val build = new RunCmd("build") {
-      val inFiles = trailArg[List[String]](required = true, descr = "Input sequence files")
-      val labels = opt[String](required = true, descr = "Path to sequence taxonomic label file")
+      val library = opt[String](required = true, descr = "Location of sequence files (directory containing library/)")
       val check = opt[Boolean](descr = "Only check input files", hidden = true, default = Some(false))
 
       def run(): Unit = {
+        val (inFiles, labels) = findInputs(library())
+
         val params = IndexParams(
           spark.sparkContext.broadcast(
-            MinSplitter(seedMask(discount.getSplitter(inFiles.toOption).priorities), k())
+            MinSplitter(seedMask(discount.getSplitter(Some(inFiles.files)).priorities), k())
           ), partitions(), location())
         println(s"Splitter ${params.splitter}")
 
@@ -64,13 +72,13 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
         val index = new KeyValueIndex(params, tax)
 
         if (check()) {
-          index.checkInput(inputReader(inFiles()))
+          index.checkInput(inFiles)
         } else { //build index
-          val bkts = index.makeBuckets(inputReader(inFiles()), labels(), addRC = false)
+          val bkts = index.makeBuckets(inFiles, labels, addRC = false)
           index.writeBuckets(bkts, params.location)
           TaxonomicIndex.copyTaxonomy(taxonomy(), location() + "_taxonomy")
           index.showIndexStats()
-          TaxonomicIndex.inputStats(labels(), tax)
+          TaxonomicIndex.inputStats(labels, tax)
         }
       }
     }

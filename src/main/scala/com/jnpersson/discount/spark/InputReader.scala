@@ -84,7 +84,7 @@ private final case class FragmentParser(k: Int) {
  *                  the first file is a _1, the second a _2, the third a _1, etc.
  * @param spark the SparkSession
  */
-class Inputs(files: Seq[String], k: Int, maxReadLength: Int, pairedEnd: Boolean = false)(implicit spark: SparkSession) {
+class Inputs(val files: Seq[String], k: Int, maxReadLength: Int, pairedEnd: Boolean = false)(implicit spark: SparkSession) {
   protected val conf = new HConfiguration(spark.sparkContext.hadoopConfiguration)
   import spark.sqlContext.implicits._
 

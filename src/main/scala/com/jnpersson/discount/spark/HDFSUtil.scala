@@ -17,7 +17,7 @@
 
 package com.jnpersson.discount.spark
 
-import org.apache.hadoop.fs.{FSDataInputStream, FileSystem, FileUtil, LocatedFileStatus, Path => HPath}
+import org.apache.hadoop.fs.{FSDataInputStream, FileSystem, FileUtil, LocatedFileStatus, RemoteIterator, Path => HPath}
 import org.apache.spark.sql.SparkSession
 
 import java.io.PrintWriter
@@ -49,16 +49,33 @@ object HDFSUtil {
     fs.exists(p)
   }
 
-  /** Recursively get all subdirectories of a directory */
-  def subdirectories(path: String)(implicit spark: SparkSession): Seq[String] = {
+  private def localIterator[T](rit: RemoteIterator[T]): Iterator[T] =
+    new Iterator[T] {
+      def hasNext = rit.hasNext
+
+      def next: T = rit.next
+    }
+
+  private def files(path: String)(implicit spark: SparkSession): Iterator[LocatedFileStatus] = {
     val p = new HPath(path)
     val fs = p.getFileSystem(spark.sparkContext.hadoopConfiguration)
-    val rit = fs.listLocatedStatus(p)
-    val it = new Iterator[LocatedFileStatus] {
-      def hasNext = rit.hasNext
-      def next = rit.next
-    }
-    it.filter(_.isDirectory).map(_.getPath.getName).toList
+    localIterator(fs.listLocatedStatus(p))
+  }
+
+  /** Get all subdirectories of a directory */
+  def subdirectories(path: String)(implicit spark: SparkSession): List[String] =
+    files(path).filter(_.isDirectory).map(_.getPath.getName).toList
+
+  private def recursiveFiles(path: String)(implicit spark: SparkSession): Iterator[LocatedFileStatus] = {
+    val p = new HPath(path)
+    val fs = p.getFileSystem(spark.sparkContext.hadoopConfiguration)
+    localIterator(fs.listFiles(p, true))
+  }
+
+  /** Recursively get file names with a given extension in a directory */
+  def findFiles(path: String, extension: String)(implicit spark: SparkSession): List[String] = {
+    val it = recursiveFiles(path)
+    it.filter(f => f.isFile).map(_.getPath.toString).filter(_.endsWith(extension)).toList
   }
 
   /** Create a PrintWriter, use it to write output, then close it safely. */

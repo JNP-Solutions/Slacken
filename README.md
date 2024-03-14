@@ -65,7 +65,7 @@ that will be indexed.
 
 ```
 ./submit-slacken2.sh  -p 2000 -k 35 -m 31 -t k2/taxonomy  taxonIndex mySlackenLib \
-  build -l k2/seqid2taxid.map  k2/library/bacteria/library.fna
+  build -l k2 
 ```
 
 Where: 
@@ -74,8 +74,8 @@ Where:
 * `-m 31` is the minimizer size
 * `mySlackenLib` is the location where the built library will be stored (a directory will be created or overwritten)
 * `-t` is the directory where the taxonomy is stored (names.dmp and nodes.dmp, see above)
-* `-l` is the label file mapping sequence IDs to taxa (obtained by the download step above)
-* `...library.fna` is the file to be indexed (any number of files may be supplied, separated by space)
+* `k2` is a directory containing seqid2taxid.map, which maps sequence IDs to taxa, and the subdirectory 
+  `library/` which will be scanned recursively for `*.fna` sequence files
 
 While the build process is running, the Spark UI may be inspected at [http://localhost:4040](http://localhost:4040) if the process is running 
 locally.
@@ -91,7 +91,7 @@ To build the demo library in the location `/tmp/library`:
 
 ```
 ./submit-slacken2.sh -k 35 -m 31 -t slackenTestLib/taxonomy taxonIndex /tmp/library \                                     
-    build -l slackenTestLib/seqid2taxid.map  slackenTestLib/bacteria_small.fna
+    build -l slackenTestLib 
 ```
 
 ## Classifying reads
