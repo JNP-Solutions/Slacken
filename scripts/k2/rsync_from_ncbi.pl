@@ -12,7 +12,6 @@ use strict;
 use warnings;
 use File::Basename;
 use Getopt::Std;
-use Net::FTP;
 use List::Util qw/max/;
 
 my $PROG = basename $0;
@@ -25,7 +24,6 @@ my $qm_server = quotemeta $SERVER;
 my $qm_server_path = quotemeta $SERVER_PATH;
 
 my $is_protein = $ENV{"KRAKEN2_PROTEIN_DB"};
-my $use_ftp = $ENV{"KRAKEN2_USE_FTP"};
 
 my $suffix = $is_protein ? "_protein.faa.gz" : "_genomic.fna.gz";
 
@@ -51,10 +49,10 @@ while (<>) {
 
 open MANIFEST, ">", "manifest.txt"
   or die "$PROG: can't write manifest: $!\n";
-print MANIFEST "$_\n" for keys %manifest;
+print MANIFEST "output = $_\nurl = https://${SERVER}${SERVER_PATH}/$_\n" for keys %manifest;
 close MANIFEST;
 
-if ($is_protein && ! $use_ftp) {
+if ($is_protein) {
   print STDERR "Step 0/2: performing rsync dry run (only protein d/l requires this)...\n";
   # Protein files aren't always present, so we have to do this two-rsync run hack
   # First, do a dry run to find non-existent files, then delete them from the
@@ -79,50 +77,13 @@ if ($is_protein && ! $use_ftp) {
   close MANIFEST;
 }
 
-sub ftp_connection {
-    my $ftp = Net::FTP->new($SERVER, Passive => 1)
-        or die "$PROG: FTP connection error: $@\n";
-    $ftp->login($FTP_USER, $FTP_PASS)
-        or die "$PROG: FTP login error: " . $ftp->message() . "\n";
-    $ftp->binary()
-        or die "$PROG: FTP binary mode error: " . $ftp->message() . "\n";
-    $ftp->cwd($SERVER_PATH)
-        or die "$PROG: FTP CD error: " . $ftp->message() . "\n";
-    return $ftp;
-}
 
-if ($use_ftp) {
-  print STDERR "Step 1/2: Performing ftp file transfer of requested files\n";
-  open MANIFEST, "<", "manifest.txt"
-    or die "$PROG: can't open manifest: $!\n";
-  mkdir "all" or die "$PROG: can't create 'all' directory: $!\n";
-  chdir "all" or die "$PROG: can't chdir into 'all' directory: $!\n";
-  while (<MANIFEST>) {
-    chomp;
-    my $ftp = ftp_connection();
-    my $try = 0;
-    my $ntries = 5;
-    my $sleepsecs = 3;
-    while($try < $ntries) {
-        $try++;
-        last if $ftp->get($_);
-        warn "$PROG: unable to download $_ on try $try of $ntries: ".$ftp->message()."\n";
-        last if $try == $ntries;
-        sleep $sleepsecs;
-        $sleepsecs *= 3;
-    }
-    die "$PROG: unable to download ftp://${SERVER}${SERVER_PATH}/$_\n" if $try == $ntries;
-    $ftp->quit;
-  }
-  close MANIFEST;
-  chdir ".." or die "$PROG: can't return to correct directory: $!\n";
-}
-else {
-  print STDERR "Step 1/2: Performing rsync file transfer of requested files\n";
-  system("rsync --no-motd --files-from=manifest.txt rsync://${SERVER}${SERVER_PATH}/ .") == 0
-    or die "$PROG: rsync error, exiting: $?\n";
-  print STDERR "Rsync file transfer complete.\n";
-}
+
+print STDERR "Step 1/2: Performing curl file transfer of requested files\n";
+system("curl -C - --create-dirs --retry 3 --config manifest.txt -Z --parallel-max 4") == 0
+  or die "$PROG: curl error, exiting: $?\n";
+print STDERR "Curl file transfer complete.\n";
+
 print STDERR "Step 2/2: Assigning taxonomic IDs to sequences\n";
 my $output_file = $is_protein ? "library.faa" : "library.fna";
 open OUT, ">", $output_file
@@ -134,9 +95,7 @@ my $ch = $is_protein ? "aa" : "bp";
 my $max_out_chars = 0;
 for my $in_filename (sort keys %manifest) {
   my $taxid = $manifest{$in_filename};
-  if ($use_ftp) {  # FTP downloading doesn't create full path locally
-    $in_filename = "all/" . basename($in_filename);
-  }
+
   open IN, "gunzip -c $in_filename |" or die "$PROG: can't read $in_filename: $!\n";
   while (<IN>) {
     if (/^>/) {
