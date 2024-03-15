@@ -6,11 +6,11 @@ scalaVersion := "2.12.18"
 
 val sparkVersion = "3.5.0"
 
-//If compiling on JDK 8, the --release 8 flag can be safely removed (needed for backwards compatibility on later JDKs).
+//For backwards compatibility with Java 8, when compiling on a modern JDK, the options below are needed. 
 //Also applies to javacOptions below.
-scalacOptions ++= Seq("--feature", "-release", "8")
+//scalacOptions ++= Seq("--feature", "-release", "8")
 
-javacOptions ++= Seq("--release=8")
+//javacOptions ++= Seq("--release=8")
 
 resolvers += "Spark Packages Repo" at "https://dl.bintray.com/spark-packages/maven"
 
