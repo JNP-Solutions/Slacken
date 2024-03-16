@@ -31,10 +31,6 @@ function report_time_elapsed() {
        $1 $curr_time
 }
 
-function list_sequence_files() {
-  find library/ '(' -name '*.fna' -o -name '*.faa' ')' -print0
-}
-
 start_time=$(get_current_time)
 
 DATABASE_DIR="$KRAKEN2_DB_NAME"
@@ -95,51 +91,5 @@ else
   echo "Sequence ID to taxonomy ID map complete. [$(report_time_elapsed $step_time)]"
 fi
 
-echo "Estimating required capacity (step 2)..."
 
-step_time=$(get_current_time)
-estimate=$(list_sequence_files | xargs -0 cat | estimate_capacity -k $KRAKEN2_KMER_LEN -l $KRAKEN2_MINIMIZER_LEN -S $KRAKEN2_SEED_TEMPLATE -p $KRAKEN2_THREAD_CT $KRAKEN2XFLAG )
-# Slight upward adjustment of distinct minimizer estimate to protect
-# against crash w/ small reference sets
-estimate=$(( estimate + 8192 ))
-required_capacity=$(perl -le 'print int(shift() / shift())' $estimate $KRAKEN2_LOAD_FACTOR);
-
-echo "Estimated hash table requirement: $(( required_capacity * 4 )) bytes"
-
-max_db_flag=""
-if [ -n "$KRAKEN2_MAX_DB_SIZE" ]
-then
-  if (( KRAKEN2_MAX_DB_SIZE < (required_capacity * 4) ))
-  then
-    max_db_flag="-M $(perl -le 'print int(shift() / 4)' $KRAKEN2_MAX_DB_SIZE)"
-    echo "Specifying lower maximum hash table size of $KRAKEN2_MAX_DB_SIZE bytes"
-  fi
-fi
-
-echo "Capacity estimation complete. [$(report_time_elapsed $step_time)]"
-
-echo "Building database files (step 3)..."
-
-fast_build_flag=""
-if [ -n "$KRAKEN2_FAST_BUILD" ]
-then
-  fast_build_flag="-F"
-fi
-
-if [ -e "hash.k2d" ]
-then
-  echo "Hash table already present, skipping database file build."
-else
-  step_time=$(get_current_time)
-  list_sequence_files | xargs -0 cat | \
-    build_db -k $KRAKEN2_KMER_LEN -l $KRAKEN2_MINIMIZER_LEN -S $KRAKEN2_SEED_TEMPLATE $KRAKEN2XFLAG \
-             -H hash.k2d.tmp -t taxo.k2d.tmp -o opts.k2d.tmp -n taxonomy/ -m $seqid2taxid_map_file \
-             -c $required_capacity -p $KRAKEN2_THREAD_CT $max_db_flag -B $KRAKEN2_BLOCK_SIZE -b $KRAKEN2_SUBBLOCK_SIZE \
-             -r $KRAKEN2_MIN_TAXID_BITS $fast_build_flag
-  finalize_file taxo.k2d
-  finalize_file opts.k2d
-  finalize_file hash.k2d
-  echo "Database files completed. [$(report_time_elapsed $step_time)]"
-fi
-
-echo "Database construction complete. [Total: $(report_time_elapsed $start_time)]"
+echo "Finished making $seqid2taxid_map_file. [Total: $(report_time_elapsed $start_time)]"

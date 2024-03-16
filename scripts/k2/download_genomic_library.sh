@@ -137,3 +137,8 @@ if [ -n "$KRAKEN2_MASK_LC" ]; then
   mask_low_complexity.sh .
   1>&2 echo " done."
 fi
+
+1>&2 echo -n "Building fasta index with seqkit..."
+for file in $(find . '(' -name '*.fna' -o -name '*.faa' ')'); do
+  seqkit faidx $file
+done
