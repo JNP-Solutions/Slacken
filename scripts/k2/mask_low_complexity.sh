@@ -13,6 +13,9 @@ set -o pipefail  # Stop on failures in non-final pipeline commands
 
 target="$1"
 
+#Note, unclear if the -t flags works with segmasker (untested)
+THREADS=8
+
 MASKER="k2mask"
 if [ -n "$KRAKEN2_PROTEIN_DB" ]; then
   MASKER="segmasker"
@@ -26,14 +29,14 @@ fi
 if [ -d $target ]; then
   for file in $(find $target '(' -name '*.fna' -o -name '*.faa' ')'); do
     if [ ! -e "$file.masked" ]; then
-      $MASKER -in $file -outfmt fasta | sed -e '/^>/!s/[a-z]/x/g' > "$file.tmp"
+      $MASKER -t $THREADS -in $file -outfmt fasta | sed -e '/^>/!s/[a-z]/x/g' > "$file.tmp"
       mv "$file.tmp" $file
       touch "$file.masked"
     fi
   done
 elif [ -f $target ]; then
   if [ ! -e "$target.masked" ]; then
-    $MASKER -in $target -outfmt fasta | sed -e '/^>/!s/[a-z]/x/g' > "$target.tmp"
+    $MASKER -t $THREADS -in $target -outfmt fasta | sed -e '/^>/!s/[a-z]/x/g' > "$target.tmp"
     mv "$target.tmp" $target
     touch "$target.masked"
   fi
