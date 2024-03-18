@@ -101,7 +101,7 @@ object KrakenReport {
   }
 
   def numRankForCode(code: String): Int =
-    Taxonomy.ranks.find(_.code == code).
+    Taxonomy.rankValues.find(_.code == code).
       getOrElse(Taxonomy.Unclassified).depth
 
   def main(args: Array[String]): Unit = {

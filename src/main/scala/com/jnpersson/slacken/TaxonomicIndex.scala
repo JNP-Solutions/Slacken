@@ -194,7 +194,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
     // to enable proper sorting of file names with threshold values
     val maxDecimalLength = thresholds.map(num => num.toString.split("\\.")(1).length).max
     val thresholdStr = s"%.${maxDecimalLength}f".format(threshold)
-    val location = outputLocation + s"_c" + thresholdStr
+    val location = outputLocation + "_c" + thresholdStr
 
     val keepLines = if (cpar.withUnclassified) {
       reads

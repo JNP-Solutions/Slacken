@@ -7,7 +7,7 @@ package com.jnpersson.slacken.analysis
 import com.jnpersson.discount.spark.HDFSUtil
 import com.jnpersson.slacken.Taxonomy.ROOT
 import com.jnpersson.slacken.{KeyValueIndex, KrakenReport, Taxon}
-import org.apache.spark.sql.functions.count
+import org.apache.spark.sql.functions.{count, lit}
 import org.apache.spark.sql.{Dataset, SparkSession}
 
 /** Compare one taxonomic index against another in terms of how minimizers have changed.
@@ -30,7 +30,7 @@ class MinimizerMigration(index: KeyValueIndex, reference: KeyValueIndex)(implici
     val cols = index.idColumnNames
 
     //null-safe equals, since both sides could be null for smaller disk formats
-    val condition = cols.map(c => b1(c) <=> b2(c)).reduce(_ && _)
+    val condition = cols.map(c => b1(c) <=> b2(c)).fold(lit(true))(_ && _)
     val joint = b1.joinWith(b2, condition)
     joint.map(row => {
       val t1 = row._1.getAs[Int]("taxon")
