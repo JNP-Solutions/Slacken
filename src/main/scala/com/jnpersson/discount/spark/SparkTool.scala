@@ -99,7 +99,7 @@ private[jnpersson] class DiscountConf(args: Array[String])(implicit spark: Spark
 
   /** The index of input data, which may be either constructed on the fly from input sequence files,
    * or read from a pre-stored index created using the 'store' command. */
-  def inputIndex(compatIndexLoc: Option[String] = None)(implicit spark: SparkSession) : Index = {
+  def inputIndex(compatIndexLoc: Option[String] = None): Index = {
     requireOne(inputFiles, indexLocation, synthetic)
     if (indexLocation.isDefined) {
       readIndex(indexLocation())

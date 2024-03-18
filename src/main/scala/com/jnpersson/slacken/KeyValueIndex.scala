@@ -30,8 +30,8 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   import spark.sqlContext.implicits._
   import KeyValueIndex._
 
-  val recordColumnNames: List[String] = idColumnNames :+ "taxon"
-  val recordColumns: List[Column] = idColumns :+ $"taxon"
+  val recordColumnNames: Seq[String] = idColumnNames :+ "taxon"
+  val recordColumns: Seq[Column] = idColumns :+ $"taxon"
 
   override def checkInput(inputs: Inputs): Unit = {
     val fragments = inputs.getInputFragments(false).map(x => (x.header, x.nucleotides))
@@ -93,7 +93,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     buckets.
       write.mode(SaveMode.Overwrite).
       option("path", location).
-      bucketBy(params.buckets, idColumnNames.head, idColumnNames.tail: _*).
+      bucketBy(params.buckets, idColumnNames(0), idColumnNames.drop(1): _*).
       saveAsTable(tableName)
   }
 
@@ -128,7 +128,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     val udafLca = udaf(TaxonLCA(bcTax))
 
     val nbuckets = buckets.select(applySpaceUdf(array(idColumns :_*)).as("minimizer"), $"taxon").
-      select($"taxon" :: idColumnsFromMinimizer :_*).
+      select($"taxon" +: idColumnsFromMinimizer :_*).
       groupBy(idColumns: _*).
       agg(udafLca($"taxon").as("taxon"))
 
@@ -215,7 +215,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     }).
       //The 'subject' struct constructs an OrdinalSpan.
       select(
-        struct($"minimizer", $"kmers", $"flag", $"ordinal", $"seqTitle").as("subject") ::
+        struct($"minimizer", $"kmers", $"flag", $"ordinal", $"seqTitle").as("subject") +:
           idColumnsFromMinimizer
       :_*)
 
@@ -286,7 +286,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   def kmersDepths(buckets: DataFrame): DataFrame = {
     val bcTax = this.bcTaxonomy
     val depth = udf((x: Taxon) => bcTax.value.depth(x))
-    buckets.select(depth($"taxon").as("depth") :: idColumns :_*).
+    buckets.select(depth($"taxon").as("depth") +: idColumns :_*).
       sort(desc("depth"))
   }
 

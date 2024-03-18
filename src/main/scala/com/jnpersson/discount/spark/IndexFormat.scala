@@ -34,34 +34,34 @@ trait IndexFormat {
   def idColumnsString: String = idColumnNames.mkString(",")
 
   /** Names of the key columns */
-  def idColumnNames: List[String]
+  def idColumnNames: Seq[String]
 
   /** All key columns */
-  def idColumns: List[Column] = idColumnNames.map(col)
+  def idColumns: Seq[Column] = idColumnNames.map(col)
 
   def numIdColumns: Int = idColumns.size
 
-  def idColumnsFromMinimizer: List[Column]
+  def idColumnsFromMinimizer: Seq[Column]
 }
 
 /** An index where the key is one Long column. */
 trait IndexFormat1 extends IndexFormat {
   import spark.sqlContext.implicits._
 
-  def idColumnNames = List("id1")
+  def idColumnNames = Seq("id1")
 
   def idColumnsFromMinimizer =
-    List(element_at($"minimizer", 1).as("id1"))
+    Seq(element_at($"minimizer", 1).as("id1"))
 }
 
 /** An index where the key is two Long columns. */
 trait IndexFormat2 extends IndexFormat {
   import spark.sqlContext.implicits._
 
-  def idColumnNames = List("id1", "id2")
+  def idColumnNames = Seq("id1", "id2")
 
   def idColumnsFromMinimizer =
-    List(element_at($"minimizer", 1).as("id1"),
+    Seq(element_at($"minimizer", 1).as("id1"),
       element_at($"minimizer", 2).as("id2"))
 }
 
@@ -69,10 +69,10 @@ trait IndexFormat2 extends IndexFormat {
 trait IndexFormat4 extends IndexFormat {
   import spark.sqlContext.implicits._
 
-  def idColumnNames = List("id1", "id2", "id3", "id4")
+  def idColumnNames = Seq("id1", "id2", "id3", "id4")
 
   def idColumnsFromMinimizer =
-    List(element_at($"minimizer", 1).as("id1"),
+    Seq(element_at($"minimizer", 1).as("id1"),
       element_at($"minimizer", 2).as("id2"),
       element_at($"minimizer", 3).as("id3"),
       element_at($"minimizer", 4).as("id4"))

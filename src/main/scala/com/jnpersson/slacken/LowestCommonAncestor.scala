@@ -47,7 +47,7 @@ final class LowestCommonAncestor(taxonomy: Taxonomy) {
     //contained in the path of a (in the buffer). If it is, we have found the LCA.
     var b = tax2
     while (b != NONE) {
-      var i = 0
+      i = 0
       while (taxonPath(i) != NONE) {
         if (taxonPath(i) == b) return b
         i += 1

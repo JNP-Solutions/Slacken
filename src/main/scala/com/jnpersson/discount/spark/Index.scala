@@ -224,7 +224,7 @@ class Index(val params: IndexParams, val buckets: Dataset[ReducibleBucket])
   /** Write this index to a location.
    * This action triggers a computation.
    */
-  def write(location: String)(implicit spark: SparkSession): Unit = {
+  def write(location: String): Unit = {
     Index.write(buckets.toDF(), location, params.buckets)
     params.write(location, s"Properties for Index $location")
   }

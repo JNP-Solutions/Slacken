@@ -45,7 +45,7 @@ object Testing {
     //Generate data for every level (rank) in the tree and then compose them
     val levelGenerators: Gen[Seq[(Taxon, Taxon, String)]] =
       Gen.sequence(for {
-      rank <- Taxonomy.ranks
+      rank <- Taxonomy.rankValues
       if rank != Taxonomy.Root
       maxParent = (rank.depth - 1) * levelSize + 1 //each level has a fixed ID range
       id <- ((rank.depth - 1) * levelSize + 2) until (rank.depth * levelSize + 2)
