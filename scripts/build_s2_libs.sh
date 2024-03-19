@@ -4,9 +4,9 @@
 #Work in progress.
 
 #Regional buckets. jnp-bio is Japan.
-ROOT=s3://jnp-bio
+#ROOT=s3://jnp-bio
 #ROOT=s3://jnp-bio-us
-#ROOT=s3://jnp-bio-eu
+ROOT=s3://jnp-bio-eu
 
 #data directory where objects are deleted after a few days
 #DATA=$ROOT/scratch
@@ -22,26 +22,38 @@ TAXONOMY=$K2/taxonomy
 BUCKET=$ROOT/discount
 DISCOUNT_HOME=/home/johan/ws/jnps/Hypercut-git
 
-aws s3 cp $DISCOUNT_HOME/target/scala-2.12/Slacken-assembly-0.1.0.jar $BUCKET/
+#aws s3 cp $DISCOUNT_HOME/target/scala-2.12/Slacken-assembly-0.1.0.jar $BUCKET/
 
-#CAMI 1 samples
-#SAMPLES=(M1_S001__insert_5000_reads_anonymous M1_S002__insert_5000_reads_anonymous)
+#CAMI_SAMPLES=(M1_S001__insert_5000_reads_anonymous M1_S002__insert_5000_reads_anonymous)
 #SPATH=$ROOT/cami_medium
 
 #Tara oceans virome
-SPATH=$ROOT/tov
+#SPATH=$ROOT/tov
+#TOV_SAMPLES=$(cat <<EOF
+#        $SPATH/ERR594352_1.fastq  $SPATH/ERR594352_2.fastq  $SPATH/ERR594353_1.fastq  $SPATH/ERR594353_2.fastq  $SPATH/ERR594354_1.fastq  $SPATH/ERR594354_2.fastq\
+#        $SPATH/ERR594355_1.fastq  $SPATH/ERR594355_2.fastq
+        #    $SPATH/ERR594356_1.fastq  $SPATH/ERR594356_2.fastq\
+        #    $SPATH/ERR594357_1.fastq  $SPATH/ERR594357_2.fastq  $SPATH/ERR594358_1.fastq  $SPATH/ERR594358_2.fastq  $SPATH/ERR594359_1.fastq $SPATH/ERR594359_2.fastq
+#EOF
+#)
+
+SPATH=$ROOT/cami2/airskinurogenital
+CAMI2_SAMPLES=$(cat <<EOF
+  $SPATH/sample0/anonymous_reads.part_001.fq $SPATH/sample0/anonymous_reads.part_002.fq \
+  $SPATH/sample1/anonymous_reads.part_001.fq $SPATH/sample1/anonymous_reads.part_002.fq \
+  $SPATH/sample2/anonymous_reads.part_001.fq $SPATH/sample2/anonymous_reads.part_002.fq \
+  $SPATH/sample3/anonymous_reads.part_001.fq $SPATH/sample3/anonymous_reads.part_002.fq
+EOF
+)
 
 function classify {
   LIB=$1
   C=$2
-#$SPATH/ERR594352_1.fastq  $SPATH/ERR594352_2.fastq \
   OUT=${LIB}
-  ./slacken2-aws.sh taxonIndex $DATA/$LIB classify --sample-regex "(ERR[0-9]+)" -p -c $C -o $SPATH/${OUT}_tov \
-    $SPATH/ERR594352_1.fastq  $SPATH/ERR594352_2.fastq  $SPATH/ERR594353_1.fastq  $SPATH/ERR594353_2.fastq  $SPATH/ERR594354_1.fastq  $SPATH/ERR594354_2.fastq \
-    $SPATH/ERR594355_1.fastq  $SPATH/ERR594355_2.fastq \
-#    $SPATH/ERR594356_1.fastq  $SPATH/ERR594356_2.fastq  \
-#    $SPATH/ERR594357_1.fastq  $SPATH/ERR594357_2.fastq  $SPATH/ERR594358_1.fastq  $SPATH/ERR594358_2.fastq  $SPATH/ERR594359_1.fastq $SPATH/ERR594359_2.fastq
+  ./slacken2-aws.sh taxonIndex $DATA/$LIB classify --sample-regex "(S[0-9]+)" -p -c $C -o $SPATH/${OUT}_cami2 \
+  $CAMI2_SAMPLES
 
+#CAMI1
 #  for s in ${SAMPLES[@]}
 #  do
 #    ./slacken2-aws.sh taxonIndex $DATA/$LIB classify -p $SPATH/$s.1.fq $SPATH/$s.2.fq -c $C -o $SPATH/${s%__*}_$OUT

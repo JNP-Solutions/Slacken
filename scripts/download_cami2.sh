@@ -9,19 +9,19 @@ GROUP=airskinurogenital
 #groups=marine plant_associated strain
 
 DEST=$GROUP
-OPTS="--create-dir --output-dir $DEST -LO"
+OPTS="--create-dir --output-dir $DEST -LO -C -"
 for ((s = 0; s <= 28; s++))
 do
-    curl $OPTS https://frl.publisso.de/data/$PROJECT/$GROUP/sample_$s.tar.gz
+    curl $OPTS https://frl.publisso.de/data/$PROJECT/$GROUP/sample_$s.tar.gz || exit 1
     SAMPLE=./$DEST/sample_$s.tar.gz
     tar xzf $SAMPLE
     gzip -d *sample_$s/reads/anonymous_reads.fq.gz
     gzip -d *sample_$s/reads/reads_mapping.tsv.gz
-    #unpack inner files
+    #unpack inner files.
     seqkit split2 -p 2 -O sample$s *sample_$s/reads/anonymous_reads.fq
     mv *sample_$s/reads/reads_mapping.tsv sample$s
-    aws s3 sync sample$s $BUCKET/$GROUP/sample$s
+    aws s3 sync sample$s $BUCKET/$GROUP/sample$s || exit 1
     rm -r $SAMPLE *sample_$s sample$s
 done
-curl $OPTS https://frl.publisso.de/data/$PROJECT/$GROUP/setup.tar.gz
+curl $OPTS https://frl.publisso.de/data/$PROJECT/$GROUP/setup.tar.gz || exit 1
 
