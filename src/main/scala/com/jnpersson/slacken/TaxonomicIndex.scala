@@ -208,6 +208,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
     //in the case of an index with many partitions
     outputRows.coalesce(200).write.mode(SaveMode.Overwrite).
       partitionBy("sample").
+      option("compression", "gzip").
       text(s"${location}_classified")
     makeReportsFromClassifications(s"${location}_classified")
   }
