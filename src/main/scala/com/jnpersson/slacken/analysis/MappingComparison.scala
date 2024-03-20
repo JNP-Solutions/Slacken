@@ -37,10 +37,12 @@ object PerReadMetrics {
 /** A single result line */
 final case class Metrics(title: String, rank: Option[Rank], perTaxon: PerTaxonMetrics, perRead: PerReadMetrics) {
   //Extract some variables from expected filename patterns
-  val pattern = """M1_S(\d+)_(s2_2023|nt|s2_2023_all)_(\d+)_(\d+)(f|ff|)(_\d+)?(_s\d+)?(_c[\d.]+)?_classified""".r
+  val pattern1 = """M1_S(\d+)_(s2_2023|nt|s2_2023_all)_(\d+)_(\d+)(f|ff|)(_\d+)?(_s\d+)?(_c[\d.]+)?_classified""".r
+
+  val pattern2 = """(.*)/(s2_2023|nt|s2_2023_all)_(\d+)_(\d+)_s(\d+)_(.*)_c([\d.]+)_classified/sample=(.*)""".r
 
   def toTSVString: Option[String] = title match {
-    case pattern(sample, library, k, m, freqRaw, freqLenRaw, sRaw, cRaw) =>
+    case pattern1(sample, library, k, m, freqRaw, freqLenRaw, sRaw, cRaw) =>
 
       //Note: freqLen is meaningless if the ordering is not frequency
       val freqLen = Option(freqLenRaw).map(_.drop(1)).getOrElse("10")
@@ -49,7 +51,12 @@ final case class Metrics(title: String, rank: Option[Rank], perTaxon: PerTaxonMe
       val frequency = if (freqRaw == "") "none" else freqRaw
       val rankStr = rank.map(_.toString).getOrElse("All")
       Some(
-        s"$title\t$sample\t$library\t$k\t$m\t$frequency\t$freqLen\t$s\t$c\t$rankStr\t${perTaxon.toTSVString}\t${perRead.toTSVString}"
+        s"$title\t\t\t$sample\t$library\t$k\t$m\t$frequency\t$freqLen\t$s\t$c\t$rankStr\t${perTaxon.toTSVString}\t${perRead.toTSVString}"
+      )
+    case pattern2(group, library, k, m, s, family, c, sample) =>
+      val rankStr = rank.map(_.toString).getOrElse("All")
+      Some(
+        s"$title\t$family\t$group\t$sample\t$library\t$k\t$m\t0\t0\t$s\t$c\t$rankStr\t${perTaxon.toTSVString}\t${perRead.toTSVString}"
       )
     case _ =>
       println(s"Couldn't extract variables from filename: $title. Omitting from output.")
@@ -58,12 +65,13 @@ final case class Metrics(title: String, rank: Option[Rank], perTaxon: PerTaxonMe
 }
 
 object Metrics {
-  def header = s"title\tsample\tlibrary\tk\tm\tfrequency\tfl\ts\tc\trank\t${PerTaxonMetrics.header}\t${PerReadMetrics.header}"
+  def header = s"title\tfamily\tgroup\tsample\tlibrary\tk\tm\tfrequency\tfl\ts\tc\trank\t${PerTaxonMetrics.header}\t${PerReadMetrics.header}"
 }
 
 class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
                         refIdCol: Int, refTaxonCol: Int, skipHeader: Boolean,
-                        minCountTaxon: Long)(implicit spark: SparkSession) {
+                        minCountTaxon: Long,
+                        multiSample: Boolean)(implicit spark: SparkSession) {
   import MappingComparison._
   import spark.sqlContext.implicits._
 
@@ -97,7 +105,8 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
   }
 
   def allMetrics(dataFile: String, rank: Option[Rank]): Metrics = {
-    val title = dataFile.split("/").last
+    val spl = dataFile.split("/")
+    val title = if (multiSample) spl.takeRight(3).mkString("/") else spl.last
 
     //Inner join: filter out reads not present in the reference
     //(may have been removed due to unknown taxon).
@@ -230,7 +239,11 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
   def readCustomFormat(location: String, idCol: Int, taxonCol: Int):
     Dataset[(SeqTitle, Taxon)] = {
     spark.read.option("sep", "\t").option("header", skipHeader.toString).csv(location).
-      map(x => (x.getString(idCol - 1), x.getString(taxonCol - 1).toInt))
+      filter(x => !x.getString(idCol -1).contains("/2")). //paired end
+      map(x => (
+        x.getString(idCol - 1).replaceAll("/1", ""),  //remove /1 in paired end reads
+        x.getString(taxonCol - 1).toInt)
+      )
   }
 }
 
