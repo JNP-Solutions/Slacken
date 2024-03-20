@@ -1,27 +1,48 @@
 #!/bin/bash
 
 BUCKET=s3://jnp-bio-eu/cami2
-PROJECT=frl:6425518
-GROUP=airskinurogenital
+
+function getSamples {
+  PROJECT=$1
+  GROUP=$2
+  FROM=$3
+  TO=$4
+
+  DEST=$GROUP
+  OPTS="--create-dir --output-dir $DEST -LO -C -"
+  for ((s = $FROM; s <= $TO; s++))
+  do
+    case $GROUP in
+      strain)
+        DIR=short_read
+        URL=https://frl.publisso.de/data/$PROJECT/$GROUP/short_read/strmgCAMI2_sample_${s}_reads.tar.gz
+        ;;
+      *)
+        DIR=.
+        URL=https://frl.publisso.de/data/$PROJECT/$GROUP/sample_$s.tar.gz
+        ;;
+      esac
+
+    echo $URL
+    curl $OPTS $URL || exit 1
+    SAMPLE=./$DEST/*sample_$s*.tar.gz
+    tar xzf $SAMPLE
+    gzip -d $DIR/*sample_$s/reads/anonymous_reads.fq.gz
+    gzip -d $DIR/*sample_$s/reads/reads_mapping.tsv.gz
+    #unpack inner files.
+    seqkit split2 -p 2 -O sample$s $DIR/*sample_$s/reads/anonymous_reads.fq
+    mv $DIR/*sample_$s/reads/reads_mapping.tsv sample$s
+    aws s3 sync sample$s $BUCKET/$GROUP/sample$s || exit 1
+    rm -r $SAMPLE $DIR/*sample_$s sample$s
+  done
+  curl $OPTS https://frl.publisso.de/data/$PROJECT/$GROUP/setup.tar.gz || exit 1
+}
+
+#PROJECT=frl:6425518
 #groups=airskinurogenital gastrooral per_bodysite
 
 #PROJECT=frl:6425521
 #groups=marine plant_associated strain
 
-DEST=$GROUP
-OPTS="--create-dir --output-dir $DEST -LO -C -"
-for ((s = 0; s <= 28; s++))
-do
-    curl $OPTS https://frl.publisso.de/data/$PROJECT/$GROUP/sample_$s.tar.gz || exit 1
-    SAMPLE=./$DEST/sample_$s.tar.gz
-    tar xzf $SAMPLE
-    gzip -d *sample_$s/reads/anonymous_reads.fq.gz
-    gzip -d *sample_$s/reads/reads_mapping.tsv.gz
-    #unpack inner files.
-    seqkit split2 -p 2 -O sample$s *sample_$s/reads/anonymous_reads.fq
-    mv *sample_$s/reads/reads_mapping.tsv sample$s
-    aws s3 sync sample$s $BUCKET/$GROUP/sample$s || exit 1
-    rm -r $SAMPLE *sample_$s sample$s
-done
-curl $OPTS https://frl.publisso.de/data/$PROJECT/$GROUP/setup.tar.gz || exit 1
 
+getSamples frl:6425521 strain 0 9
