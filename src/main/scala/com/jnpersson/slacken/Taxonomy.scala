@@ -159,7 +159,8 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
   }
 
   /** Find the ancestor of the query at the given level, if it exists. Searches upward.
-   * If it doesn't exist (for example because the level is too low), then ROOT will be returned.
+   * If it doesn't exist, then ROOT will be returned.
+   * If the level is too low, then the value itself will be returned.
    * @param query taxon to search from
    * @param rank rank to find ancestor at
    * @return ancestor at the given level, or ROOT if none was found
@@ -176,7 +177,7 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
 
   @tailrec
   private def ancestorAtLevel(query: Taxon, at: Taxon, level: Rank): Taxon = {
-    if (ranks(at) == level) {
+    if (at != NONE && depth(at) <= level.depth) { //already at or above the requested level
       at
     } else {
       val p = parents(at)

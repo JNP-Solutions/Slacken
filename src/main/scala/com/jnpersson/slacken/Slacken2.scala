@@ -206,13 +206,14 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
     val taxonCol = opt[Int](descr = "Taxon column in reference", short = 'T', default = Some(3))
     val output = opt[String](descr = "Output location")
     val skipHeader = toggle(name = "header", descrYes = "Skip header in reference data", default = Some(false))
+    val multi = toggle(name = "multi", descrYes = "Classified reads were classified as multi-sample data", default = Some(true))
 
     val testFiles = trailArg[List[String]]("testFiles", descr = "Mappings to compare (Slacken/Kraken format)",
       required = true)
 
     def run(): Unit = {
       val t = spark.sparkContext.broadcast(TaxonomicIndex.getTaxonomy(taxonomy()))
-      val mc = new MappingComparison(t, reference(), idCol(), taxonCol(), skipHeader(), 100)
+      val mc = new MappingComparison(t, reference(), idCol(), taxonCol(), skipHeader(), 100, multi())
       val metrics =
         for { t <- testFiles().iterator
             m <- mc.allMetrics(t) } yield m
