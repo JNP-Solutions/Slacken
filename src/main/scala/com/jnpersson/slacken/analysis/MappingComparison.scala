@@ -39,7 +39,7 @@ final case class Metrics(title: String, rank: Option[Rank], perTaxon: PerTaxonMe
   //Extract some variables from expected filename patterns
   val pattern1 = """M1_S(\d+)_(s2_2023|nt|s2_2023_all)_(\d+)_(\d+)(f|ff|)(_\d+)?(_s\d+)?(_c[\d.]+)?_classified""".r
 
-  val pattern2 = """(.*)/(s2_2023|nt|s2_2023_all)_(\d+)_(\d+)_s(\d+)_(.*)_c([\d.]+)_classified/sample=(.*)""".r
+  val pattern2 = """(.*)/(.*)/(s2_2023|nt|s2_2023_all)_(\d+)_(\d+)_s(\d+)_c([\d.]+)_classified/sample=(.*)""".r
 
   def toTSVString: Option[String] = title match {
     case pattern1(sample, library, k, m, freqRaw, freqLenRaw, sRaw, cRaw) =>
@@ -53,7 +53,7 @@ final case class Metrics(title: String, rank: Option[Rank], perTaxon: PerTaxonMe
       Some(
         s"$title\t\t\t$sample\t$library\t$k\t$m\t$frequency\t$freqLen\t$s\t$c\t$rankStr\t${perTaxon.toTSVString}\t${perRead.toTSVString}"
       )
-    case pattern2(group, library, k, m, s, family, c, sample) =>
+    case pattern2(family, group, library, k, m, s, c, sample) =>
       val rankStr = rank.map(_.toString).getOrElse("All")
       Some(
         s"$title\t$family\t$group\t$sample\t$library\t$k\t$m\t0\t0\t$s\t$c\t$rankStr\t${perTaxon.toTSVString}\t${perRead.toTSVString}"
@@ -106,7 +106,7 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
 
   def allMetrics(dataFile: String, rank: Option[Rank]): Metrics = {
     val spl = dataFile.split("/")
-    val title = if (multiSample) spl.takeRight(3).mkString("/") else spl.last
+    val title = if (multiSample) spl.takeRight(4).mkString("/") else spl.last
 
     //Inner join: filter out reads not present in the reference
     //(may have been removed due to unknown taxon).

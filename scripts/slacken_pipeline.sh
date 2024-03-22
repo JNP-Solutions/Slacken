@@ -26,21 +26,13 @@ DISCOUNT_HOME=/home/johan/ws/jnps/Hypercut-git
 
 #aws s3 cp $DISCOUNT_HOME/target/scala-2.12/Slacken-assembly-0.1.0.jar $BUCKET/
 
-SPATH=$ROOT/cami2/airskinurogenital
-CAMI2_SAMPLES=()
-
-for ((i = 4; i <= 9; i++))
-do
-  CAMI2_SAMPLES+=($SPATH/sample$i/anonymous_reads.part_001.fq $SPATH/sample$i/anonymous_reads.part_002.fq)
-done
 
 function classify {
   LIB=$1
   shift
-  C="$@"
-  OUT=${LIB}
-  ./slacken2-aws.sh taxonIndex $DATA/$LIB classify --sample-regex "(S[0-9]+)" -p -c $C -o $SPATH/${OUT}_cami2 \
-  "${CAMI2_SAMPLES[@]}"
+  CLASS_OUT=$ROOT/scratch/classified/$FAMILY/$LIB
+  ./slacken2-aws.sh taxonIndex $DATA/$LIB classify --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" -o $CLASS_OUT \
+  "${SAMPLES[@]}"
 }
 
 function build {
@@ -72,13 +64,13 @@ function build_nt {
 function classify_std {
   LIB=s2_2023_$1
   shift
-  classify $LIB "$@"
+  classify $LIB
 }
 
 #Classify using the NT library
 function classify_nt {
   LIB=nt_$1
-  classify $LIB "$@"
+  classify $LIB
 }
 
 #Compare classifications of a single sample against a reference
@@ -89,11 +81,12 @@ function compare {
   CLASSIFICATIONS=""
   for C in "${CS[@]}"
   do
-    CLASSIFICATIONS="$CLASSIFICATIONS $SPATH/${LIB}_cami2_c${C}_classified/sample=S$SAMPLE"
+    CLASSIFICATIONS="$CLASSIFICATIONS $ROOT/scratch/classified/$FAMILY/${LIB}_c${C}_classified/sample=S$SAMPLE"
   done
 
   REF=$SPATH/sample$SAMPLE/reads_mapping.tsv
-  ./slacken2-aws.sh -t $TAXONOMY compare -r $REF -i 1 -T 3 -h -o $SPATH/sample$SAMPLE $CLASSIFICATIONS
+  ./slacken2-aws.sh -t $TAXONOMY compare -r $REF -i 1 -T 3 -h \
+    -o $ROOT/scratch/classified/$FAMILY/$LIB/sample$SAMPLE $CLASSIFICATIONS
 }
 
 #build_std 35 31 7
@@ -101,17 +94,21 @@ function compare {
 
 CS=(0.00 0.15 0.30 0.45)
 
-#classify_std 45_41_s12 "$CS"
-#classify_std 45_41_s20 "$CS"
+FAMILY=cami2/strain
+SPATH=$ROOT/$FAMILY
+SAMPLES=()
 
-#  classify_nt 65_61_s22 "$CS"
-
-#build_std 35 31 7
-
-classify_std 35_31_s7 "${CS[@]}"
-
-for ((s = 4; s <= 9; s++))
+for ((i = 0; i <= 9; i++))
 do
-  compare $s s2_2023_35_31_s7
+  SAMPLES+=($SPATH/sample$i/anonymous_reads.part_001.fq $SPATH/sample$i/anonymous_reads.part_002.fq)
+done
+
+#build_std 45 41 7
+#classify_std 45_41_s7
+
+for ((s = 0; s <= 9; s++))
+do
+  compare $s s2_2023_45_41_s7
   sleep 10
 done
+

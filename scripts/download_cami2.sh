@@ -2,6 +2,20 @@
 
 BUCKET=s3://jnp-bio-eu/cami2
 
+function samplePrefix {
+  case $1 in
+  marine)
+    echo "marmg"
+    ;;
+  strain)
+    echo "strmg"
+    ;;
+  plant_associated)
+    echo "rhimg"
+    ;;
+  esac
+}
+
 function getSamples {
   PROJECT=$1
   GROUP=$2
@@ -13,13 +27,15 @@ function getSamples {
   for ((s = $FROM; s <= $TO; s++))
   do
     case $GROUP in
-      strain)
+      strain | plant_associated | marine)
         DIR=short_read
-        URL=https://frl.publisso.de/data/$PROJECT/$GROUP/short_read/strmgCAMI2_sample_${s}_reads.tar.gz
+        URL=https://frl.publisso.de/data/$PROJECT/$GROUP/short_read/$(samplePrefix $GROUP)CAMI2_sample_${s}_reads.tar.gz
+      curl $OPTS https://frl.publisso.de/data/$PROJECT/$GROUP/short_read/$(samplePrefix $GROUP)CAMI2_setup.tar.gz
         ;;
       *)
         DIR=.
         URL=https://frl.publisso.de/data/$PROJECT/$GROUP/sample_$s.tar.gz
+        curl $OPTS https://frl.publisso.de/data/$PROJECT/$GROUP/setup.tar.gz || exit 1
         ;;
       esac
 
@@ -35,14 +51,17 @@ function getSamples {
     aws s3 sync sample$s $BUCKET/$GROUP/sample$s || exit 1
     rm -r $SAMPLE $DIR/*sample_$s sample$s
   done
-  curl $OPTS https://frl.publisso.de/data/$PROJECT/$GROUP/setup.tar.gz || exit 1
 }
 
 #PROJECT=frl:6425518
 #groups=airskinurogenital gastrooral per_bodysite
+#airskinurogenital samples 0-28
+#gastrooral samples 0-19
+
 
 #PROJECT=frl:6425521
-#groups=marine plant_associated strain
-
+#marine samples 0-9
+#plant_associated samples 0-20
+#strain samples 0-99
 
 getSamples frl:6425521 strain 0 9
