@@ -37,9 +37,9 @@ object PerReadMetrics {
 /** A single result line */
 final case class Metrics(title: String, rank: Option[Rank], perTaxon: PerTaxonMetrics, perRead: PerReadMetrics) {
   //Extract some variables from expected filename patterns
-  val pattern1 = """M1_S(\d+)_(s2_2023|nt|s2_2023_all)_(\d+)_(\d+)(f|ff|)(_\d+)?(_s\d+)?(_c[\d.]+)?_classified""".r
+  val pattern1 = """M1_S(\d+)_(rs|s2_2023|nt|s2_2023_all)_(\d+)_(\d+)(f|ff|)(_\d+)?(_s\d+)?(_c[\d.]+)?_classified""".r
 
-  val pattern2 = """(.*)/(.*)/(s2_2023|nt|s2_2023_all)_(\d+)_(\d+)_s(\d+)_c([\d.]+)_classified/sample=(.*)""".r
+  val pattern2 = """(.*)/(.*)/(rs|s2_2023|nt|s2_2023_all)_(\d+)_(\d+)_s(\d+)_c([\d.]+)_classified/sample=(.*)""".r
 
   def toTSVString: Option[String] = title match {
     case pattern1(sample, library, k, m, freqRaw, freqLenRaw, sRaw, cRaw) =>
