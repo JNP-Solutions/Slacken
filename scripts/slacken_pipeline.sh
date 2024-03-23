@@ -16,9 +16,11 @@ ROOT=s3://jnp-bio-eu
 DATA=$ROOT/keep
 
 #Standard library
-K2=$ROOT/kraken2
+#K2=$ROOT/kraken2
 #NT library
 #K2=$ROOT/k2-nt
+#Refseq
+K2=$ROOT/refseq-223
 
 TAXONOMY=$K2/taxonomy
 BUCKET=$ROOT/discount
@@ -36,41 +38,16 @@ function classify {
 }
 
 function build {
-  NAME=$1
-  PARAMS=$2
+  PREFIX=$1
+  K=$2
+  M=$3
+  S=$4
+  NAME=${PREFIX}_${K}_${M}_s${S}
+  BUCKETS=$5
+
+  PARAMS="-k $K -m $M --spaces $S -p $BUCKETS"
   ./slacken2-aws.sh $PARAMS -t $TAXONOMY taxonIndex $DATA/$NAME build -l $K2
   ./slacken2-aws.sh taxonIndex $DATA/$NAME histogram
-}
-
-#Build a Kraken 2 standard library
-function build_std {
-  K=$1
-  M=$2
-  S=$3
-  NAME=s2_2023_${K}_${M}_s${S}
-  build $NAME "-k $K -m $M --spaces $S -p 2000"
-}
-
-#Build an NT library
-function build_nt {
-  K=$1
-  M=$2
-  S=$3
-  NAME=nt_${K}_${M}_s${S}
-  build $NAME "-k $K -m $M --spaces $S -p 20000"
-}
-
-#Classify using a standard library
-function classify_std {
-  LIB=s2_2023_$1
-  shift
-  classify $LIB
-}
-
-#Classify using the NT library
-function classify_nt {
-  LIB=nt_$1
-  classify $LIB
 }
 
 #Compare classifications of a single sample against a reference
@@ -89,8 +66,10 @@ function compare {
     -o $ROOT/scratch/classified/$FAMILY/$LIB/sample$SAMPLE $CLASSIFICATIONS
 }
 
-#build_std 35 31 7
-#build_nt 35 31 7
+#build s2_2023 35 31 7 2000
+#build nt 35 31 7 20000
+
+build rs 35 31 7 20000
 
 CS=(0.00 0.15 0.30 0.45)
 
@@ -103,12 +82,12 @@ do
   SAMPLES+=($SPATH/sample$i/anonymous_reads.part_001.fq $SPATH/sample$i/anonymous_reads.part_002.fq)
 done
 
-#build_std 45 41 7
-#classify_std 45_41_s7
+#build s2_2023 45 41 7 2000
+classify rs_35_31_s7
 
 for ((s = 0; s <= 9; s++))
 do
-  compare $s s2_2023_45_41_s7
+  compare $s rs_35_31_s7
   sleep 10
 done
 
