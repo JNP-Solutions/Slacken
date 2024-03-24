@@ -9,9 +9,9 @@ import com.jnpersson.discount.hash.{InputFragment, MinSplitter, SpacedSeed}
 import com.jnpersson.discount.spark.{AnyMinSplitter, HDFSUtil, IndexParams, Inputs}
 
 import com.jnpersson.discount.{NTSeq, SeqTitle}
-import com.jnpersson.slacken.TaxonomicIndex.{ClassifiedRead, getTaxonLabels, sufficientHitGroups}
+import com.jnpersson.slacken.TaxonomicIndex.{ClassifiedRead, getTaxonLabels, rankStrUdf, sufficientHitGroups}
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.sql.functions.{count, desc, regexp_extract}
+import org.apache.spark.sql.functions.{count, desc, regexp_extract, udf}
 import org.apache.spark.sql.{DataFrame, Dataset, SaveMode, SparkSession}
 
 import java.util
@@ -269,16 +269,20 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
   /** Taxa in this index (values) together with their depths */
   def taxonDepths(buckets: Dataset[Record]): Dataset[(Taxon, Int)]
 
-  def kmerDepthHistogram(): Dataset[(Int, Long)] = {
+  def kmerDepthHistogram(): DataFrame = {
     val indexBuckets = loadBuckets()
     kmersDepths(indexBuckets).select("depth").groupBy("depth").count().
-      sort("depth").as[(Int, Long)]
+      sort("depth").
+      withColumn("rank", rankStrUdf($"depth")).
+      select("depth", "rank", "count")
   }
 
-  def taxonDepthHistogram(): Dataset[(Int, Long)] = {
+  def taxonDepthHistogram(): DataFrame = {
     val indexBuckets = loadBuckets()
     taxonDepths(indexBuckets).select("depth").groupBy("depth").count().
-      sort("depth").as[(Int, Long)]
+      sort("depth").
+      withColumn("rank", rankStrUdf($"depth")).
+      select("depth", "rank", "count")
   }
 
   /**
@@ -291,6 +295,9 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
 }
 
 object TaxonomicIndex {
+
+  val rankStrUdf = udf((x: Int) =>
+    Taxonomy.rankValues.find(_.depth == x).map(_.title).getOrElse("???"))
 
   /**
    * Read a taxon label file (TSV format)
