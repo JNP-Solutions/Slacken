@@ -51,6 +51,23 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
   /** Sanity check input data */
   def checkInput(inputs: Inputs): Unit = {}
 
+  /** Convenience function to make buckets with both trusted and untrusted (low quality) inputs.
+   * @param trusted pair of (trusted  genomes, taxon label file)
+   * @param untrusted optional pair of (untrusted genomes, taxon label file)
+   * @param addRC whether to add reverse complements
+   * @return index buckets
+   */
+  def makeBuckets(trusted:(Inputs, String), untrusted: Option[(Inputs, String)], addRC: Boolean): Dataset[Record] = {
+    val (inputs, labels) = trusted
+    untrusted match {
+      case Some((ur, ulabels)) =>
+        joinUntrustedBuckets(makeBuckets(inputs, labels, addRC),
+          makeBuckets(ur, ulabels, addRC))
+      case None =>
+        makeBuckets(inputs, labels, addRC)
+    }
+  }
+
   /**
    * Construct buckets for a new index from genomes.
    *
@@ -73,6 +90,16 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
    * @param taxonLabels  Pairs of (genome title, taxon)
    */
   def makeBuckets(idsSequences: Dataset[(SeqTitle, NTSeq)], taxonLabels: Dataset[(SeqTitle, Taxon)]): Dataset[Record]
+
+  /** Join trusted buckets with untrusted (low quality) ones.
+   * This is a left join. All trusted records will be kept.
+   * The LCA function will be applied to pairs of trusted and untrusted values when both exist for a given minimizer.
+   * The untrusted buckets will not be allowed to introduce new minimizers.
+   * @param trusted Trusted minimizers
+   * @param untrusted Untrusted minimizers
+   * @return Combined minimizers
+   */
+  def joinUntrustedBuckets(trusted: Dataset[Record], untrusted: Dataset[Record]): Dataset[Record]
 
   def writeBuckets(buckets: Dataset[Record], location: String): Unit
 
