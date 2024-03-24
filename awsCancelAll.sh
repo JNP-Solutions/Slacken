@@ -5,7 +5,7 @@ CLUSTER=$AWS_EMR_CLUSTER
 export AWS_PAGER=""
 aws emr list-steps --cluster-id $CLUSTER --step-states PENDING | jq '.["Steps"] | .[] | .["Id"]' |while read id
 do
-aws emr cancel-steps --step-ids ${id/\"//} --cluster-id $CLUSTER
+aws emr cancel-steps --step-ids ${id//\"/} --cluster-id $CLUSTER
 done
 
 
