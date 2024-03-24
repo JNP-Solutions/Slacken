@@ -28,7 +28,7 @@ object Taxonomy {
   case object Species extends Rank("species", "S", 8)
 
   /** All Rank values except Unclassified. */
-  val rankValues = List(Root, Superkingdom, Kingdom, Phylum, Class, Order, Family, Genus, Species)
+  val rankValues: List[Rank] = List(Root, Superkingdom, Kingdom, Phylum, Class, Order, Family, Genus, Species)
 
   //See kraken2 reports.cc
   def rank(title: String): Option[Rank] = title match {
