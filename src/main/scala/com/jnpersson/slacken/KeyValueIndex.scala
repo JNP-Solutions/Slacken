@@ -148,32 +148,6 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       agg(udafLca($"taxon").as("taxon"))
   }
 
-  /** Given non-combined pairs of minimizers and taxa, combine them using the lowest common ancestor (LCA)
-   * function to return only one LCA taxon per minimizer,
-   * returning the result if and only if all genomes in the LCA taxon have this minimizer (not just two or more)
-   *
-   * @param minimizersTaxa tuples of (minimizer part 1, minimizer part 2, taxon)
-   * @param genomeCounts counts of distinct genomes per taxon
-   * @return tuples of (minimizer part 1, minimizer part 2, LCA taxon)
-   */
-  def reduceLCAsRequireAll(minimizersTaxa: DataFrame,
-                           genomeCounts: Array[Long]): DataFrame = {
-    val bcTax = this.bcTaxonomy
-    val bcCounts = spark.sparkContext.broadcast(genomeCounts)
-
-    val udafLca = udaf(TaxonLCA(bcTax))
-    val preFilter = minimizersTaxa.
-      groupBy(idColumns :_*).
-      agg(udafLca($"taxon").as("taxon"), functions.count_distinct($"taxon").as("count"))
-
-    val isAboveExpected = udf((x: Taxon, count: Long) => {
-      val expected = bcCounts.value
-      count >= expected(x)
-    })
-
-    preFilter.filter(isAboveExpected($"taxon", $"count")).select(recordColumns: _*)
-  }
-
   /** Load buckets from the given location */
   def loadBuckets(location: String): DataFrame = {
     //Does not delete the table itself, only removes it from the hive catalog
