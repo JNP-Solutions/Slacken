@@ -58,14 +58,16 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
     val build = new RunCmd("build") {
       banner("Build a new index (library) from genomes")
       val library = opt[String](required = true, descr = "Location of sequence files (directory containing library/)")
+      val untrusted = opt[String](descr = "Location of untrusted (low quality) input sequence files")
       val check = opt[Boolean](descr = "Only check input files for consistency", hidden = true, default = Some(false))
 
       def run(): Unit = {
-        val (inFiles, labels) = findInputs(library())
+        val tInputs = findInputs(library())
+        val uInputs = untrusted.toOption.map(u => findInputs(u))
 
         val params = IndexParams(
           spark.sparkContext.broadcast(
-            MinSplitter(seedMask(discount.getSplitter(Some(inFiles.files)).priorities), k())
+            MinSplitter(seedMask(discount.getSplitter(Some(tInputs._1.files)).priorities), k())
           ), partitions(), location())
         println(s"Splitter ${params.splitter}")
 
@@ -73,13 +75,13 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
         val index = new KeyValueIndex(params, tax)
 
         if (check()) {
-          index.checkInput(inFiles)
+          index.checkInput(tInputs._1)
         } else { //build index
-          val bkts = index.makeBuckets(inFiles, labels, addRC = false)
+          val bkts = index.makeBuckets(tInputs, uInputs, addRC = false)
           index.writeBuckets(bkts, params.location)
           TaxonomicIndex.copyTaxonomy(taxonomy(), location() + "_taxonomy")
           index.showIndexStats()
-          TaxonomicIndex.inputStats(labels, tax)
+          TaxonomicIndex.inputStats(tInputs._2, tax)
         }
       }
     }

@@ -194,6 +194,18 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     writeBuckets(compacted, outputLocation)
   }
 
+  def joinUntrustedBuckets(trusted: DataFrame, untrusted: DataFrame): DataFrame = {
+    val bcTax = this.bcTaxonomy
+    val taxonHits = trusted.as("trusted").join(untrusted.as("untrusted"), idColumnNames, "left")
+    val lca = TaxonLCA(bcTax)
+    val udfLca = udf(lca.merge(_, _))
+    taxonHits.select(idColumns ++
+      Seq(
+        when(isnull($"untrusted.taxon"), $"trusted.taxon").otherwise(udfLca($"untrusted.taxon", $"trusted.taxon")).
+          as("taxon")
+      ) :_*)
+  }
+
   /** Classify subject sequences using the supplied index (as a dataset) */
   def classify(buckets: DataFrame, subjects: Dataset[InputFragment],
                cpar: ClassifyParams): Dataset[(SeqTitle, Array[TaxonHit])] = {
