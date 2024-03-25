@@ -104,7 +104,7 @@ case $library_name in
     1>&2 echo -n "Parsing $library_name FASTA file..."
     # The nr/nt files tend to have non-standard sequence IDs, so
     # --lenient is used here.
-    grep ">" $library_file | scan_fasta_file.pl >> prelim_map.txt
+    grep ">" $library_file | scan_fasta_file.pl --lenient >> prelim_map.txt
     1>&2 echo "done."
     ;;
   "UniVec" | "UniVec_Core")
