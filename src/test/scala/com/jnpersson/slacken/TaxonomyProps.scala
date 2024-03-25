@@ -58,13 +58,17 @@ class TaxonomyProps extends AnyFunSuite with ScalaCheckPropertyChecks {
   test("ancestor at level") {
     forAll(taxonomies(100)) { tax =>
       for {t <- tax.taxa
+           tr = tax.ranks(t)
            r <- Taxonomy.rankValues
            anc = tax.ancestorAtLevel(t, r)
-           if anc != ROOT
            } {
-        tax.ranks(anc) should equal(r)
-        if (r == tax.ranks(t)) {
+        if (r == tr) {
           anc should equal(t)
+        } else if (r.isBelow(tr)) {
+          //rank is too low, same value should be returned
+          anc should equal(t)
+        } else if (!r.isBelow(tax.ranks(anc))) { //there might not be an ancestor at the requested level r
+          tax.ranks(anc) should equal(r)
         }
       }
     }

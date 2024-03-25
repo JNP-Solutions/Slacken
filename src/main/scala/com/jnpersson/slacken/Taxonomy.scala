@@ -15,7 +15,11 @@ object Taxonomy {
   final val ROOT: Taxon = 1
 
   /** Levels in the taxonomic hierarchy, from general (higher) to specific (lower) */
-  sealed abstract class Rank(val title: String, val code: String, val depth: Int) extends Serializable
+  sealed abstract class Rank(val title: String, val code: String, val depth: Int) extends Serializable {
+    def isBelow(other: Rank): Boolean =
+      depth > other.depth
+  }
+  
   case object Unclassified extends Rank("unclassified", "U", -1)
   case object Root extends Rank("root", "R", 0)
   case object Superkingdom extends Rank("superkingdom", "D", 1)
