@@ -16,18 +16,19 @@ ROOT=s3://jnp-bio-eu
 DATA=$ROOT/keep
 
 #Standard library
-#K2=$ROOT/kraken2
+K2=$ROOT/kraken2
 #NT library
 #K2=$ROOT/k2-nt
 #Refseq
-K2=$ROOT/refseq-223
+#K2=$ROOT/refseq-223
 
-TAXONOMY=$K2/taxonomy
-BUCKET=$ROOT/discount
+#TAXONOMY=$K2/taxonomy
+TAXONOMY=$ROOT/k2-nt/taxonomy
+#slacken2-aws.sh always picks the jar from this (JP) region bucket
+BUCKET=s3://jnp-bio/discount
 DISCOUNT_HOME=/home/johan/ws/jnps/Hypercut-git
 
-#aws s3 cp $DISCOUNT_HOME/target/scala-2.12/Slacken-assembly-0.1.0.jar $BUCKET/
-
+aws s3 cp $DISCOUNT_HOME/target/scala-2.12/Slacken-assembly-0.1.0.jar $BUCKET/
 
 function classify {
   LIB=$1
@@ -44,10 +45,16 @@ function build {
   S=$4
   NAME=${PREFIX}_${K}_${M}_s${S}
   BUCKETS=$5
+  OTHER=$6
 
   PARAMS="-k $K -m $M --spaces $S -p $BUCKETS"
-  ./slacken2-aws.sh $PARAMS -t $TAXONOMY taxonIndex $DATA/$NAME build -l $K2
+  ./slacken2-aws.sh $PARAMS -t $TAXONOMY taxonIndex $DATA/$NAME build -l $K2 $OTHER
   ./slacken2-aws.sh taxonIndex $DATA/$NAME histogram
+}
+
+function report {
+  LIB=$1
+  ./slacken2-aws.sh taxonIndex $DATA/$LIB report -l $K2/seqid2taxid.map -o $DATA/$LIB
 }
 
 #Compare classifications of a single sample against a reference
@@ -68,6 +75,7 @@ function compare {
 
 #build s2_2023 35 31 7 2000
 #build nt 35 31 7 20000
+#build s2-nt 35 31 7 2000 "--untrusted $ROOT/k2-nt"
 
 build rs 35 31 7 20000
 
@@ -83,11 +91,12 @@ do
 done
 
 #build s2_2023 45 41 7 2000
-classify rs_35_31_s7
+report s2-nt_35_31_s7
+#classify s2-nt_35_31_s7
 
-for ((s = 0; s <= 9; s++))
-do
-  compare $s rs_35_31_s7
-  sleep 10
-done
+#for ((s = 0; s <= 9; s++))
+#do
+#  compare $s s2-nt_35_31_s7
+#  sleep 10
+#done
 
