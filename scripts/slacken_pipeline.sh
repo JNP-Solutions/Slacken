@@ -75,7 +75,7 @@ function compare {
 
 #build s2_2023 35 31 7 2000
 #build nt 35 31 7 20000
-#build s2-nt 35 31 7 2000 "--untrusted $ROOT/k2-nt"
+#build s2-nt 35 31 7 2000 "--negative $ROOT/k2-nt"
 
 build rs 35 31 7 20000
 
