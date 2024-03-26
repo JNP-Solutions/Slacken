@@ -11,6 +11,7 @@ import com.jnpersson.discount.spark.{AnyMinSplitter, Discount, HDFSUtil, IndexFo
 import com.jnpersson.discount.util.NTBitArray
 import com.jnpersson.discount.{NTSeq, SeqTitle}
 import com.jnpersson.slacken.TaxonomicIndex.getTaxonLabels
+import com.jnpersson.slacken.Taxonomy.NONE
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.expressions.Aggregator
 import org.apache.spark.sql.functions._
@@ -168,14 +169,15 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     writeBuckets(compacted, outputLocation)
   }
 
-  def joinUntrustedBuckets(trusted: DataFrame, untrusted: DataFrame): DataFrame = {
+  def joinNegativeBuckets(positive: DataFrame, negative: DataFrame): DataFrame = {
     val bcTax = this.bcTaxonomy
-    val taxonHits = trusted.as("trusted").join(untrusted.as("untrusted"), idColumnNames, "left")
+    val taxonHits = positive.as("positive").join(negative.as("negative"), idColumnNames, "left")
     val lca = TaxonLCA(bcTax)
     val udfLca = udf(lca.merge(_, _))
     taxonHits.select(idColumns ++
       Seq(
-        when(isnull($"untrusted.taxon"), $"trusted.taxon").otherwise(udfLca($"untrusted.taxon", $"trusted.taxon")).
+        when(isnull($"negative.taxon"), $"positive.taxon").
+          otherwise(udfLca($"negative.taxon", $"positive.taxon")).
           as("taxon")
       ) :_*)
   }
