@@ -9,4 +9,7 @@ regions in genomes.
 For the download process to work, the kraken2 binaries must be installed and available in the path (in particular,
 k2mask). Other dependencies: seqkit (https://bioinf.shenwei.me/seqkit/download/), curl.
 
-
+Currently, only nucleotide databases are supported, so please export KRAKEN2_PROTEIN_DB=0 before running.
+To download e.g. contigs and scaffolds, please export KRAKEN2_INCOMPLETE=1. This will
+download incomplete as well as complete genomes (default is only complete and chromosomes), resulting in a larger
+library.
