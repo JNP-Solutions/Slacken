@@ -81,7 +81,7 @@ if ($is_protein) {
 
 
 print STDERR "Step 1/2: Performing curl file transfer of requested files\n";
-system("curl -C - --create-dirs --retry 3 --config manifest.txt -Z --parallel-max 4") == 0
+system("curl -L -C - --remove-on-error --create-dirs --retry 3 --config manifest.txt -Z --parallel-max 4") == 0
   or die "$PROG: curl error, exiting: $?\n";
 print STDERR "Curl file transfer complete.\n";
 

@@ -59,8 +59,9 @@ case $library_name in
       grep "Genome Reference Consortium" assembly_summary.txt > x
       mv x assembly_summary.txt
     fi
+
+    #This line commented out so that we can resume incomplete library downloads by running the script again.
     #rm -rf all/ library.f* manifest.txt rsync.err
-    rm -rf manifest.txt rsync.err
     rsync_from_ncbi.pl assembly_summary.txt
     grep ">" $library_file | scan_fasta_file.pl >> prelim_map.txt
     ;;
@@ -138,7 +139,10 @@ if [ -n "$KRAKEN2_MASK_LC" ]; then
   1>&2 echo " done."
 fi
 
+#Very large files can be split if necessary, e.g. to split into 3 parts:
+#seqkit -j 8 split2 -p 3 -O part library.fna
+
 1>&2 echo -n "Building fasta index with seqkit..."
 for file in $(find . '(' -name '*.fna' -o -name '*.faa' ')'); do
-  seqkit faidx $file
+  seqkit -j 8 faidx $file
 done
