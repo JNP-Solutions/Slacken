@@ -236,7 +236,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
 
     //These tables will be relatively small and we coalesce to avoid generating a lot of small files
     //in the case of an index with many partitions
-    outputRows.coalesce(200).write.mode(SaveMode.Overwrite).
+    outputRows.coalesce(2000).write.mode(SaveMode.Overwrite).
       partitionBy("sample").
       option("compression", "gzip").
       text(s"${location}_classified")
