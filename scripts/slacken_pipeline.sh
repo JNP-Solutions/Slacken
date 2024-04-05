@@ -49,7 +49,19 @@ function build {
 
   PARAMS="-k $K -m $M --spaces $S -p $BUCKETS"
   ./slacken2-aws.sh $PARAMS -t $TAXONOMY taxonIndex $DATA/$NAME build -l $K2 $OTHER
-  ./slacken2-aws.sh taxonIndex $DATA/$NAME histogram
+  histogram $NAME
+}
+
+function respace {
+  LIB=$1
+  SPACES=$2
+  #The output path will be renamed automatically as long as the _s naming convention is followed
+  ./slacken2-aws.sh taxonIndex $DATA/$LIB respace -s $SPACES -o $DATA/$LIB
+}
+
+function histogram {
+  LIB=$1
+  ./slacken2-aws.sh taxonIndex $DATA/$LIB histogram
 }
 
 function report {
@@ -77,7 +89,10 @@ function compare {
 #build nt 35 31 7 20000
 #build s2-nt 35 31 7 2000 "--negative $ROOT/k2-nt"
 
-build rs 35 31 7 20000
+#build rs 35 31 7 30000
+#build rs 45 41 7 30000
+#respace rs_45_41_s7 12
+#histogram rs_45_41_s12
 
 CS=(0.00 0.15 0.30 0.45)
 
