@@ -257,6 +257,9 @@ final case class SpacedSeed(s: Int, inner: MinimizerPriorities) extends Minimize
     r
   }
 
+  def maskSpacesOnly(motif: NTBitArray): NTBitArray =
+    motif &= spaceMask
+
   override def priorityOf(motif: NTBitArray): NTBitArray =
     inner.priorityOf(motif) &= spaceMask
 
