@@ -122,7 +122,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
 
     val applySpaceUdf = udf((data: Array[Long]) => {
       val min = NTBitArray(data, bcSs.value.width)
-      bcSs.value.priorityOf(min).data
+      bcSs.value.maskSpacesOnly(min).data
     })
 
     val bcTax = this.bcTaxonomy
@@ -221,9 +221,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       as[(SeqTitle, Array[TaxonHit])]
     }
 
-  /** Print statistics for this index. */
-  def showIndexStats(): Unit = {
-    val indexBuckets = loadBuckets()
+  def showIndexStats(indexBuckets: DataFrame): Unit = {
     val allTaxa = indexBuckets.groupBy("taxon").agg(count("taxon")).as[(Taxon, Long)].collect()
 
     val leafTaxa = allTaxa.filter(x => taxonomy.isLeafNode(x._1))

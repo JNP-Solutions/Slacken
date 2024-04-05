@@ -122,6 +122,8 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
       val outLoc = reg.replaceFirstIn(outputLocation, s"_s$s")
       idx.writeBuckets(bkts, outLoc)
       TaxonomicIndex.copyTaxonomy(params.location + "_taxonomy", outLoc + "_taxonomy")
+      println(s"Stats for $outLoc")
+      idx.showIndexStats(loadBuckets(outLoc))
     }
   }
 
@@ -295,6 +297,12 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
   def writeDepthHistogram(output: String): Unit =
     kmerDepthHistogram().
       write.mode(SaveMode.Overwrite).option("sep", "\t").csv(s"${output}_taxonDepths")
+
+  /** Print statistics for this index. */
+  def showIndexStats(): Unit =
+    showIndexStats(loadBuckets())
+
+  def showIndexStats(indexBuckets: Dataset[Record]): Unit
 }
 
 object TaxonomicIndex {
