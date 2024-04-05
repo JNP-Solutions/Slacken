@@ -204,7 +204,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
       val sample = sre match {
         case Some(re) => re.findFirstMatchIn(title).
           map(_.group(1)).getOrElse("other")
-        case _ => ""
+        case _ => "all"
       }
 
       TaxonomicIndex.classify(bcTax.value, sample, title, summariesInOrder, sufficientHits, threshold, k)
