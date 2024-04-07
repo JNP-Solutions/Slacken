@@ -202,6 +202,24 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
   def countDistinctTaxaWithAncestors(taxa: Iterable[Taxon]): Int =
     taxaWithAncestors(taxa).size
 
+  /** For a given taxon, find which of the standard 8 levels are missing in its path to the root.
+   */
+  @tailrec
+  def missingStepsToRoot(taxon: Taxon, acc: List[Int] = Nil): List[Int] = {
+    if (taxon == NONE || taxon == ROOT)
+      acc
+    else {
+      val p = parents(taxon)
+      if (p == NONE) return acc
+      val l1 = depth(taxon)
+      val l2 = depth(p)
+      if (l1 - l2 > 1)
+        missingStepsToRoot(p, (l2 + 1).until(l1).toList ::: acc)
+      else
+        missingStepsToRoot(p, acc)
+    }
+  }
+
   /** Complete a taxonomic tree upwards to ROOT by including all ancestors */
   def taxaWithAncestors(taxa: Iterable[Taxon]): mutable.BitSet = {
     val r = mutable.BitSet.empty

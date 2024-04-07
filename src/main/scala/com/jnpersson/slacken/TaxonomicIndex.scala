@@ -344,6 +344,11 @@ object TaxonomicIndex {
     val max = tax.countDistinctTaxaWithAncestors(validLabelled)
     println(s"${validLabelled.length} valid taxa in input sequences described by $labelFile (maximal implied tree size $max)")
     println(s"Max leaf nodes in resulting database: ${validLabelled.length - nonLeafLabelled.length}")
+
+    val missingSteps = validLabelled.flatMap(x => tax.missingStepsToRoot(x)).toSeq.toDF("missingLevel")
+    missingSteps.groupBy("missingLevel").agg(count("missingLevel")).sort("missingLevel").
+      withColumn("label", rankStrUdf($"missingLevel")).
+      show()
   }
 
   /**
