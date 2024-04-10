@@ -7,9 +7,9 @@ package com.jnpersson.slacken
 import com.jnpersson.discount.hash.{InputFragment, MinSplitter, SpacedSeed}
 import com.jnpersson.discount.spark.Index.randomTableName
 import com.jnpersson.discount.spark.Output.formatPerc
-import com.jnpersson.discount.spark.{AnyMinSplitter, Discount, HDFSUtil, IndexFormat4, IndexParams, Inputs, SparkTool}
+import com.jnpersson.discount.spark.{AnyMinSplitter, Discount, HDFSUtil, IndexParams, Inputs, KmerKeyedIndex, SparkTool}
 import com.jnpersson.discount.util.NTBitArray
-import com.jnpersson.discount.{NTSeq, SeqTitle}
+import com.jnpersson.discount.{NTSeq, SeqTitle, hash}
 import com.jnpersson.slacken.TaxonomicIndex.getTaxonLabels
 import com.jnpersson.slacken.Taxonomy.NONE
 import org.apache.spark.broadcast.Broadcast
@@ -27,12 +27,13 @@ import scala.collection.mutable
  * @param taxonomy The taxonomy
  */
 final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit val spark: SparkSession)
-  extends TaxonomicIndex[Row](params, taxonomy) with IndexFormat4 {
+  extends TaxonomicIndex[Row](params, taxonomy) with KmerKeyedIndex {
   import spark.sqlContext.implicits._
   import KeyValueIndex._
 
-  val recordColumnNames: Seq[String] = idColumnNames :+ "taxon"
-  val recordColumns: Seq[Column] = idColumns :+ $"taxon"
+  lazy val recordColumnNames: Seq[String] = idColumnNames :+ "taxon"
+
+  lazy val idLongs = NTBitArray.longsForSize(params.m)
 
   override def checkInput(inputs: Inputs): Unit = {
     val fragments = inputs.getInputFragments(false).map(x => (x.header, x.nucleotides))
@@ -70,12 +71,35 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     val seqTaxa = idSeqDF.join(labels, idSeqDF("seqId") === labels("seqId")).
       select("seq", "taxon").as[(NTSeq, Taxon)]
 
-    val lcas = seqTaxa.flatMap(r => {
-      val splitter = bcSplit.value
-      splitter.superkmerPositions(r._1, addRC = false).map { case (_, rank, _) =>
-        (rank.data(0), rank.dataOrBlank(1), rank.dataOrBlank(2), rank.dataOrBlank(3), r._2)
-      }
-    }).toDF(recordColumnNames: _*)
+    val lcas = numIdColumns match {
+      case 1 =>
+        seqTaxa.flatMap(r => {
+          bcSplit.value.superkmerPositions(r._1, addRC = false).map { case (_, rank, _) =>
+            (rank.data(0), r._2)
+          }
+        }).toDF(recordColumnNames: _*)
+      case 2 =>
+        seqTaxa.flatMap(r => {
+          bcSplit.value.superkmerPositions(r._1, addRC = false).map { case (_, rank, _) =>
+            (rank.data(0), rank.data(1), r._2)
+          }
+        }).toDF(recordColumnNames: _*)
+      case 3 =>
+        seqTaxa.flatMap(r => {
+          bcSplit.value.superkmerPositions(r._1, addRC = false).map { case (_, rank, _) =>
+            (rank.data(0), rank.data(1), rank.data(2), r._2)
+          }
+        }).toDF(recordColumnNames: _*)
+      case 4 =>
+        seqTaxa.flatMap(r => {
+          bcSplit.value.superkmerPositions(r._1, addRC = false).map { case (_, rank, _) =>
+            (rank.data(0), rank.data(1), rank.data(2), rank.data(3), r._2)
+          }
+        }).toDF(recordColumnNames: _*)
+      case _ =>
+        //In case of minimizers wider than 128 bp (4 longs), expand this section
+        ???
+    }
 
     reduceLCAs(lcas)
   }
