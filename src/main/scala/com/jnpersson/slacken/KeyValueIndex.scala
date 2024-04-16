@@ -57,11 +57,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     }
   }
 
-  /** Given input genomes and their taxon IDs, build an index of minimizers and LCA taxa.
-   * @param idsSequences pairs of (genome title, genome DNA)
-   * @param seqLabels pairs of (genome title, taxon ID)
-   */
-  def makeBuckets(idsSequences: Dataset[(SeqTitle, NTSeq)],
+  def getMinimizers(idsSequences: Dataset[(SeqTitle, NTSeq)],
                     seqLabels: Dataset[(SeqTitle, Taxon)]): DataFrame = {
     val bcSplit = this.bcSplit
 
@@ -71,7 +67,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     val seqTaxa = idSeqDF.join(labels, idSeqDF("seqId") === labels("seqId")).
       select("seq", "taxon").as[(NTSeq, Taxon)]
 
-    val lcas = numIdColumns match {
+    numIdColumns match {
       case 1 =>
         seqTaxa.flatMap(r => {
           bcSplit.value.superkmerPositions(r._1, addRC = false).map { case (_, rank, _) =>
@@ -100,9 +96,15 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
         //In case of minimizers wider than 128 bp (4 longs), expand this section
         ???
     }
-
-    reduceLCAs(lcas)
   }
+
+  /** Given input genomes and their taxon IDs, build an index of minimizers and LCA taxa.
+   * @param idsSequences pairs of (genome title, genome DNA)
+   * @param seqLabels pairs of (genome title, taxon ID)
+   */
+  def makeBuckets(idsSequences: Dataset[(SeqTitle, NTSeq)],
+                    seqLabels: Dataset[(SeqTitle, Taxon)]): DataFrame =
+    reduceLCAs(getMinimizers(idsSequences, seqLabels))
 
   /** Write buckets to the given location */
   def writeBuckets(buckets: DataFrame, location: String): Unit = {
@@ -245,7 +247,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       as[(SeqTitle, Array[TaxonHit])]
     }
 
-  def showIndexStats(indexBuckets: DataFrame): Unit = {
+  def showIndexStats(indexBuckets: DataFrame, inputs: Option[(Inputs, String)]): Unit = {
     val allTaxa = indexBuckets.groupBy("taxon").agg(count("taxon")).as[(Taxon, Long)].collect()
 
     val leafTaxa = allTaxa.filter(x => taxonomy.isLeafNode(x._1))
@@ -256,6 +258,29 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     val recTotal = allTaxa.map(_._2).sum
     val leafTotal = leafTaxa.map(_._2).sum
     println(s"Total $m-minimizers: $recTotal, of which leaf records: $leafTotal (${formatPerc(leafTotal.toDouble/recTotal)})")
+    showTaxonCoverageStats(indexBuckets, inputs)
+  }
+
+  private def showTaxonCoverageStats(indexBuckets: DataFrame, inputs: Option[(Inputs, String)]): Unit = {
+    for {(reader, seqLabelLocation) <- inputs} {
+      val input = reader.getInputFragments(false).map(x =>
+        (x.header, x.nucleotides))
+      val seqLabels = getTaxonLabels(seqLabelLocation)
+      val mins = getMinimizers(input, seqLabels)
+
+      //1. Count how many times per input taxon each minimizer occurs
+      val agg = mins.groupBy((idColumns :+ $"taxon"): _*).agg(count("*").as("countAll"))
+
+      //2. Join with buckets, find the fraction that is assigned to the same (leaf) taxon
+      val joint = agg.join(indexBuckets.withColumnRenamed("taxon", "idxTaxon"),
+        idColumnNames, "left").
+        withColumn("countLeaf", when($"idxTaxon" === $"taxon", $"countAll").
+          otherwise(lit(0L))).
+        groupBy("taxon").
+        agg((sum("countLeaf") / sum("countAll")).as("fracLeaf"))
+
+      joint.select("fracLeaf").summary().show()
+    }
   }
 
   /**
