@@ -57,8 +57,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     }
   }
 
-  def getMinimizers(idsSequences: Dataset[(SeqTitle, NTSeq)],
-                    seqLabels: Dataset[(SeqTitle, Taxon)]): DataFrame = {
+  def findMinimizers(idsSequences: Dataset[(SeqTitle, NTSeq)], seqLabels: Dataset[(SeqTitle, Taxon)]): DataFrame = {
     val bcSplit = this.bcSplit
 
     val idSeqDF = idsSequences.toDF("seqId", "seq")
@@ -104,7 +103,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
    */
   def makeBuckets(idsSequences: Dataset[(SeqTitle, NTSeq)],
                     seqLabels: Dataset[(SeqTitle, Taxon)]): DataFrame =
-    reduceLCAs(getMinimizers(idsSequences, seqLabels))
+    reduceLCAs(findMinimizers(idsSequences, seqLabels))
 
   /** Write buckets to the given location */
   def writeBuckets(buckets: DataFrame, location: String): Unit = {
@@ -261,12 +260,19 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     showTaxonCoverageStats(indexBuckets, inputs)
   }
 
+  /** For each genome in the input sequences, count all its minimizers (with repetitions) and calculate the fraction
+   * that is assigned (in the index) to that genome's taxon, rather than some ancestor.
+   * This is a measure of how well we can identify each distinct genome.
+   * @param indexBuckets index with LCAs
+   * @param inputs input genome sequences to check (intended to be a subset of the sequences that were used
+   *               to build the index)
+   */
   private def showTaxonCoverageStats(indexBuckets: DataFrame, inputs: Option[(Inputs, String)]): Unit = {
     for {(reader, seqLabelLocation) <- inputs} {
       val input = reader.getInputFragments(false).map(x =>
         (x.header, x.nucleotides))
       val seqLabels = getTaxonLabels(seqLabelLocation)
-      val mins = getMinimizers(input, seqLabels)
+      val mins = findMinimizers(input, seqLabels)
 
       //1. Count how many times per input taxon each minimizer occurs
       val agg = mins.groupBy((idColumns :+ $"taxon"): _*).agg(count("*").as("countAll"))
@@ -277,9 +283,10 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
         withColumn("countLeaf", when($"idxTaxon" === $"taxon", $"countAll").
           otherwise(lit(0L))).
         groupBy("taxon").
-        agg((sum("countLeaf") / sum("countAll")).as("fracLeaf"))
+        agg((sum("countLeaf") / sum("countAll")).as("fracLeaf"),
+          sum("countAll").as("total"))
 
-      joint.select("fracLeaf").summary().show()
+      joint.select("fracLeaf", "total").summary().show()
     }
   }
 

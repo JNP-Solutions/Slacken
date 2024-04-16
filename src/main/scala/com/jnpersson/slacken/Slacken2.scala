@@ -42,10 +42,13 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       }
   }
 
-  private def findInputs(location: String) = {
+  private def findInputs(location: String, k: Option[Int] = None) = {
     val inFiles = HDFSUtil.findFiles(location + "/library", ".fna")
     println(s"Discovered input files: $inFiles")
-    val reader = inputReader(inFiles)
+    val reader = k match {
+      case Some(k) => inputReader(inFiles, k, false)
+      case None => inputReader(inFiles)
+    }
     (reader, s"$location/seqid2taxid.map")
   }
 
@@ -143,7 +146,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
     val stats = new RunCmd("stats") {
       banner("Get index statistics (optionally referencing input sequences)")
 
-      val library = opt[String](descr = "Location of sequence files (directory containing library/)")
+      val library = opt[String](descr = "Location of sequence files (directory containing library/) for coverage check")
 
       def run(): Unit = {
         val i = index
@@ -160,10 +163,8 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
           case _ =>
             println(s"Splitter ${p.splitter}")
         }
-        val inputs = library.toOption.map(l => findInputs(l))
-
+        val inputs = library.toOption.map(l => findInputs(l, Some(p.k)))
         i.showIndexStats(inputs)
-
       }
     }
     addSubcommand(stats)
