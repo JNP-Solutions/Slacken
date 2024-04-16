@@ -80,7 +80,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
           val bkts = index.makeBuckets(inputs, nInputs, addRC = false)
           index.writeBuckets(bkts, params.location)
           TaxonomicIndex.copyTaxonomy(taxonomy(), location() + "_taxonomy")
-          index.showIndexStats()
+          index.showIndexStats(None)
           TaxonomicIndex.inputStats(inputs._2, tax)
         }
       }
@@ -141,7 +141,9 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
     addSubcommand(classify)
 
     val stats = new RunCmd("stats") {
-      banner("Get index statistics")
+      banner("Get index statistics (optionally referencing input sequences)")
+
+      val library = opt[String](descr = "Location of sequence files (directory containing library/)")
 
       def run(): Unit = {
         val i = index
@@ -158,7 +160,10 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
           case _ =>
             println(s"Splitter ${p.splitter}")
         }
-        i.showIndexStats()
+        val inputs = library.toOption.map(l => findInputs(l))
+
+        i.showIndexStats(inputs)
+
       }
     }
     addSubcommand(stats)

@@ -123,7 +123,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
       idx.writeBuckets(bkts, outLoc)
       TaxonomicIndex.copyTaxonomy(params.location + "_taxonomy", outLoc + "_taxonomy")
       println(s"Stats for $outLoc")
-      idx.showIndexStats(loadBuckets(outLoc))
+      idx.showIndexStats(loadBuckets(outLoc), None)
     }
   }
 
@@ -298,11 +298,14 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
     kmerDepthHistogram().
       write.mode(SaveMode.Overwrite).option("sep", "\t").csv(s"${output}_taxonDepths")
 
-  /** Print statistics for this index. */
-  def showIndexStats(): Unit =
-    showIndexStats(loadBuckets())
+  /** Print statistics for this index.
+   * Optionally, input sequences and a label file can be specified, and they will then be checked against
+   * the database.
+   */
+  def showIndexStats(inputs: Option[(Inputs, String)]): Unit =
+    showIndexStats(loadBuckets(), inputs)
 
-  def showIndexStats(indexBuckets: Dataset[Record]): Unit
+  def showIndexStats(indexBuckets: Dataset[Record], inputs: Option[(Inputs, String)]): Unit
 }
 
 object TaxonomicIndex {
