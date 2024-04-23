@@ -15,6 +15,7 @@ import org.apache.spark.sql.functions.{count, desc, regexp_extract, udf}
 import org.apache.spark.sql.{DataFrame, Dataset, SaveMode, SparkSession}
 
 import java.util
+import scala.collection.mutable
 
 
 /** Parameters for classification of reads
@@ -35,7 +36,7 @@ final case class ClassifyParams(minHitGroups: Int, withUnclassified: Boolean, th
  * @param taxonomy The taxonomy
  * @tparam Record type of index records
  */
-abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(implicit spark: SparkSession) {
+abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonomy)(implicit spark: SparkSession) {
   val sc: org.apache.spark.SparkContext = spark.sparkContext
 
   import spark.sqlContext.implicits._
@@ -74,12 +75,18 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
    * @param reader           Input data
    * @param seqLabelLocation Location of a file that labels each genome with a taxon
    * @param addRC            Whether to add reverse complements
+   * @param taxonFilter      Optionally limit input sequences to only taxa in this set (and their descendants)
    * @return index buckets
    */
-  def makeBuckets(reader: Inputs, seqLabelLocation: String, addRC: Boolean): Dataset[Record] = {
-    val input = reader.getInputFragments(addRC).map(x =>
-      (x.header, x.nucleotides))
-    val seqLabels = getTaxonLabels(seqLabelLocation)
+  def makeBuckets(reader: Inputs, seqLabelLocation: String, addRC: Boolean,
+                  taxonFilter: Option[mutable.BitSet] = None): Dataset[Record] = {
+    val input = reader.getInputFragments(addRC).map(x => (x.header, x.nucleotides))
+    val seqLabels = taxonFilter match {
+      case Some(tf) => getTaxonLabels(seqLabelLocation).
+        filter(l => bcTaxonomy.value.hasAncestorInSet(l._2, tf))
+      case None => getTaxonLabels(seqLabelLocation)
+    }
+
     makeBuckets(input, seqLabels)
   }
 
@@ -137,9 +144,10 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
   /** Load index buckets from the specified location */
   def loadBuckets(location: String): Dataset[Record]
 
-  /** Classify subject sequences using the index configured at the IndexParams location */
-  def classify(buckets: Dataset[Record], subjects: Dataset[InputFragment],
-               cpar: ClassifyParams): Dataset[(SeqTitle, Array[TaxonHit])]
+  /** Classify subject sequences */
+  def classify(buckets: Dataset[Record], subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])]
+
+  def classifySpans(buckets: Dataset[Record], subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit])]
 
   /** Classify subject sequences using the given index, optionally for multiple samples,
    * writing the results to a designated output location
@@ -149,25 +157,21 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
    * @param outputLocation location (directory, if multi-sample or prefix, if single sample) to write output
    * @param cpar           classification parameters
    */
-  def classifyAndWrite(buckets: Dataset[Record], subjects: Dataset[InputFragment], outputLocation: String,
-                       cpar: ClassifyParams): Unit = {
+  def classifyHitsAndWrite(subjectsHits: Dataset[(SeqTitle, Array[TaxonHit])], outputLocation: String,
+                           cpar: ClassifyParams): Unit = {
     if (cpar.thresholds.size == 1) {
-
       val t = cpar.thresholds.head
-      val subjectsHits = classify(buckets, subjects, cpar)
 
-      val classified = classifyForThreshold(subjectsHits, cpar, t)
+      val classified = classifyHits(subjectsHits, cpar, t)
       writeForSamples(classified, outputLocation, t, cpar)
-
     } else {
       //Multi-threshold mode
       //Cache taxon hits and then classify for multiple thresholds.
       //Amortizes the cost of generating taxon hits.
-      val subjectsHits = classify(buckets, subjects, cpar)
-        .cache()
+      subjectsHits.cache()
       try {
         for {t <- cpar.thresholds} {
-          val classified = classifyForThreshold(subjectsHits, cpar, t)
+          val classified = classifyHits(subjectsHits, cpar, t)
           writeForSamples(classified, outputLocation, t, cpar)
         }
       } finally {
@@ -186,20 +190,18 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
    */
   def classifyAndWrite(inputs: Inputs, outputLocation: String, cpar: ClassifyParams): Unit = {
     val subjects = inputs.getInputFragments(withRC = false, withAmbiguous = true)
-    classifyAndWrite(loadBuckets(), subjects, outputLocation, cpar)
+    val hits = classify(loadBuckets(), subjects)
+    classifyHitsAndWrite(hits, outputLocation, cpar)
   }
 
   /** Classify input sequence-hit dataset for a single sample and single confidence threshold value */
-  def classifyForThreshold(subjectsHits: Dataset[(SeqTitle, Array[TaxonHit])],
-                           cpar: ClassifyParams, threshold: Double): Dataset[ClassifiedRead] = {
+  def classifyHits(subjectsHits: Dataset[(SeqTitle, Array[TaxonHit])],
+                   cpar: ClassifyParams, threshold: Double): Dataset[ClassifiedRead] = {
     val bcTax = this.bcTaxonomy
     val k = this.k
     val sre = cpar.sampleRegex.map(_.r)
     subjectsHits.map({ case (title, hits) =>
       val sortedHits = hits.sortBy(_.ordinal)
-
-      val sufficientHits = sufficientHitGroups(sortedHits, cpar.minHitGroups)
-      val summariesInOrder = TaxonCounts.concatenate(sortedHits.map(_.summary)) //TODO rewrite
 
       val sample = sre match {
         case Some(re) => re.findFirstMatchIn(title).
@@ -207,7 +209,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, taxonomy: Taxonomy)(i
         case _ => "all"
       }
 
-      TaxonomicIndex.classify(bcTax.value, sample, title, summariesInOrder, sufficientHits, threshold, k)
+      TaxonomicIndex.classify(bcTax.value, sample, title, sortedHits, threshold, k, cpar)
     })
   }
 
@@ -384,15 +386,17 @@ object TaxonomicIndex {
   }
 
   /** A classified read.
-   * @param sampleId The ID of the sample (if available)
-   * @param classified Could the read be classified?
-   * @param title Sequence title/ID
-   * @param taxon The assigned taxon
+   *
+   * @param sampleId     The ID of the sample (if available)
+   * @param classified   Could the read be classified?
+   * @param title        Sequence title/ID
+   * @param taxon        The assigned taxon
+   * @param hits         The taxon hits (minimizers)
    * @param lengthString Length of the classified sequence
-   * @param hitDetails Human-readable details for the hits
+   * @param hitDetails   Human-readable details for the hits
    */
   final case class ClassifiedRead(sampleId: String, classified: Boolean, title: SeqTitle, taxon: Taxon,
-                                  lengthString: String, hitDetails: String) {
+                                  hits: Array[TaxonHit], lengthString: String, hitDetails: String) {
     def classifyFlag: String = if (!classified) "U" else "C"
 
     //Imitate the Kraken output format
@@ -402,19 +406,23 @@ object TaxonomicIndex {
   /** Classify a read.
    * @param taxonomy Parent map for taxa
    * @param title Sequence title/ID
-   * @param summary Information about classified hit groups
-   * @param sufficientHits Whether there are sufficient hits to classify the sequence
+   * @param sortedHits Taxon hits (minimizers) in order
    * @param confidenceThreshold Minimum fraction of k-mers/minimizers that must be in the match (KeyValueIndex only)
    * @param k Length of k-mers
+   * @param cpar Classify parameters
    */
-  def classify(taxonomy: Taxonomy, sampleId: String, title: SeqTitle, summary: TaxonCounts,
-               sufficientHits: Boolean, confidenceThreshold: Double, k: Int): ClassifiedRead = {
+  def classify(taxonomy: Taxonomy, sampleId: String, title: SeqTitle, sortedHits: Array[TaxonHit],
+               confidenceThreshold: Double, k: Int, cpar: ClassifyParams): ClassifiedRead = {
     val lca = new LowestCommonAncestor(taxonomy)
-    val taxon = lca.resolveTree(summary, confidenceThreshold)
-    val classified = taxon != Taxonomy.NONE && sufficientHits
+
+    val totalSummary = TaxonCounts.concatenate(sortedHits.map(_.summary))
+
+    val taxon = lca.resolveTree(totalSummary, confidenceThreshold)
+    val classified = taxon != Taxonomy.NONE && sufficientHitGroups(sortedHits, cpar.minHitGroups)
 
     val reportTaxon = if (classified) taxon else Taxonomy.NONE
-    ClassifiedRead(sampleId, classified, title, reportTaxon, summary.lengthString(k), summary.pairsInOrderString)
+    ClassifiedRead(sampleId, classified, title, reportTaxon, sortedHits,
+      totalSummary.lengthString(k), totalSummary.pairsInOrderString)
   }
 
   /** For the given set of sorted hits, was there a sufficient number of hit groups wrt the given minimum? */
