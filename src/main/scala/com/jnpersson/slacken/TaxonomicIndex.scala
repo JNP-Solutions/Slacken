@@ -87,8 +87,9 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
         val titleSet = getTaxonLabels(seqLabelLocation).
         filter(l => bcTax.value.hasAncestorInSet(l._2, tf)).map(_._1).as[SeqTitle].collect().to[mutable.Set]
 
+        println(s"Construct buckets from ${titleSet.size} genomes")
         reader.getInputFragments(addRC).filter(f => titleSet.contains(f.header)).
-            map(x => (x.header, x.nucleotides))
+            map(f => (f.header, f.nucleotides))
       case None =>  reader.getInputFragments(addRC).map(x => (x.header, x.nucleotides))
     }
 
