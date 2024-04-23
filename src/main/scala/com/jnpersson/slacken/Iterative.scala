@@ -63,7 +63,12 @@ class Iterative[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabe
   def reclassify(initial: Dataset[ClassifiedRead]): Dataset[(SeqTitle, Array[TaxonHit])] = {
     //collect taxa from the first classification
     val taxa = initial.select("taxon").distinct().as[Taxon].collect()
-    val taxaAtRank = mutable.BitSet.empty ++ taxa.map(t => taxonomy.ancestorAtLevel(t, reclassifyRank)).
+    val taxaAtRank = mutable.BitSet.empty ++ taxa.
+      filter(t => {
+        val d = taxonomy.depth(t)
+        d != -1 && d >= reclassifyRank.depth
+      }).
+      map(t => taxonomy.ancestorAtLevel(t, reclassifyRank)).
       filter(_ != ROOT)
     println(s"Initial classification produced ${taxaAtRank.size} taxa at level $reclassifyRank")
 
