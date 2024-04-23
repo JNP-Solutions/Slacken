@@ -25,45 +25,52 @@ class Iterative[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabe
 
   def taxonomy = base.taxonomy
 
-  def twoStepClassify(subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])] = {
+  /** Perform an initial classification with parameters suitable to generate
+   * a taxon set with high sensitivity.
+   */
+  def step1Classify(subjects: Dataset[InputFragment]): Dataset[ClassifiedRead]  = {
     val hits1 = base.classify(base.loadBuckets(), subjects)
 
     val initThreshold = 0 //prioritise high sensitivity, some false positives are acceptable
-    val classified = base.classifyHits(hits1, cpar, initThreshold)
-    reclassify(classified)
+    base.classifyHits(hits1, cpar, initThreshold)
   }
 
-  def twoStepClassifyThreshold(subjects: Dataset[InputFragment], threshold: Double): Dataset[ClassifiedRead] = {
-    val hits = twoStepClassify(subjects)
+  /** Reclassify reads using a dynamic index.
+   * It is recommended to cache the initial reads first.
+   */
+  def step2ClassifyThreshold(reads: Dataset[ClassifiedRead], threshold: Double): Dataset[ClassifiedRead] = {
+    val hits = reclassify(reads)
     base.classifyHits(hits, cpar, threshold)
   }
 
+  /** Perform two-step classification, with intermediate caching and release,
+   * writing the final results to a location.
+   */
   def twoStepClassifyAndWrite(inputs: Inputs, outputLocation: String): Unit = {
     val subjects = inputs.getInputFragments(withRC = false, withAmbiguous = true)
-    twoStepClassifyAndWrite(subjects, outputLocation)
-  }
-
-  def twoStepClassifyAndWrite(subjects: Dataset[InputFragment], outputLocation: String): Unit = {
-    val hits = twoStepClassify(subjects)
-    base.classifyHitsAndWrite(hits, outputLocation, cpar)
-  }
-
-  def reclassify(initial: Dataset[ClassifiedRead]): Dataset[(SeqTitle, Array[TaxonHit])] = {
+    val reads = step1Classify(subjects).cache
     try {
-      initial.cache()
-      //collect taxa from the first classification
-      val taxa = initial.select("taxon").distinct().as[Taxon].collect()
-      val taxaAtRank = mutable.BitSet.empty ++ taxa.map(t => taxonomy.ancestorAtLevel(t, reclassifyRank)).
-        filter(_ != ROOT)
-      println(s"Initial classification produced ${taxaAtRank.size} taxa at level $reclassifyRank")
-
-      //Dynamically create a new index containing only the identified taxa and their descendants
-      val buckets = base.makeBuckets(genomes, taxonLabels, false, Some(taxaAtRank))
-      val spans = initial.flatMap(r =>
-        r.hits.map(_.toSpan(r.title)))
-      base.classifySpans(buckets, spans)
+      val hits = reclassify(reads)
+      base.classifyHitsAndWrite(hits, outputLocation, cpar)
     } finally {
-      initial.unpersist()
+      reads.unpersist()
     }
+  }
+
+  /** Reclassify reads with a dynamic index.
+   * It is recommended to cache the initial reads first.
+   */
+  def reclassify(initial: Dataset[ClassifiedRead]): Dataset[(SeqTitle, Array[TaxonHit])] = {
+    //collect taxa from the first classification
+    val taxa = initial.select("taxon").distinct().as[Taxon].collect()
+    val taxaAtRank = mutable.BitSet.empty ++ taxa.map(t => taxonomy.ancestorAtLevel(t, reclassifyRank)).
+      filter(_ != ROOT)
+    println(s"Initial classification produced ${taxaAtRank.size} taxa at level $reclassifyRank")
+
+    //Dynamically create a new index containing only the identified taxa and their descendants
+    val buckets = base.makeBuckets(genomes, taxonLabels, false, Some(taxaAtRank))
+    val spans = initial.flatMap(r =>
+      r.hits.map(_.toSpan(r.title)))
+    base.classifySpans(buckets, spans)
   }
 }
