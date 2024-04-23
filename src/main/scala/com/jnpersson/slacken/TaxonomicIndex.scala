@@ -80,10 +80,11 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
    */
   def makeBuckets(reader: Inputs, seqLabelLocation: String, addRC: Boolean,
                   taxonFilter: Option[mutable.BitSet] = None): Dataset[Record] = {
+    val bcTax = this.bcTaxonomy
     val input = reader.getInputFragments(addRC).map(x => (x.header, x.nucleotides))
     val seqLabels = taxonFilter match {
       case Some(tf) => getTaxonLabels(seqLabelLocation).
-        filter(l => bcTaxonomy.value.hasAncestorInSet(l._2, tf))
+        filter(l => bcTax.value.hasAncestorInSet(l._2, tf))
       case None => getTaxonLabels(seqLabelLocation)
     }
 
