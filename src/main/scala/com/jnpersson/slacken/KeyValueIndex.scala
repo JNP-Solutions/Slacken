@@ -208,15 +208,13 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   }
 
   /** Classify subject sequences using the supplied index (as a dataset) */
-  def classify(buckets: DataFrame, subjects: Dataset[InputFragment],
-               cpar: ClassifyParams): Dataset[(SeqTitle, Array[TaxonHit])] = {
+  def classify(buckets: DataFrame, subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])] = {
     val bcSplit = this.bcSplit
     val k = this.k
     val ni = numIdColumns
 
-
     //Split input sequences by minimizer, preserving sequence ID and ordinal of the super-mer
-    val taggedSegments = subjects.mapPartitions(fs => {
+    val spans = subjects.mapPartitions(fs => {
       val supermers = new Supermers(bcSplit.value, ni)
       fs.flatMap(s =>
         supermers.splitFragment(s).map(x =>
@@ -225,17 +223,21 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
             x.segment.segment.size - (k - 1), x.flag, x.ordinal, x.seqTitle)
         )
       )
-    }).
-      //The 'subject' struct constructs an OrdinalSpan.
-      select(
-        struct($"minimizer", $"kmers", $"flag", $"ordinal", $"seqTitle").as("subject") +:
-          idColumnsFromMinimizer
-      :_*)
+    })
+    classifySpans(buckets, spans)
+  }
 
-    val setTaxonUdf = udf(setTaxon(_, _))
+  def classifySpans(buckets: DataFrame, subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit])] = {
+    //The 'subject' struct constructs an OrdinalSpan
+    val taggedSpans = subjects.select(
+      struct($"minimizer", $"kmers", $"flag", $"ordinal", $"seqTitle").as("subject") +:
+        idColumnsFromMinimizer
+        :_*)
+    val setTaxonUdf = udf((tax: Option[Taxon], span: OrdinalSpan) => span.toHit(tax))
+
     //Shuffling of the index in this join can be avoided when the partitioning column
     //and number of partitions is the same in both tables
-    val taxonHits = taggedSegments.join(buckets, idColumnNames, "left").
+    val taxonHits = taggedSpans.join(buckets, idColumnNames, "left").
       select($"subject.seqTitle".as("seqTitle"),
         setTaxonUdf($"taxon", $"subject").as("hit"))
 
@@ -244,7 +246,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
 
     taxonHits.groupBy("seqTitle").agg(collect_list("hit").as("hits")).
       as[(SeqTitle, Array[TaxonHit])]
-    }
+  }
 
   def showIndexStats(indexBuckets: DataFrame, inputs: Option[(Inputs, String)]): Unit = {
     val allTaxa = indexBuckets.groupBy("taxon").agg(count("taxon")).as[(Taxon, Long)].collect()
@@ -349,19 +351,6 @@ object KeyValueIndex {
     new KeyValueIndex(params, taxonomy)(sp)
   }
 
-  /** For a super-mer with a given minimizer, assign a taxon hit, handling ambiguity flags correctly
-   * @param taxon The minimizer's LCA taxon
-   * @param segment The super-mer from the original sequence
-   * */
-  def setTaxon(taxon: Option[Taxon], segment: OrdinalSpan): TaxonHit = {
-    val reportTaxon =
-      if (segment.flag == AMBIGUOUS_FLAG) AMBIGUOUS_SPAN
-      else if (segment.flag == MATE_PAIR_BORDER_FLAG) MATE_PAIR_BORDER
-      else taxon.getOrElse(Taxonomy.NONE)
-
-    TaxonHit(segment.minimizer, segment.ordinal, reportTaxon, segment.kmers)
-  }
-
   /** Build an empty KeyValueIndex.
    * @param inFiles Input files used for minimizer ordering construction only
    */
@@ -383,6 +372,16 @@ object KeyValueIndex {
 final case class TaxonHit(minimizer: Array[Long], ordinal: Int, taxon: Taxon, count: Int) {
   def summary: TaxonCounts =
     TaxonCounts(ordinal, Array(taxon), Array(count))
+
+  /** Convert a taxon hit back to a span, so that it can be classified again. */
+  def toSpan(seqTitle: String): OrdinalSpan = {
+    val flag = taxon match {
+      case AMBIGUOUS_SPAN => AMBIGUOUS_FLAG
+      case MATE_PAIR_BORDER => MATE_PAIR_BORDER_FLAG
+      case _ => SEQUENCE_FLAG
+    }
+    OrdinalSpan(minimizer, count, flag, ordinal, seqTitle)
+  }
 }
 
 /**

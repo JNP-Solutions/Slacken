@@ -140,6 +140,12 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
     }
   }
 
+  /** Find whether a given taxon set contains a taxon or some ancestor of it */
+  def hasAncestorInSet(tax: Taxon, set: mutable.BitSet): Boolean = {
+    val withAncestors = taxaWithAncestors(List(tax))
+    set.intersect(withAncestors).nonEmpty
+  }
+
   /** Find whether the given taxon has the given ancestor (possibly with several steps)
    * Will also return true if tax == parent.
    * @param tax potential descendant node
