@@ -64,18 +64,15 @@ class Iterative[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabe
     //collect taxa from the first classification
     val taxa = initial.filter(_.classified).select("taxon").distinct().as[Taxon].collect()
     val taxaAtRank = mutable.BitSet.empty ++ taxa.
-      map(t => taxonomy.ancestorAtLevel(t, reclassifyRank)). //TODO Check other usages of this function
-      filter(t => {
-        val d = taxonomy.depth(t)
-        d != -1 && d >= reclassifyRank.depth
-      })
+      filter(t => taxonomy.depth(t) >= reclassifyRank.depth)
 
-    println(s"Initial classification produced ${taxaAtRank.size} taxa at level $reclassifyRank")
+//    flatMap(t => List(t, taxonomy.ancestorAtLevel(t, reclassifyRank))).
+
+    println(s"Initial classification produced ${taxaAtRank.size} taxa")
 
     //Dynamically create a new index containing only the identified taxa and their descendants
     val buckets = base.makeBuckets(genomes, taxonLabels, false, Some(taxaAtRank))
-    val spans = initial.flatMap(r =>
-      r.hits.map(_.toSpan(r.title)))
+    val spans = initial.flatMap(r => r.hits.map(_.toSpan(r.title)))
     base.classifySpans(buckets, spans)
   }
 }
