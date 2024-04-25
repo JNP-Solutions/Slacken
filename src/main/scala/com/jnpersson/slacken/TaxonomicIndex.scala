@@ -84,10 +84,13 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
 
     val input = taxonFilter match {
       case Some(tf) =>
-        val titleSet = getTaxonLabels(seqLabelLocation).
-          filter(l => bcTax.value.hasAncestorInSet(l._2, tf)).map(_._1).as[SeqTitle].collect().to[mutable.Set]
+        val allowedTaxa = taxonomy.taxaWithDescendants(tf)
+        val titlesTaxa = getTaxonLabels(seqLabelLocation).
+          filter(l => allowedTaxa.contains(l._2)).as[(SeqTitle, Taxon)].collect()
+        val titleSet = titlesTaxa.map(_._1).toSet
+        val taxonSet = titlesTaxa.map(_._2).toSet
 
-        println(s"Construct buckets from ${titleSet.size} sequences")
+        println(s"Construct dynamic buckets from ${titleSet.size} sequences, ${taxonSet.size} taxa")
         reader.getInputFragments(addRC).filter(f => titleSet.contains(f.header)).
             map(f => (f.header, f.nucleotides))
       case None =>

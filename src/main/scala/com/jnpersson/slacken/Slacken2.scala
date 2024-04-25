@@ -5,8 +5,8 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, MinSplitter, RandomXOR, SpacedSeed}
-import com.jnpersson.discount.spark.{Commands, Configuration, HDFSUtil, IndexParams, RunCmd, SparkConfiguration, SparkTool}
-import com.jnpersson.slacken.Taxonomy.Genus
+import com.jnpersson.discount.spark.{Commands, HDFSUtil, IndexParams, RunCmd, SparkConfiguration, SparkTool}
+import com.jnpersson.slacken.Taxonomy.{Species}
 import com.jnpersson.slacken.analysis.{MappingComparison, Metrics, MinimizerMigration}
 import org.apache.spark.sql.SparkSession
 import org.rogach.scallop.Subcommand
@@ -117,8 +117,8 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
         default = Some(List(0.0)), short = 'c')
       val sampleRegex = opt[String](descr = "Regular expression for extracting sample ID from read header (e.g. \"@(.*):\")")
       val iterative = opt[String](descr = "Library location for iterative classification (if desired)")
-      val iterativeRank = choice(descr = "Rank for initial classification in iterative mode (default genus)",
-        default = Some(Genus.title),
+      val iterativeRank = choice(descr = "Rank for initial classification in iterative mode (default species)",
+        default = Some(Species.title),
         choices = Taxonomy.rankValues.map(_.title)).map(r =>
         Taxonomy.rankValues.find(_.title == r).get)
 
