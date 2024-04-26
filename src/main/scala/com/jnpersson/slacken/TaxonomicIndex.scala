@@ -11,7 +11,7 @@ import com.jnpersson.discount.spark.{AnyMinSplitter, HDFSUtil, IndexParams, Inpu
 import com.jnpersson.discount.{NTSeq, SeqTitle}
 import com.jnpersson.slacken.TaxonomicIndex.{ClassifiedRead, getTaxonLabels, rankStrUdf, sufficientHitGroups}
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.sql.functions.{count, desc, regexp_extract, udf}
+import org.apache.spark.sql.functions.{count, countDistinct, desc, regexp_extract, udf}
 import org.apache.spark.sql.{DataFrame, Dataset, SaveMode, SparkSession}
 
 import java.util
@@ -80,19 +80,17 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
    */
   def makeBuckets(reader: Inputs, seqLabelLocation: String, addRC: Boolean,
                   taxonFilter: Option[mutable.BitSet] = None): Dataset[Record] = {
-    val bcTax = this.bcTaxonomy
-
     val input = taxonFilter match {
       case Some(tf) =>
         val allowedTaxa = taxonomy.taxaWithDescendants(tf)
         val titlesTaxa = getTaxonLabels(seqLabelLocation).
-          filter(l => allowedTaxa.contains(l._2)).as[(SeqTitle, Taxon)].collect()
-        val titleSet = titlesTaxa.map(_._1).toSet
-        val taxonSet = titlesTaxa.map(_._2).toSet
+          filter(l => allowedTaxa.contains(l._2)).as[(SeqTitle, Taxon)].toDF("header", "taxon").cache //TODO unpersist
 
-        println(s"Construct dynamic buckets from ${titleSet.size} sequences, ${taxonSet.size} taxa")
-        reader.getInputFragments(addRC).filter(f => titleSet.contains(f.header)).
-            map(f => (f.header, f.nucleotides))
+        println("Construct dynamic buckets from:")
+        titlesTaxa.select(countDistinct($"header"), countDistinct($"taxon")).show()
+
+        reader.getInputFragments(addRC).join(titlesTaxa, List("header")).
+          select("header", "nucleotides").as[(SeqTitle, NTSeq)]
       case None =>
         reader.getInputFragments(addRC).map(x => (x.header, x.nucleotides))
     }

@@ -5,6 +5,7 @@ import com.jnpersson.discount.hash.InputFragment
 import com.jnpersson.discount.spark.Inputs
 import com.jnpersson.slacken.TaxonomicIndex.ClassifiedRead
 import com.jnpersson.slacken.Taxonomy.{ROOT, Rank}
+import org.apache.spark.sql.functions.count
 import org.apache.spark.sql.{Dataset, SparkSession}
 
 import scala.collection.mutable
@@ -61,8 +62,12 @@ class Iterative[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabe
    * It is recommended to cache the initial reads first.
    */
   def reclassify(initial: Dataset[ClassifiedRead]): Dataset[(SeqTitle, Array[TaxonHit])] = {
+    val minCount = 100
     //collect taxa from the first classification
-    val taxa = initial.filter(_.classified).select("taxon").distinct().as[Taxon].collect()
+    val taxa = initial.filter(_.classified).select("taxon").
+      groupBy("taxon").agg(count("*").as("count")).
+      filter($"count" > minCount).select("taxon").
+      as[Taxon].collect()
     val taxaAtRank = mutable.BitSet.empty ++ taxa.
       filter(t => taxonomy.depth(t) >= reclassifyRank.depth)
 //    flatMap(t => List(t, taxonomy.ancestorAtLevel(t, reclassifyRank))).

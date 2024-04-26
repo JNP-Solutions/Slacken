@@ -50,10 +50,10 @@ class SparkConfiguration(args: Array[String])(implicit val spark: SparkSession) 
   val partitions =
     opt[Int](descr = "Number of shuffle partitions/parquet buckets for indexes (default 200)", default = Some(200))
 
-  def inputReader(files: Seq[String], pairedEnd: Boolean = false) =
+  def inputReader(files: Seq[String], pairedEnd: Boolean = false)(implicit spark: SparkSession) =
     new Inputs(files, k(), maxSequenceLength(), pairedEnd)
 
-  def inputReader(files: Seq[String], k: Int, pairedEnd: Boolean) =
+  def inputReader(files: Seq[String], k: Int, pairedEnd: Boolean)(implicit spark: SparkSession) =
     new Inputs(files, k, maxSequenceLength(), pairedEnd)
 
   def discount(): Discount = {
