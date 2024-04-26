@@ -43,7 +43,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       }
   }
 
-  private def findInputs(location: String, k: Option[Int] = None) = {
+  private def findInputs(location: String, k: Option[Int] = None)(implicit spark: SparkSession) = {
     val inFiles = HDFSUtil.findFiles(location + "/library", ".fna")
     println(s"Discovered input files: $inFiles")
     val reader = k match {
@@ -121,6 +121,10 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
         default = Some(Species.title),
         choices = Taxonomy.rankValues.map(_.title)).map(r =>
         Taxonomy.rankValues.find(_.title == r).get)
+      val iterativeMinCount = opt[Int](descr = "Min read count for taxon inclusion in iterative mode (default 100)",
+        default = Some(100))
+      val iterativeConfidence = opt[Double](descr = "Confidence threshold for initial classification in it. mode (default 0.15)",
+        default = Some(0.15))
 
       def cpar = ClassifyParams(minHitGroups(), unclassified(), confidence(), sampleRegex.toOption)
 
@@ -144,12 +148,13 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
 
       def run(): Unit = {
         val i = index
-        val inputs = inputReader(inFiles(), i.params.k, paired())
+        val inputs = inputReader(inFiles(), i.params.k, paired())(i.spark)
 
         iterative.toOption match {
           case Some(library) =>
-            val genomes = findInputs(library, Some(i.params.k))
-            val it = new Iterative(i, genomes._1, genomes._2, iterativeRank(), cpar)
+            val genomes = findInputs(library, Some(i.params.k))(i.spark)
+            val it = new Iterative(i, genomes._1, genomes._2, iterativeRank(), iterativeMinCount(),
+              iterativeConfidence(), cpar)(i.spark)
             it.twoStepClassifyAndWrite(inputs, output())
           case None =>
             i.classifyAndWrite(inputs, output(), cpar)

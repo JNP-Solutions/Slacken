@@ -20,7 +20,7 @@ import scala.collection.mutable
  * @param cpar parameters for classification
  */
 class Iterative[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabels: String,
-                        reclassifyRank: Rank,
+                        reclassifyRank: Rank, taxonMinCount: Int, initialThreshold: Double,
                         cpar: ClassifyParams)(implicit spark: SparkSession) {
   import spark.sqlContext.implicits._
 
@@ -32,8 +32,7 @@ class Iterative[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabe
   def step1Classify(subjects: Dataset[InputFragment]): Dataset[ClassifiedRead]  = {
     val hits1 = base.classify(base.loadBuckets(), subjects)
 
-    val initThreshold = 0 //prioritise high sensitivity, some false positives are acceptable
-    base.classifyHits(hits1, cpar, initThreshold)
+    base.classifyHits(hits1, cpar, initialThreshold)
   }
 
   /** Reclassify reads using a dynamic index.
@@ -48,7 +47,8 @@ class Iterative[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabe
    * writing the final results to a location.
    */
   def twoStepClassifyAndWrite(inputs: Inputs, outputLocation: String): Unit = {
-    val subjects = inputs.getInputFragments(withRC = false, withAmbiguous = true)
+    val subjects = inputs.getInputFragments(withRC = false, withAmbiguous = true).
+      coalesce(base.numIndexBuckets)
     val reads = step1Classify(subjects).cache
     try {
       val hits = reclassify(reads)
@@ -62,11 +62,10 @@ class Iterative[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabe
    * It is recommended to cache the initial reads first.
    */
   def reclassify(initial: Dataset[ClassifiedRead]): Dataset[(SeqTitle, Array[TaxonHit])] = {
-    val minCount = 100
     //collect taxa from the first classification
     val taxa = initial.filter(_.classified).select("taxon").
-      groupBy("taxon").agg(count("*").as("count")).
-      filter($"count" > minCount).select("taxon").
+      groupBy("taxon").agg(count("*").as("count")). //TODO aggregate counts up?
+      filter($"count" > taxonMinCount).select("taxon").
       as[Taxon].collect()
     val taxaAtRank = mutable.BitSet.empty ++ taxa.
       filter(t => taxonomy.depth(t) >= reclassifyRank.depth)
