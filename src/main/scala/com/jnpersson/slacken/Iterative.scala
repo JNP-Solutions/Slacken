@@ -6,7 +6,7 @@ import com.jnpersson.discount.spark.Inputs
 import com.jnpersson.slacken.TaxonomicIndex.ClassifiedRead
 import com.jnpersson.slacken.Taxonomy.{ROOT, Rank}
 import org.apache.spark.sql.functions.count
-import org.apache.spark.sql.{Dataset, SparkSession}
+import org.apache.spark.sql.{DataFrame, Dataset, SparkSession}
 
 import scala.collection.mutable
 
@@ -39,7 +39,7 @@ class Iterative[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabe
    * It is recommended to cache the initial reads first.
    */
   def step2ClassifyThreshold(reads: Dataset[ClassifiedRead], threshold: Double): Dataset[ClassifiedRead] = {
-    val hits = reclassify(reads)
+    val hits = reclassify(reads.toDF())
     base.classifyHits(hits, cpar, threshold)
   }
 
@@ -49,7 +49,8 @@ class Iterative[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabe
   def twoStepClassifyAndWrite(inputs: Inputs, outputLocation: String): Unit = {
     val subjects = inputs.getInputFragments(withRC = false, withAmbiguous = true).
       coalesce(base.numIndexBuckets)
-    val reads = step1Classify(subjects).cache
+    val reads = step1Classify(subjects).select("classified", "taxon", "title", "hits").
+      cache
     try {
       val hits = reclassify(reads)
       base.classifyHitsAndWrite(hits, outputLocation, cpar)
@@ -61,9 +62,9 @@ class Iterative[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabe
   /** Reclassify reads with a dynamic index.
    * It is recommended to cache the initial reads first.
    */
-  def reclassify(initial: Dataset[ClassifiedRead]): Dataset[(SeqTitle, Array[TaxonHit])] = {
+  def reclassify(initial: DataFrame): Dataset[(SeqTitle, Array[TaxonHit])] = {
     //collect taxa from the first classification
-    val taxa = initial.filter(_.classified).select("taxon").
+    val taxa = initial.filter($"classified").select("taxon").
       groupBy("taxon").agg(count("*").as("count")). //TODO aggregate counts up?
       filter($"count" > taxonMinCount).select("taxon").
       as[Taxon].collect()
@@ -75,7 +76,8 @@ class Iterative[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabe
 
     //Dynamically create a new index containing only the identified taxa and their descendants
     val buckets = base.makeBuckets(genomes, taxonLabels, false, Some(taxaAtRank))
-    val spans = initial.flatMap(r => r.hits.map(_.toSpan(r.title)))
+    val spans = initial.select("title", "hits").as[(SeqTitle, Array[TaxonHit])].
+      flatMap { case (title, hits) => hits.iterator.map(_.toSpan(title)) }
     base.classifySpans(buckets, spans)
   }
 }
