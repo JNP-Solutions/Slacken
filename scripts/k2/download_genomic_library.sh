@@ -141,6 +141,8 @@ fi
 
 #Very large files can be split if necessary, e.g. to split into 3 parts:
 #seqkit -j 8 split2 -p 3 -O part library.fna
+#Possible improvement: pipe mask_low_complexity through seqkit split2 to skip one traversal of the file
+#and reduce the need for temporary files
 
 1>&2 echo -n "Building fasta index with seqkit..."
 for file in $(find . '(' -name '*.fna' -o -name '*.faa' ')'); do
