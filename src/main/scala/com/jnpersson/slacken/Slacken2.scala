@@ -116,14 +116,15 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
         descr = "Confidence thresholds (default 0.0, should be a space separated list with values in [0, 1])",
         default = Some(List(0.0)), short = 'c')
       val sampleRegex = opt[String](descr = "Regular expression for extracting sample ID from read header (e.g. \"@(.*):\")")
-      val iterative = opt[String](descr = "Library location for iterative classification (if desired)")
-      val iterativeRank = choice(descr = "Rank for initial classification in iterative mode (default species)",
+
+      val dynamic = opt[String](descr = "Library location for dynamic classification (if desired)")
+      val dynamicRank = choice(descr = "Rank for initial classification in dynamic mode (default species)",
         default = Some(Species.title),
         choices = Taxonomy.rankValues.map(_.title)).map(r =>
         Taxonomy.rankValues.find(_.title == r).get)
-      val iterativeMinCount = opt[Int](descr = "Min read count for taxon inclusion in iterative mode (default 100)",
+      val dynamicMinCount = opt[Int](descr = "Min read count for taxon inclusion in dynamic mode (default 100)",
         default = Some(100))
-      val iterativeConfidence = opt[Double](descr = "Confidence threshold for initial classification in it. mode (default 0.15)",
+      val dynamicConfidence = opt[Double](descr = "Confidence threshold for initial classification in dynamic mode (default 0.15)",
         default = Some(0.15))
 
       def cpar = ClassifyParams(minHitGroups(), unclassified(), confidence(), sampleRegex.toOption)
@@ -150,12 +151,12 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
         val i = index
         val inputs = inputReader(inFiles(), i.params.k, paired())(i.spark)
 
-        iterative.toOption match {
+        dynamic.toOption match {
           case Some(library) =>
             val genomes = findInputs(library, Some(i.params.k))(i.spark)
-            val it = new Iterative(i, genomes._1, genomes._2, iterativeRank(), iterativeMinCount(),
-              iterativeConfidence(), cpar)(i.spark)
-            it.twoStepClassifyAndWrite(inputs, output())
+            val dyn = new Dynamic(i, genomes._1, genomes._2, dynamicRank(), dynamicMinCount(),
+              dynamicConfidence(), cpar)(i.spark)
+            dyn.twoStepClassifyAndWrite(inputs, output())
           case None =>
             i.classifyAndWrite(inputs, output(), cpar)
         }
