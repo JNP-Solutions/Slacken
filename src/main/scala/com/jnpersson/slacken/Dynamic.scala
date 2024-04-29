@@ -10,37 +10,34 @@ import org.apache.spark.sql.{DataFrame, Dataset, SparkSession}
 
 import scala.collection.mutable
 
-/** Iterative reclassification of reads with dynamically generated indexes,
+/** Two-step classification and reclassification of reads with dynamically generated indexes,
  * starting from a base index.
  *
  * @param base Initial index for the first classification
  * @param genomes location of all input genome sequences, for construction of new indexes on the fly
  * @param taxonLabels location of taxonomic label file, for the genome library
  * @param reclassifyRank rank for the initial classification. Taxa at this level will be used to construct the second index
+ * @param taxonMinCount minimum read count to keep a taxon in the first pass
+ * @param initialThreshold confidence threshold for the first pass
  * @param cpar parameters for classification
  */
-class Iterative[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabels: String,
-                        reclassifyRank: Rank, taxonMinCount: Int, initialThreshold: Double,
-                        cpar: ClassifyParams)(implicit spark: SparkSession) {
+
+class Dynamic[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabels: String,
+                      reclassifyRank: Rank, taxonMinCount: Int, initialThreshold: Double,
+                      cpar: ClassifyParams)(implicit spark: SparkSession) {
   import spark.sqlContext.implicits._
 
   def taxonomy = base.taxonomy
 
   /** Perform an initial classification with parameters suitable to generate
    * a taxon set with high sensitivity.
+   * Although we are classifying reads here, only the set of taxa we discover (at a minimum count cutoff)
+   * is kept.
    */
   def step1Classify(subjects: Dataset[InputFragment]): Dataset[ClassifiedRead]  = {
     val hits1 = base.classify(base.loadBuckets(), subjects)
 
     base.classifyHits(hits1, cpar, initialThreshold)
-  }
-
-  /** Reclassify reads using a dynamic index.
-   * It is recommended to cache the initial reads first.
-   */
-  def step2ClassifyThreshold(reads: Dataset[ClassifiedRead], threshold: Double): Dataset[ClassifiedRead] = {
-    val hits = reclassify(reads.toDF())
-    base.classifyHits(hits, cpar, threshold)
   }
 
   /** Perform two-step classification, with intermediate caching and release,
@@ -59,8 +56,7 @@ class Iterative[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabe
     }
   }
 
-  /** Reclassify reads with a dynamic index.
-   * It is recommended to cache the initial reads first.
+  /** Reclassify reads with a dynamic index. This produces the final result.
    */
   def reclassify(initial: DataFrame): Dataset[(SeqTitle, Array[TaxonHit])] = {
     //collect taxa from the first classification
