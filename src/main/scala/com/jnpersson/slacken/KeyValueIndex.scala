@@ -207,24 +207,48 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       ) :_*)
   }
 
-  /** Classify subject sequences using the supplied index (as a dataset) */
-  def classify(buckets: DataFrame, subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])] = {
+  def getSpans(buckets: DataFrame, subjects: Dataset[InputFragment], withTitle: Boolean): Dataset[OrdinalSpan] = {
     val bcSplit = this.bcSplit
     val k = this.k
     val ni = numIdColumns
 
-    //Split input sequences by minimizer, preserving sequence ID and ordinal of the super-mer
-    val spans = subjects.mapPartitions(fs => {
+    //Split input sequences by minimizer, optionally preserving ordinal of the super-mer and optionally sequence ID
+    subjects.mapPartitions(fs => {
       val supermers = new Supermers(bcSplit.value, ni)
       fs.flatMap(s =>
         supermers.splitFragment(s).map(x =>
           //Drop the sequence data
-          OrdinalSpan(x.segment.minimizer,
-            x.segment.segment.size - (k - 1), x.flag, x.ordinal, x.seqTitle)
+          if (withTitle)
+            OrdinalSpan(x.segment.minimizer,
+              x.segment.segment.size - (k - 1), x.flag, x.ordinal, x.seqTitle)
+          else
+            OrdinalSpan(x.segment.minimizer,
+              x.segment.segment.size - (k - 1), x.flag, x.ordinal, null)
         )
       )
     })
-    classifySpans(buckets, spans)
+  }
+
+  /** Find TaxonHits from InputFragments and set their taxa, without grouping them by seqTitle. */
+  def findHits(buckets: DataFrame, subjects: Dataset[InputFragment]): Dataset[TaxonHit] = {
+    val spans = getSpans(buckets, subjects, false)
+    //The 'subject' struct constructs an OrdinalSpan
+    val taggedSpans = spans.select(
+      struct($"minimizer", $"kmers", $"flag", $"ordinal", $"seqTitle").as("subject") +:
+        idColumnsFromMinimizer
+        :_*)
+    val setTaxonUdf = udf((tax: Option[Taxon], span: OrdinalSpan) => span.toHit(tax))
+
+    //Shuffling of the index in this join can be avoided when the partitioning column
+    //and number of partitions is the same in both tables
+    taggedSpans.join(buckets, idColumnNames, "left").
+      select(setTaxonUdf($"taxon", $"subject").as("hit")).
+      select($"hit.*").as[TaxonHit]
+  }
+
+  /** Classify subject sequences using the supplied index (as a dataset) */
+  def classify(buckets: DataFrame, subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])] = {
+    classifySpans(buckets, getSpans(buckets, subjects, true))
   }
 
   def classifySpans(buckets: DataFrame, subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit])] = {
@@ -381,6 +405,11 @@ final case class TaxonHit(minimizer: Array[Long], ordinal: Int, taxon: Taxon, co
       case _ => SEQUENCE_FLAG
     }
     OrdinalSpan(minimizer, count, flag, ordinal, seqTitle)
+  }
+
+  def trueTaxon: Option[Taxon] = taxon match {
+    case AMBIGUOUS_SPAN | MATE_PAIR_BORDER => None
+    case _ => Some(taxon)
   }
 }
 

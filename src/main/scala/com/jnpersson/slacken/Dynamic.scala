@@ -6,74 +6,57 @@ import com.jnpersson.discount.spark.Inputs
 import com.jnpersson.slacken.TaxonomicIndex.ClassifiedRead
 import com.jnpersson.slacken.Taxonomy.{ROOT, Rank}
 import org.apache.spark.sql.functions.count
-import org.apache.spark.sql.{DataFrame, Dataset, SparkSession}
+import org.apache.spark.sql.{DataFrame, Dataset, SparkSession, functions}
 
 import scala.collection.mutable
 
-/** Two-step classification and reclassification of reads with dynamically generated indexes,
+/** Two-step classification of reads with dynamically generated indexes,
  * starting from a base index.
  *
- * @param base Initial index for the first classification
+ * @param base Initial index for identifying taxa by minimizer
  * @param genomes location of all input genome sequences, for construction of new indexes on the fly
  * @param taxonLabels location of taxonomic label file, for the genome library
  * @param reclassifyRank rank for the initial classification. Taxa at this level will be used to construct the second index
- * @param taxonMinCount minimum read count to keep a taxon in the first pass
- * @param initialThreshold confidence threshold for the first pass
+ * @param taxonMinCount minimum k-mer abundance to keep a taxon in the first pass
  * @param cpar parameters for classification
  */
-
 class Dynamic[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabels: String,
-                      reclassifyRank: Rank, taxonMinCount: Int, initialThreshold: Double,
-                      cpar: ClassifyParams)(implicit spark: SparkSession) {
+                        reclassifyRank: Rank, taxonMinCount: Int, cpar: ClassifyParams)(implicit spark: SparkSession) {
   import spark.sqlContext.implicits._
 
   def taxonomy = base.taxonomy
 
-  /** Perform an initial classification with parameters suitable to generate
-   * a taxon set with high sensitivity.
-   * Although we are classifying reads here, only the set of taxa we discover (at a minimum count cutoff)
-   * is kept.
-   */
-  def step1Classify(subjects: Dataset[InputFragment]): Dataset[ClassifiedRead]  = {
-    val hits1 = base.classify(base.loadBuckets(), subjects)
-
-    base.classifyHits(hits1, cpar, initialThreshold)
+  def step1AggregateTaxa(subjects: Dataset[InputFragment]): Array[(Taxon, Long)] = {
+    val hits = base.findHits(base.loadBuckets(), subjects)
+    hits.flatMap(h => h.trueTaxon.map(t => (t, h.count.toLong))).
+      toDF("taxon", "count").groupBy("taxon").agg(functions.sum("count").as("count")).
+      as[(Taxon, Long)].collect()
   }
 
-  /** Perform two-step classification, with intermediate caching and release,
+  /** Perform two-step classification,
    * writing the final results to a location.
    */
   def twoStepClassifyAndWrite(inputs: Inputs, outputLocation: String): Unit = {
     val subjects = inputs.getInputFragments(withRC = false, withAmbiguous = true).
       coalesce(base.numIndexBuckets)
-    val reads = step1Classify(subjects).select("classified", "taxon", "title", "hits").
-      cache
-    try {
-      val hits = reclassify(reads)
-      base.classifyHitsAndWrite(hits, outputLocation, cpar)
-    } finally {
-      reads.unpersist()
-    }
+
+    val hits = reclassify(subjects, step1AggregateTaxa(subjects))
+    base.classifyHitsAndWrite(hits, outputLocation, cpar)
   }
 
   /** Reclassify reads with a dynamic index. This produces the final result.
    */
-  def reclassify(initial: DataFrame): Dataset[(SeqTitle, Array[TaxonHit])] = {
-    //collect taxa from the first classification
-    val taxa = initial.filter($"classified").select("taxon").
-      groupBy("taxon").agg(count("*").as("count")). //TODO aggregate counts up?
-      filter($"count" > taxonMinCount).select("taxon").
-      as[Taxon].collect()
-    val taxaAtRank = mutable.BitSet.empty ++ taxa.
+  def reclassify(subjects: Dataset[InputFragment], taxonCounts: Array[(Taxon, Long)]): Dataset[(SeqTitle, Array[TaxonHit])] = {
+    val keepTaxa = mutable.BitSet.empty ++ taxonCounts.iterator.filter(_._2 >= taxonMinCount).map(_._1)
+
+    val taxaAtRank = keepTaxa.
       filter(t => taxonomy.depth(t) >= reclassifyRank.depth)
 //    flatMap(t => List(t, taxonomy.ancestorAtLevel(t, reclassifyRank))).
 
-    println(s"Initial classification produced ${taxa.size} taxa, filtered at $reclassifyRank to ${taxaAtRank.size} taxa")
+    println(s"Initial scan produced ${keepTaxa.size} taxa, filtered at $reclassifyRank to ${taxaAtRank.size} taxa")
 
     //Dynamically create a new index containing only the identified taxa and their descendants
     val buckets = base.makeBuckets(genomes, taxonLabels, false, Some(taxaAtRank))
-    val spans = initial.select("title", "hits").as[(SeqTitle, Array[TaxonHit])].
-      flatMap { case (title, hits) => hits.iterator.map(_.toSpan(title)) }
-    base.classifySpans(buckets, spans)
+    base.classify(buckets, subjects)
   }
 }

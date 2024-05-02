@@ -152,6 +152,9 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
   /** Load index buckets from the specified location */
   def loadBuckets(location: String): Dataset[Record]
 
+  /** Find TaxonHits from InputFragments and set their taxa, without grouping them by seqTitle. */
+  def findHits(buckets: Dataset[Record], subjects: Dataset[InputFragment]): Dataset[TaxonHit]
+
   /** Classify subject sequences */
   def classify(buckets: Dataset[Record], subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])]
 
