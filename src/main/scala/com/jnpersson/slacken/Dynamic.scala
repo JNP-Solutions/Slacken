@@ -33,14 +33,15 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabels
       as[(Taxon, Long)].collect()
   }
 
+  def twoStepClassify(subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])] =
+    reclassify(subjects, step1AggregateTaxa(subjects))
+
   /** Perform two-step classification,
    * writing the final results to a location.
    */
   def twoStepClassifyAndWrite(inputs: Inputs, outputLocation: String): Unit = {
-    val subjects = inputs.getInputFragments(withRC = false, withAmbiguous = true).
-      coalesce(base.numIndexBuckets)
-
-    val hits = reclassify(subjects, step1AggregateTaxa(subjects))
+    val hits = twoStepClassify(inputs.getInputFragments(withRC = false, withAmbiguous = true).
+      coalesce(base.numIndexBuckets))
     base.classifyHitsAndWrite(hits, outputLocation, cpar)
   }
 
