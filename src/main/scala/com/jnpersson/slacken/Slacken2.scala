@@ -122,10 +122,8 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
         default = Some(Species.title),
         choices = Taxonomy.rankValues.map(_.title)).map(r =>
         Taxonomy.rankValues.find(_.title == r).get)
-      val dynamicMinCount = opt[Int](descr = "Min read count for taxon inclusion in dynamic mode (default 100)",
-        default = Some(100))
-      val dynamicConfidence = opt[Double](descr = "Confidence threshold for initial classification in dynamic mode (default 0.15)",
-        default = Some(0.15))
+      val dynamicMinCount = opt[Int](descr = "Min taxon k-mer count for inclusion in dynamic mode (default 10000)",
+        default = Some(10000))
 
       def cpar = ClassifyParams(minHitGroups(), unclassified(), confidence(), sampleRegex.toOption)
 
@@ -155,7 +153,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
           case Some(library) =>
             val genomes = findInputs(library, Some(i.params.k))(i.spark)
             val dyn = new Dynamic(i, genomes._1, genomes._2, dynamicRank(), dynamicMinCount(),
-              dynamicConfidence(), cpar)(i.spark)
+              cpar)(i.spark)
             dyn.twoStepClassifyAndWrite(inputs, output())
           case None =>
             i.classifyAndWrite(inputs, output(), cpar)
