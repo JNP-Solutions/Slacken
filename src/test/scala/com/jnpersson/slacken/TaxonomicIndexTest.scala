@@ -9,7 +9,7 @@ import com.jnpersson.discount.TestGenerators._
 import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, InputFragment, MinSplitter, RandomXOR}
 import com.jnpersson.discount.spark.{IndexParams, Inputs, SparkSessionTestWrapper}
 import com.jnpersson.discount.{NTSeq, Testing => DTesting}
-import com.jnpersson.slacken.Taxonomy.ROOT
+import com.jnpersson.slacken.Taxonomy.{ROOT, Species}
 import org.scalacheck.Gen
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
@@ -122,27 +122,45 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   * At this point there's no correctness check, but the code path is tested.
   */
   def makeTinyIndex[R](makeIdx: (IndexParams, Taxonomy) => TaxonomicIndex[R],
-                       loadIdx: String => TaxonomicIndex[R],
-                       location: String): Unit = {
+                       location: String): TaxonomicIndex[R] = {
     val k = 31
     val m = 10
     val mp = RandomXOR(m, DEFAULT_TOGGLE_MASK, true)
 
     val splitter = MinSplitter(mp, k)
-    val params = IndexParams(spark.sparkContext.broadcast(splitter), 16, "")
+    val params = IndexParams(spark.sparkContext.broadcast(splitter), 16, location)
     val idx = makeIdx(params, testDataTaxonomy)
 
     val bkts = idx.makeBuckets(
       new Inputs(List("testData/slacken/slacken_tinydata.fna"), k, 10000000),
       "testData/slacken/seqid2taxid.map", addRC = false)
     idx.writeBuckets(bkts, location)
-    loadIdx(location).loadBuckets(location).count() should be > 0L
+    idx
   }
 
   test("Tiny index, KeyValue method") {
     val dir = System.getProperty("user.dir")
+    val location = s"$dir/testData/slacken/slacken_test_kv"
     makeTinyIndex((params, taxonomy) => new KeyValueIndex(params, taxonomy),
-      location => KeyValueIndex.load(location, testDataTaxonomy),
-      s"$dir/testData/slacken/slacken_test_kv")
+      location)
+    KeyValueIndex.load(location, testDataTaxonomy).
+      loadBuckets(location).count() should be > 0L
+  }
+
+  //Testing the basic code path for dynamic classification.
+  //The results aren't yet checked for correctness.
+  test("Dynamic index") {
+    val dir = System.getProperty("user.dir")
+    val location = s"$dir/testData/slacken/slacken_test_dyn"
+    val idx = makeTinyIndex((params, taxonomy) => new KeyValueIndex(params, taxonomy),
+      location)
+    val k = 35
+
+    val genomes = new Inputs(List("testData/slacken/slacken_tinydata.fna"), k, 10000000)
+    val cpar = ClassifyParams(2, true)
+    val dyn = new Dynamic(idx, genomes, "testData/slacken/seqid2taxid.map",
+      Species, 100, cpar)
+    val reads = simulateReads(200, 1000).toDS()
+    val hits = dyn.twoStepClassify(reads)
   }
 }
