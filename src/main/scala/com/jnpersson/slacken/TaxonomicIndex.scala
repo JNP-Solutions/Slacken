@@ -90,7 +90,8 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
         titlesTaxa.select(countDistinct($"header"), countDistinct($"taxon")).show()
 
         reader.getInputFragments(addRC).join(titlesTaxa, List("header")).
-          select("header", "nucleotides").as[(SeqTitle, NTSeq)]
+          select("header", "nucleotides").as[(SeqTitle, NTSeq)].
+          repartition(numIndexBuckets, List() :_*)
       case None =>
         reader.getInputFragments(addRC).map(x => (x.header, x.nucleotides))
     }
