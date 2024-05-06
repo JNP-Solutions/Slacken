@@ -57,38 +57,33 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     }
   }
 
-  def findMinimizers(idsSequences: Dataset[(SeqTitle, NTSeq)], seqLabels: Dataset[(SeqTitle, Taxon)]): DataFrame = {
+  def findMinimizers(seqTaxa: Dataset[(Taxon, NTSeq)]): DataFrame = {
     val bcSplit = this.bcSplit
 
-    val idSeqDF = idsSequences.toDF("seqId", "seq")
-    val labels = seqLabels.toDF("seqId", "taxon")
-
-    val seqTaxa = idSeqDF.join(labels, idSeqDF("seqId") === labels("seqId")).
-      select("seq", "taxon").as[(NTSeq, Taxon)]
 
     numIdColumns match {
       case 1 =>
         seqTaxa.flatMap(r => {
-          bcSplit.value.superkmerPositions(r._1, addRC = false).map { case (_, rank, _) =>
-            (rank.data(0), r._2)
+          bcSplit.value.superkmerPositions(r._2, addRC = false).map { case (_, rank, _) =>
+            (rank.data(0), r._1)
           }
         }).toDF(recordColumnNames: _*)
       case 2 =>
         seqTaxa.flatMap(r => {
-          bcSplit.value.superkmerPositions(r._1, addRC = false).map { case (_, rank, _) =>
-            (rank.data(0), rank.data(1), r._2)
+          bcSplit.value.superkmerPositions(r._2, addRC = false).map { case (_, rank, _) =>
+            (rank.data(0), rank.data(1), r._1)
           }
         }).toDF(recordColumnNames: _*)
       case 3 =>
         seqTaxa.flatMap(r => {
-          bcSplit.value.superkmerPositions(r._1, addRC = false).map { case (_, rank, _) =>
-            (rank.data(0), rank.data(1), rank.data(2), r._2)
+          bcSplit.value.superkmerPositions(r._2, addRC = false).map { case (_, rank, _) =>
+            (rank.data(0), rank.data(1), rank.data(2), r._1)
           }
         }).toDF(recordColumnNames: _*)
       case 4 =>
         seqTaxa.flatMap(r => {
-          bcSplit.value.superkmerPositions(r._1, addRC = false).map { case (_, rank, _) =>
-            (rank.data(0), rank.data(1), rank.data(2), rank.data(3), r._2)
+          bcSplit.value.superkmerPositions(r._2, addRC = false).map { case (_, rank, _) =>
+            (rank.data(0), rank.data(1), rank.data(2), rank.data(3), r._1)
           }
         }).toDF(recordColumnNames: _*)
       case _ =>
@@ -101,9 +96,8 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
    * @param idsSequences pairs of (genome title, genome DNA)
    * @param seqLabels pairs of (genome title, taxon ID)
    */
-  def makeBuckets(idsSequences: Dataset[(SeqTitle, NTSeq)],
-                    seqLabels: Dataset[(SeqTitle, Taxon)]): DataFrame =
-    reduceLCAs(findMinimizers(idsSequences, seqLabels))
+  def makeBuckets(idsSequences: Dataset[(Taxon, NTSeq)]): DataFrame =
+    reduceLCAs(findMinimizers(idsSequences))
 
   /** Write buckets to the given location */
   def writeBuckets(buckets: DataFrame, location: String): Unit = {
@@ -295,10 +289,8 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
    */
   private def showTaxonCoverageStats(indexBuckets: DataFrame, inputs: Option[(Inputs, String)]): Unit = {
     for {(reader, seqLabelLocation) <- inputs} {
-      val input = reader.getInputFragments(false).map(x =>
-        (x.header, x.nucleotides))
-      val seqLabels = getTaxonLabels(seqLabelLocation)
-      val mins = findMinimizers(input, seqLabels)
+      val inputSequences = joinSequencesAndLabels(reader, seqLabelLocation, false)
+      val mins = findMinimizers(inputSequences)
 
       //1. Count how many times per input taxon each minimizer occurs
       val agg = mins.groupBy((idColumns :+ $"taxon"): _*).agg(count("*").as("countAll"))

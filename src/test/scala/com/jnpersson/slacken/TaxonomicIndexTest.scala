@@ -62,8 +62,8 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   def randomGenomesTest[R](makeIdx: (IndexParams, Taxonomy) => TaxonomicIndex[R], maxM: Int): Unit = {
     //Simulate very long reads to reduce the risk of misclassification by chance in random data
     val reads = simulateReads(200, 1000).toDS()
-    val genomesDS = genomes.toDS
-    val labels = seqIdToTaxId.toDS.cache()
+    val genomesDS = genomes.toDF("nucleotides", "header")
+    val labels = seqIdToTaxId.toDF("header", "taxon").cache()
     val noiseReads = DTesting.getList(randomReads(200, 200), 1000).
       zipWithIndex.map(x => x._1.copy(header = x._2.toString)).toDS()
 
@@ -76,7 +76,8 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
           val params = IndexParams(spark.sparkContext.broadcast(splitter), 16, "")
           val idx = makeIdx(params, taxonomy)
 
-          val minimizers = idx.makeBuckets(genomesDS, labels)
+          val joint = genomesDS.join(labels, "header").select("taxon", "nucleotides").as[(Taxon, NTSeq)]
+          val minimizers = idx.makeBuckets(joint)
 
           val cpar = ClassifyParams(2, true)
           //The property of known reads classifying correctly.
@@ -158,8 +159,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
 
     val genomes = new Inputs(List("testData/slacken/slacken_tinydata.fna"), k, 10000000)
     val cpar = ClassifyParams(2, true)
-    val dyn = new Dynamic(idx, genomes, "testData/slacken/seqid2taxid.map",
-      Species, 100, cpar, None)
+    val dyn = new Dynamic(idx, genomes, "testData/slacken/seqid2taxid.map", Species, 1e-5, cpar, None)
     val reads = simulateReads(200, 1000).toDS()
     val hits = dyn.twoStepClassify(reads)
   }

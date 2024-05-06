@@ -6,7 +6,7 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.discount.hash.{InputFragment, MinSplitter, SpacedSeed}
-import com.jnpersson.discount.spark.{AnyMinSplitter, HDFSUtil, IndexParams, Inputs}
+import com.jnpersson.discount.spark.{AnyMinSplitter, HDFSUtil, IndexParams, Inputs, KmerKeyedIndex}
 
 import com.jnpersson.discount.{NTSeq, SeqTitle}
 import com.jnpersson.slacken.TaxonomicIndex.{ClassifiedRead, getTaxonLabels, rankStrUdf, sufficientHitGroups}
@@ -90,13 +90,19 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
         titlesTaxa.select(countDistinct($"header"), countDistinct($"taxon")).show()
 
         reader.getInputFragments(addRC).join(titlesTaxa, List("header")).
-          select("header", "nucleotides").as[(SeqTitle, NTSeq)].
-          repartition(numIndexBuckets, List() :_*)
+          select("taxon", "nucleotides").as[(Taxon, NTSeq)]
       case None =>
-        reader.getInputFragments(addRC).map(x => (x.header, x.nucleotides))
+        joinSequencesAndLabels(reader, seqLabelLocation, addRC)
     }
 
-    makeBuckets(input, getTaxonLabels(seqLabelLocation))
+    makeBuckets(input)
+  }
+
+  def joinSequencesAndLabels(sequenceReader: Inputs, seqLabelLocation: String, addRC: Boolean): Dataset[(Taxon, NTSeq)] = {
+    val titlesTaxa = getTaxonLabels(seqLabelLocation).toDF("header", "taxon")
+    val idSeqDF = sequenceReader.getInputFragments(addRC)
+    idSeqDF.join(titlesTaxa, idSeqDF("header") === titlesTaxa("header")).
+      select("taxon", "nucleotides").as[(Taxon, NTSeq)]
   }
 
   /**
@@ -105,7 +111,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
    * @param idsSequences Pairs of (genome title, genome)
    * @param taxonLabels  Pairs of (genome title, taxon)
    */
-  def makeBuckets(idsSequences: Dataset[(SeqTitle, NTSeq)], taxonLabels: Dataset[(SeqTitle, Taxon)]): Dataset[Record]
+  def makeBuckets(idsSequences: Dataset[(Taxon, NTSeq)]): Dataset[Record]
 
   /** Join buckets with negative (subtractive) buckets.
    * This is the "subtractive LCA" operation.
@@ -252,7 +258,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
 
     //These tables will be relatively small and we coalesce to avoid generating a lot of small files
     //in the case of an index with many partitions
-    outputRows.coalesce(200).write.mode(SaveMode.Overwrite).
+    outputRows.coalesce(1000).write.mode(SaveMode.Overwrite).
       partitionBy("sample").
       option("compression", "gzip").
       text(s"${location}_classified")
