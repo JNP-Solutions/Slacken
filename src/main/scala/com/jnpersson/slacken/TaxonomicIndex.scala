@@ -6,7 +6,9 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.discount.hash.{InputFragment, MinSplitter, SpacedSeed}
-import com.jnpersson.discount.spark.{AnyMinSplitter, HDFSUtil, IndexParams, Inputs, KmerKeyedIndex}
+
+import com.jnpersson.discount.spark.{AnyMinSplitter, HDFSUtil, IndexParams, Inputs}
+
 
 import com.jnpersson.discount.{NTSeq, SeqTitle}
 import com.jnpersson.slacken.TaxonomicIndex.{ClassifiedRead, getTaxonLabels, rankStrUdf, sufficientHitGroups}

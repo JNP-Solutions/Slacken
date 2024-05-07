@@ -129,6 +129,10 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       val dynamicMinFraction = opt[Double](descr = "Min taxon k-mer fraction for taxon inclusion in dynamic mode (default 1e-5)",
         default = Some(1e-5))
 
+      val classifyWithGoldStandard = opt[Boolean](descr = "whether to classify with the gold taxon set or just get " +
+        "statistics wrt gold standard", default = Some(false))
+      val goldStandardTaxonSet = opt[String](descr = "Location of gold standard reference taxon set in dynamic mode")
+
       def cpar = ClassifyParams(minHitGroups(), unclassified(), confidence(), sampleRegex.toOption)
 
       validate (confidence) { cs =>
