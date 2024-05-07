@@ -6,3 +6,4 @@ project/**
 *.parquet
 testData/**
 metastore_db/**
+*.log
