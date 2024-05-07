@@ -124,6 +124,9 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
         Taxonomy.rankValues.find(_.title == r).get)
       val dynamicMinCount = opt[Int](descr = "Min taxon k-mer count for inclusion in dynamic mode (default 10000)",
         default = Some(10000))
+      val classifyWithGoldStandard = opt[Boolean](descr = "whether to classify with the gold taxon set or just get " +
+        "statistics wrt gold standard", default = Some(false))
+      val goldStandardTaxonSet = opt[String](descr = "Location of gold standard reference taxon set in dynamic mode")
 
       def cpar = ClassifyParams(minHitGroups(), unclassified(), confidence(), sampleRegex.toOption)
 
@@ -152,8 +155,9 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
         dynamic.toOption match {
           case Some(library) =>
             val genomes = findInputs(library, Some(i.params.k))(i.spark)
+            val goldStandardOpt = goldStandardTaxonSet.toOption.map(x => (x,classifyWithGoldStandard()))
             val dyn = new Dynamic(i, genomes._1, genomes._2, dynamicRank(), dynamicMinCount(),
-              cpar)(i.spark)
+              cpar, goldStandardOpt)(i.spark)
             dyn.twoStepClassifyAndWrite(inputs, output())
           case None =>
             i.classifyAndWrite(inputs, output(), cpar)
