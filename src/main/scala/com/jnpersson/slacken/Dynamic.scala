@@ -3,6 +3,8 @@ package com.jnpersson.slacken
 import com.jnpersson.discount.SeqTitle
 import com.jnpersson.discount.hash.InputFragment
 import com.jnpersson.discount.spark.Inputs
+
+
 import com.jnpersson.slacken.Taxonomy.{ROOT, Rank}
 import org.apache.spark.sql.{DataFrame, Dataset, SparkSession, functions}
 
@@ -16,7 +18,7 @@ import scala.collection.mutable
  * @param genomes location of all input genome sequences, for construction of new indexes on the fly
  * @param taxonLabels location of taxonomic label file, for the genome library
  * @param reclassifyRank rank for the initial classification. Taxa at this level will be used to construct the second index
- * @param taxonMinFraction minimum k-mer abundance fraction to keep a taxon in the first pass
+ * @param taxonMinCount minimum k-mer abundance to keep a taxon in the first pass
  * @param cpar parameters for classification
  * @param goldStandardTaxonSet parameters for deciding whether to get stats or classify wrt gold standard
  */
@@ -43,7 +45,8 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabels
    * writing the final results to a location.
    */
   def twoStepClassifyAndWrite(inputs: Inputs, outputLocation: String): Unit = {
-    val hits = twoStepClassify(inputs.getInputFragments(withRC = false, withAmbiguous = true))
+    val hits = twoStepClassify(inputs.getInputFragments(withRC = false, withAmbiguous = true).
+      coalesce(base.numIndexBuckets))
     base.classifyHitsAndWrite(hits, outputLocation, cpar)
   }
 

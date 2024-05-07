@@ -60,7 +60,6 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   def findMinimizers(seqTaxa: Dataset[(Taxon, NTSeq)]): DataFrame = {
     val bcSplit = this.bcSplit
 
-
     numIdColumns match {
       case 1 =>
         seqTaxa.flatMap(r => {
