@@ -81,7 +81,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
    * @return index buckets
    */
   def makeBuckets(reader: Inputs, seqLabelLocation: String, addRC: Boolean,
-                  taxonFilter: Option[mutable.BitSet] = None): Dataset[Record] = {
+                  taxonFilter: Option[mutable.BitSet] = None)(implicit spark: SparkSession): Dataset[Record] = {
     val input = taxonFilter match {
       case Some(tf) =>
         val allowedTaxa = taxonomy.taxaWithDescendants(tf)
@@ -113,7 +113,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
    * @param idsSequences Pairs of (genome title, genome)
    * @param taxonLabels  Pairs of (genome title, taxon)
    */
-  def makeBuckets(idsSequences: Dataset[(Taxon, NTSeq)]): Dataset[Record]
+  def makeBuckets(idsSequences: Dataset[(Taxon, NTSeq)])(implicit spark: SparkSession): Dataset[Record]
 
   /** Join buckets with negative (subtractive) buckets.
    * This is the "subtractive LCA" operation.
