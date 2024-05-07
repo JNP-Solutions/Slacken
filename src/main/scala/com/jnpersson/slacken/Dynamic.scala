@@ -10,6 +10,7 @@ import org.apache.spark.sql.{DataFrame, Dataset, SparkSession, functions}
 
 import scala.collection.mutable
 
+
 /** Two-step classification of reads with dynamically generated indexes,
  * starting from a base index.
  *
@@ -19,9 +20,11 @@ import scala.collection.mutable
  * @param reclassifyRank rank for the initial classification. Taxa at this level will be used to construct the second index
  * @param taxonMinCount minimum k-mer abundance to keep a taxon in the first pass
  * @param cpar parameters for classification
+ * @param goldStandardTaxonSet parameters for deciding whether to get stats or classify wrt gold standard
  */
 class Dynamic[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabels: String,
-                        reclassifyRank: Rank, taxonMinCount: Int, cpar: ClassifyParams)(implicit spark: SparkSession) {
+                        reclassifyRank: Rank, taxonMinCount: Int, cpar: ClassifyParams,
+                      goldStandardTaxonSet: Option[(String,Boolean)])(implicit spark: SparkSession) {
   import spark.sqlContext.implicits._
 
   def taxonomy = base.taxonomy
@@ -33,6 +36,8 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabels
       as[(Taxon, Long)].collect()
   }
 
+  /** Possibly add a boolean variable that decides if step1AggregateTaxa is run on the TaxaAtRank set or the goldStandardTaxaSet
+  * */
   def twoStepClassify(subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])] =
     reclassify(subjects, step1AggregateTaxa(subjects))
 
@@ -47,7 +52,8 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabels
 
   /** Reclassify reads with a dynamic index. This produces the final result.
    */
-  def reclassify(subjects: Dataset[InputFragment], taxonCounts: Array[(Taxon, Long)]): Dataset[(SeqTitle, Array[TaxonHit])] = {
+  def reclassify(subjects: Dataset[InputFragment],
+                 taxonCounts: Array[(Taxon, Long)]): Dataset[(SeqTitle, Array[TaxonHit])] = {
     val keepTaxa = mutable.BitSet.empty ++ taxonCounts.iterator.filter(_._2 >= taxonMinCount).map(_._1)
 
     val taxaAtRank = keepTaxa.
@@ -56,8 +62,25 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabels
 
     println(s"Initial scan produced ${keepTaxa.size} taxa, filtered at $reclassifyRank to ${taxaAtRank.size} taxa")
 
+    // can make this more efficient by not computing the taxaAtRank if the classification with the GoldSet has been
+    // requested @nishad
+    val taxonSet = goldStandardTaxonSet match {
+      case Some((path,classifyWithGoldset)) =>
+        val goldSet = mutable.BitSet.empty ++ spark.read.csv(path).map(x => x.getString(0).toInt).collect()
+        val tp = taxaAtRank.intersect(goldSet).size
+        val fp = (taxaAtRank -- taxaAtRank.intersect(goldSet)).size
+        val fn = (goldSet -- taxaAtRank.intersect(goldSet)).size
+        val precision = tp.toDouble/(tp+fp)
+        val recall = tp.toDouble/goldSet.size
+        println(s"True Positives: $tp, False Positives: $fp, False Negatives: $fn, Precision: $precision, Recall: $recall")
+        if(classifyWithGoldset) goldSet else taxaAtRank
+
+      case None =>
+        taxaAtRank
+    }
+
     //Dynamically create a new index containing only the identified taxa and their descendants
-    val buckets = base.makeBuckets(genomes, taxonLabels, false, Some(taxaAtRank))
+    val buckets = base.makeBuckets(genomes, taxonLabels, false, Some(taxonSet))
     base.classify(buckets, subjects)
   }
 }
