@@ -5,8 +5,8 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, MinSplitter, RandomXOR, SpacedSeed}
-import com.jnpersson.discount.spark.{Commands, HDFSUtil, IndexParams, RunCmd, SparkConfiguration, SparkTool}
-import com.jnpersson.slacken.Taxonomy.{Species}
+import com.jnpersson.discount.spark.{Commands, HDFSUtil, IndexParams, Inputs, RunCmd, SparkConfiguration, SparkTool}
+import com.jnpersson.slacken.Taxonomy.Species
 import com.jnpersson.slacken.analysis.{MappingComparison, Metrics, MinimizerMigration}
 import org.apache.spark.sql.SparkSession
 import org.rogach.scallop.Subcommand
@@ -43,7 +43,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       }
   }
 
-  private def findInputs(location: String, k: Option[Int] = None)(implicit spark: SparkSession) = {
+  private def findGenomes(location: String, k: Option[Int] = None)(implicit spark: SparkSession): (Inputs, String) = {
     val inFiles = HDFSUtil.findFiles(location + "/library", ".fna")
     println(s"Discovered input files: $inFiles")
     val reader = k match {
@@ -66,8 +66,8 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       val check = opt[Boolean](descr = "Only check input files for consistency", hidden = true, default = Some(false))
 
       def run(): Unit = {
-        val inputs = findInputs(library())
-        val nInputs = negative.toOption.map(u => findInputs(u))
+        val inputs = findGenomes(library())
+        val nInputs = negative.toOption.map(u => findGenomes(u))
 
         val params = IndexParams(
           spark.sparkContext.broadcast(
@@ -155,17 +155,16 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
 
       def run(): Unit = {
         val i = index
-        val inputs = inputReader(inFiles(), i.params.k, paired())(i.spark)
+        val inputs = inputReader(inFiles(), i.params.k, paired())
 
         dynamic.toOption match {
           case Some(library) =>
-            val genomes = findInputs(library, Some(i.params.k))(i.spark)
-
+            val genomes = findGenomes(library, Some(i.params.k))
             val goldStandardOpt = goldStandardTaxonSet.toOption.map(x => (x,classifyWithGoldStandard()))
             val dyn = new Dynamic(i, genomes._1, genomes._2, dynamicRank(), dynamicMinFraction(),
-              cpar, goldStandardOpt)(i.spark)
+              cpar, goldStandardOpt)
 
-            dyn.twoStepClassifyAndWrite(inputs, output())
+            dyn.twoStepClassifyAndWrite(inputs, output(), partitions())
           case None =>
             i.classifyAndWrite(inputs, output(), cpar)
         }
@@ -193,7 +192,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
           case _ =>
             println(s"Splitter ${p.splitter}")
         }
-        val inputs = library.toOption.map(l => findInputs(l, Some(p.k)))
+        val inputs = library.toOption.map(l => findGenomes(l, Some(p.k)))
         i.showIndexStats(inputs)
       }
     }

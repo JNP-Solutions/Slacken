@@ -95,7 +95,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
    * @param idsSequences pairs of (genome title, genome DNA)
    * @param seqLabels pairs of (genome title, taxon ID)
    */
-  def makeBuckets(idsSequences: Dataset[(Taxon, NTSeq)]): DataFrame =
+  def makeBuckets(idsSequences: Dataset[(Taxon, NTSeq)])(implicit spark: SparkSession): DataFrame =
     reduceLCAs(findMinimizers(idsSequences))
 
   /** Write buckets to the given location */
@@ -159,7 +159,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
    * @param minimizersTaxa tuples of (minimizer part 1, minimizer part 2, taxon)
    * @return tuples of (minimizer part 1, minimizer part 2, LCA taxon)
    */
-  def reduceLCAs(minimizersTaxa: DataFrame): DataFrame = {
+  def reduceLCAs(minimizersTaxa: DataFrame)(implicit spark: SparkSession): DataFrame = {
     val bcTax = this.bcTaxonomy
     val udafLca = udaf(TaxonLCA(bcTax))
     minimizersTaxa.
