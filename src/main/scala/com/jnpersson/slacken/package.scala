@@ -7,6 +7,7 @@ package com.jnpersson
 
 import com.jnpersson.discount.SeqTitle
 import com.jnpersson.discount.hash.BucketId
+import com.jnpersson.discount.spark.Inputs
 
 /**
  * Routines for taxonomic classification of reads from metagenomic datasets.
@@ -57,4 +58,11 @@ package object slacken {
       TaxonHit(minimizer, ordinal, reportTaxon, kmers)
     }
   }
+
+  /** A library containing some number of genomes (or scaffolds etc) labelled with taxa.
+   * @param inputs Input genome sequence files
+   * @param labelFile Path to a file labelling each sequence with a taxon (2-column TSV)
+   */
+  final case class GenomeLibrary(inputs: Inputs, labelFile: String)
+
 }

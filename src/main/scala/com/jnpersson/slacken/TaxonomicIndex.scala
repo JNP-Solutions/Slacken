@@ -6,14 +6,11 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.discount.hash.{InputFragment, MinSplitter, SpacedSeed}
-
 import com.jnpersson.discount.spark.{AnyMinSplitter, HDFSUtil, IndexParams, Inputs}
-
-
 import com.jnpersson.discount.{NTSeq, SeqTitle}
-import com.jnpersson.slacken.TaxonomicIndex.{ClassifiedRead, getTaxonLabels, rankStrUdf, sufficientHitGroups}
+import com.jnpersson.slacken.TaxonomicIndex.{ClassifiedRead, getTaxonLabels, rankStrUdf}
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.sql.functions.{count, countDistinct, desc, regexp_extract, udf}
+import org.apache.spark.sql.functions.{count, countDistinct, desc, udf}
 import org.apache.spark.sql.{DataFrame, Dataset, SaveMode, SparkSession}
 
 import java.util
@@ -60,49 +57,46 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
    * @param addRC whether to add reverse complements
    * @return index buckets
    */
-  def makeBuckets(regular:(Inputs, String), negative: Option[(Inputs, String)], addRC: Boolean): Dataset[Record] = {
-    val (inputs, labels) = regular
+  def makeBuckets(regular: GenomeLibrary, negative: Option[GenomeLibrary], addRC: Boolean): Dataset[Record] = {
     negative match {
-      case Some((nInputs, nLabels)) =>
-        joinNegativeBuckets(makeBuckets(inputs, labels, addRC),
-          makeBuckets(nInputs, nLabels, addRC))
+      case Some(negativeLib) =>
+        joinNegativeBuckets(makeBuckets(regular, addRC), makeBuckets(negativeLib, addRC))
       case None =>
-        makeBuckets(inputs, labels, addRC)
+        makeBuckets(regular, addRC)
     }
   }
 
   /**
    * Construct buckets for a new index from genomes.
    *
-   * @param reader           Input data
-   * @param seqLabelLocation Location of a file that labels each genome with a taxon
+   * @param library           Input data
    * @param addRC            Whether to add reverse complements
    * @param taxonFilter      Optionally limit input sequences to only taxa in this set (and their descendants)
    * @return index buckets
    */
-  def makeBuckets(reader: Inputs, seqLabelLocation: String, addRC: Boolean,
+  def makeBuckets(library: GenomeLibrary, addRC: Boolean,
                   taxonFilter: Option[mutable.BitSet] = None)(implicit spark: SparkSession): Dataset[Record] = {
     val input = taxonFilter match {
       case Some(tf) =>
         val allowedTaxa = taxonomy.taxaWithDescendants(tf)
-        val titlesTaxa = getTaxonLabels(seqLabelLocation).
+        val titlesTaxa = getTaxonLabels(library.labelFile).
           filter(l => allowedTaxa.contains(l._2)).as[(SeqTitle, Taxon)].toDF("header", "taxon").cache //TODO unpersist
 
         println("Construct dynamic buckets from:")
         titlesTaxa.select(countDistinct($"header"), countDistinct($"taxon")).show()
 
-        reader.getInputFragments(addRC).join(titlesTaxa, List("header")).
+        library.inputs.getInputFragments(addRC).join(titlesTaxa, List("header")).
           select("taxon", "nucleotides").as[(Taxon, NTSeq)]
       case None =>
-        joinSequencesAndLabels(reader, seqLabelLocation, addRC)
+        joinSequencesAndLabels(library, addRC)
     }
 
     makeBuckets(input)
   }
 
-  def joinSequencesAndLabels(sequenceReader: Inputs, seqLabelLocation: String, addRC: Boolean): Dataset[(Taxon, NTSeq)] = {
-    val titlesTaxa = getTaxonLabels(seqLabelLocation).toDF("header", "taxon")
-    val idSeqDF = sequenceReader.getInputFragments(addRC)
+  def joinSequencesAndLabels(library: GenomeLibrary, addRC: Boolean): Dataset[(Taxon, NTSeq)] = {
+    val titlesTaxa = getTaxonLabels(library.labelFile).toDF("header", "taxon")
+    val idSeqDF = library.inputs.getInputFragments(addRC)
     idSeqDF.join(titlesTaxa, idSeqDF("header") === titlesTaxa("header")).
       select("taxon", "nucleotides").as[(Taxon, NTSeq)]
   }
@@ -324,10 +318,10 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
    * Optionally, input sequences and a label file can be specified, and they will then be checked against
    * the database.
    */
-  def showIndexStats(inputs: Option[(Inputs, String)]): Unit =
-    showIndexStats(loadBuckets(), inputs)
+  def showIndexStats(genomes: Option[GenomeLibrary]): Unit =
+    showIndexStats(loadBuckets(), genomes)
 
-  def showIndexStats(indexBuckets: Dataset[Record], inputs: Option[(Inputs, String)]): Unit
+  def showIndexStats(indexBuckets: Dataset[Record], genomes: Option[GenomeLibrary]): Unit
 }
 
 object TaxonomicIndex {
