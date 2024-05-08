@@ -265,7 +265,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       as[(SeqTitle, Array[TaxonHit])]
   }
 
-  def showIndexStats(indexBuckets: DataFrame, inputs: Option[(Inputs, String)]): Unit = {
+  def showIndexStats(indexBuckets: DataFrame, genomes: Option[GenomeLibrary]): Unit = {
     val allTaxa = indexBuckets.groupBy("taxon").agg(count("taxon")).as[(Taxon, Long)].collect()
 
     val leafTaxa = allTaxa.filter(x => taxonomy.isLeafNode(x._1))
@@ -276,35 +276,33 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     val recTotal = allTaxa.map(_._2).sum
     val leafTotal = leafTaxa.map(_._2).sum
     println(s"Total $m-minimizers: $recTotal, of which leaf records: $leafTotal (${formatPerc(leafTotal.toDouble/recTotal)})")
-    showTaxonCoverageStats(indexBuckets, inputs)
+    for { library <- genomes} showTaxonCoverageStats(indexBuckets, library)
   }
 
   /** For each genome in the input sequences, count all its minimizers (with repetitions) and calculate the fraction
    * that is assigned (in the index) to that genome's taxon, rather than some ancestor.
    * This is a measure of how well we can identify each distinct genome.
    * @param indexBuckets index with LCAs
-   * @param inputs input genome sequences to check (intended to be a subset of the sequences that were used
+   * @param genomes genome sequences to check (intended to be a subset of the sequences that were used
    *               to build the index)
    */
-  private def showTaxonCoverageStats(indexBuckets: DataFrame, inputs: Option[(Inputs, String)]): Unit = {
-    for {(reader, seqLabelLocation) <- inputs} {
-      val inputSequences = joinSequencesAndLabels(reader, seqLabelLocation, false)
-      val mins = findMinimizers(inputSequences)
+  private def showTaxonCoverageStats(indexBuckets: DataFrame, genomes: GenomeLibrary): Unit = {
+    val inputSequences = joinSequencesAndLabels(genomes, false)
+    val mins = findMinimizers(inputSequences)
 
-      //1. Count how many times per input taxon each minimizer occurs
-      val agg = mins.groupBy((idColumns :+ $"taxon"): _*).agg(count("*").as("countAll"))
+    //1. Count how many times per input taxon each minimizer occurs
+    val agg = mins.groupBy((idColumns :+ $"taxon"): _*).agg(count("*").as("countAll"))
 
-      //2. Join with buckets, find the fraction that is assigned to the same (leaf) taxon
-      val joint = agg.join(indexBuckets.withColumnRenamed("taxon", "idxTaxon"),
+    //2. Join with buckets, find the fraction that is assigned to the same (leaf) taxon
+    val joint = agg.join(indexBuckets.withColumnRenamed("taxon", "idxTaxon"),
         idColumnNames, "left").
-        withColumn("countLeaf", when($"idxTaxon" === $"taxon", $"countAll").
-          otherwise(lit(0L))).
-        groupBy("taxon").
-        agg((sum("countLeaf") / sum("countAll")).as("fracLeaf"),
-          sum("countAll").as("total"))
+      withColumn("countLeaf", when($"idxTaxon" === $"taxon", $"countAll").
+        otherwise(lit(0L))).
+      groupBy("taxon").
+      agg((sum("countLeaf") / sum("countAll")).as("fracLeaf"),
+        sum("countAll").as("total"))
 
-      joint.select("fracLeaf", "total").summary().show()
-    }
+    joint.select("fracLeaf", "total").summary().show()
   }
 
   /**

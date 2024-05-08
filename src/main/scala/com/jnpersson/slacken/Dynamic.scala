@@ -15,15 +15,14 @@ import scala.collection.mutable
  * starting from a base index.
  *
  * @param base Initial index for identifying taxa by minimizer
- * @param genomes location of all input genome sequences, for construction of new indexes on the fly
- * @param taxonLabels location of taxonomic label file, for the genome library
+ * @param genomes genomic library for construction of new indexes on the fly
  * @param reclassifyRank rank for the initial classification. Taxa at this level will be used to construct the second index
  * @param taxonMinFraction minimum k-mer fraction to keep a taxon in the first pass
  * @param cpar parameters for classification
  * @param goldStandardTaxonSet parameters for deciding whether to get stats or classify wrt gold standard
  */
-class Dynamic[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabels: String,
-                        reclassifyRank: Rank, taxonMinFraction: Double, cpar: ClassifyParams,
+class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
+                      reclassifyRank: Rank, taxonMinFraction: Double, cpar: ClassifyParams,
                       goldStandardTaxonSet: Option[(String,Boolean)])(implicit spark: SparkSession) {
   import spark.sqlContext.implicits._
 
@@ -94,7 +93,7 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: Inputs, taxonLabels
     }
 
     //Dynamically create a new index containing only the identified taxa and their descendants
-    val buckets = base.makeBuckets(genomes, taxonLabels, false, Some(taxonSet))
+    val buckets = base.makeBuckets(genomes, false, Some(taxonSet))
     base.classify(buckets, subjects)
   }
 }

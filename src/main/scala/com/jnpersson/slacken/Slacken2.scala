@@ -43,14 +43,14 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       }
   }
 
-  private def findGenomes(location: String, k: Option[Int] = None)(implicit spark: SparkSession): (Inputs, String) = {
+  private def findGenomes(location: String, k: Option[Int] = None)(implicit spark: SparkSession): GenomeLibrary = {
     val inFiles = HDFSUtil.findFiles(location + "/library", ".fna")
     println(s"Discovered input files: $inFiles")
     val reader = k match {
       case Some(k) => inputReader(inFiles, k, false)
       case None => inputReader(inFiles)
     }
-    (reader, s"$location/seqid2taxid.map")
+    GenomeLibrary(reader, s"$location/seqid2taxid.map")
   }
 
   val taxonIndex = new Subcommand("taxonIndex") {
@@ -66,12 +66,12 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       val check = opt[Boolean](descr = "Only check input files for consistency", hidden = true, default = Some(false))
 
       def run(): Unit = {
-        val inputs = findGenomes(library())
-        val nInputs = negative.toOption.map(u => findGenomes(u))
+        val genomes = findGenomes(library())
+        val nGenomes = negative.toOption.map(u => findGenomes(u))
 
         val params = IndexParams(
           spark.sparkContext.broadcast(
-            MinSplitter(seedMask(discount.getSplitter(Some(inputs._1.files)).priorities), k())
+            MinSplitter(seedMask(discount.getSplitter(Some(genomes.inputs.files)).priorities), k())
           ), partitions(), location())
         println(s"Splitter ${params.splitter}")
 
@@ -79,13 +79,13 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
         val index = new KeyValueIndex(params, tax)
 
         if (check()) {
-          index.checkInput(inputs._1)
+          index.checkInput(genomes.inputs)
         } else { //build index
-          val bkts = index.makeBuckets(inputs, nInputs, addRC = false)
+          val bkts = index.makeBuckets(genomes, nGenomes, addRC = false)
           index.writeBuckets(bkts, params.location)
           TaxonomicIndex.copyTaxonomy(taxonomy(), location() + "_taxonomy")
           index.showIndexStats(None)
-          TaxonomicIndex.inputStats(inputs._2, tax)
+          TaxonomicIndex.inputStats(genomes.labelFile, tax)
         }
       }
     }
@@ -161,7 +161,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
           case Some(library) =>
             val genomes = findGenomes(library, Some(i.params.k))
             val goldStandardOpt = goldStandardTaxonSet.toOption.map(x => (x,classifyWithGoldStandard()))
-            val dyn = new Dynamic(i, genomes._1, genomes._2, dynamicRank(), dynamicMinFraction(),
+            val dyn = new Dynamic(i, genomes, dynamicRank(), dynamicMinFraction(),
               cpar, goldStandardOpt)
 
             dyn.twoStepClassifyAndWrite(inputs, output(), partitions())
