@@ -18,7 +18,7 @@ import scala.collection.mutable
  * @param genomes location of all input genome sequences, for construction of new indexes on the fly
  * @param taxonLabels location of taxonomic label file, for the genome library
  * @param reclassifyRank rank for the initial classification. Taxa at this level will be used to construct the second index
- * @param taxonMinCount minimum k-mer abundance to keep a taxon in the first pass
+ * @param taxonMinFraction minimum k-mer fraction to keep a taxon in the first pass
  * @param cpar parameters for classification
  * @param goldStandardTaxonSet parameters for deciding whether to get stats or classify wrt gold standard
  */
