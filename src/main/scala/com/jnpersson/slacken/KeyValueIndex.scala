@@ -305,17 +305,8 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     joint.select("fracLeaf", "total").summary().show()
   }
 
-  /**
-   * Produce Kraken-style quasi reports detailing:
-   * 1) contents of the index in minimizers (_min_report)
-   * 2) contents of the index in genomes (_genome_report)
-   * 3) missing genomes that are not uniquely identifiable by the index (_missing)
-   *
-   * @param checkLabelFile sequence label file used to build the index
-   * @param output         output filename prefix
-   */
-  def report(checkLabelFile: Option[String], output: String): Unit = {
-    val indexBuckets = loadBuckets()
+  def report(indexBuckets: DataFrame, checkLabelFile: Option[String], output: String): Unit = {
+
     //Report the contents of the index, count minimizers
     val allTaxa = indexBuckets.groupBy("taxon").agg(count("taxon")).as[(Taxon, Long)].collect()
     HDFSUtil.usingWriter(output + "_min_report.txt", wr =>

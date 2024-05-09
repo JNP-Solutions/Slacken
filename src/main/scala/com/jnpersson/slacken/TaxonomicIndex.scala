@@ -322,6 +322,20 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
     showIndexStats(loadBuckets(), genomes)
 
   def showIndexStats(indexBuckets: Dataset[Record], genomes: Option[GenomeLibrary]): Unit
+
+  /**
+   * Produce Kraken-style quasi reports detailing:
+   * 1) contents of the index in minimizers (_min_report)
+   * 2) contents of the index in genomes (_genome_report)
+   * 3) missing genomes that are not uniquely identifiable by the index (_missing)
+   *
+   * @param checkLabelFile sequence label file used to build the index
+   * @param output         output filename prefix
+   */
+  def report(checkLabelFile: Option[String], output: String): Unit =
+    report(loadBuckets(), checkLabelFile, output)
+
+  def report(indexBuckets: Dataset[Record], checkLabelFile: Option[String], output: String): Unit
 }
 
 object TaxonomicIndex {
