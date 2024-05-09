@@ -32,9 +32,10 @@ aws s3 cp $DISCOUNT_HOME/target/scala-2.12/Slacken-assembly-0.1.0.jar $BUCKET/
 
 function classify {
   LIB=$1
-  shift
-  CLASS_OUT=$ROOT/scratch/classified/$FAMILY/$LIB
-  ./slacken2-aws.sh taxonIndex $DATA/$LIB classify --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" -o $CLASS_OUT \
+  LNAME=$2
+  CLASS_OUT=$ROOT/scratch/classified/$FAMILY/$LNAME
+  ./slacken2-aws.sh -p 3000 taxonIndex $DATA/$LIB classify --classify-with-gold-standard -g $SPATH/${LABEL}_gold.txt \
+    --dynamic-min-fraction 1e-5 -d $K2 --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" -o $CLASS_OUT \
   "${SAMPLES[@]}"
 }
 
@@ -94,9 +95,13 @@ function compare {
 #respace rs_45_41_s7 12
 #histogram rs_45_41_s12
 
-CS=(0.00 0.15 0.30 0.45)
+#In this script, please always use two decimal points, e.g. 0.10, not 0.1
+#CS=(0.05 0.10)
+CS=(0.00 0.05 0.10 0.15)
 
-FAMILY=cami2/strain
+#airskinurogenital strain marine plant_associated
+LABEL=plant_associated
+FAMILY=cami2/$LABEL
 SPATH=$ROOT/$FAMILY
 SAMPLES=()
 
@@ -106,12 +111,16 @@ do
 done
 
 #build s2_2023 45 41 7 2000
-report s2-nt_35_31_s7
-#classify s2-nt_35_31_s7
+#report s2-nt_35_31_s7
+#classify s2_2023_i_35_31_s7 s2_2023_gold_35_31_s7
+#classify rs_35_31_s7 rs_dyn3_35_31_s7
+classify rs_35_31_s7 rs_gold_35_31_s7
+#classify rs_45_41_s7
+#classify rs_45_41_s12
 
-#for ((s = 0; s <= 9; s++))
-#do
-#  compare $s s2-nt_35_31_s7
-#  sleep 10
-#done
+for ((s = 0; s <= 9; s++))
+do
+  compare $s rs_gold_35_31_s7
+  sleep 10
+done
 
