@@ -62,12 +62,10 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
     val build = new RunCmd("build") {
       banner("Build a new index (library) from genomes")
       val library = opt[String](required = true, descr = "Location of sequence files (directory containing library/)")
-      val negative = opt[String](descr = "Location of negative input sequence files (for subtractive LCA)")
       val check = opt[Boolean](descr = "Only check input files for consistency", hidden = true, default = Some(false))
 
       def run(): Unit = {
         val genomes = findGenomes(library())
-        val nGenomes = negative.toOption.map(u => findGenomes(u))
 
         val params = IndexParams(
           spark.sparkContext.broadcast(
@@ -81,7 +79,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
         if (check()) {
           index.checkInput(genomes.inputs)
         } else { //build index
-          val bkts = index.makeBuckets(genomes, nGenomes, addRC = false)
+          val bkts = index.makeBuckets(genomes, addRC = false)
           index.writeBuckets(bkts, params.location)
           TaxonomicIndex.copyTaxonomy(taxonomy(), location() + "_taxonomy")
           index.showIndexStats(None)
