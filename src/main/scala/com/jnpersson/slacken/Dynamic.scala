@@ -42,7 +42,8 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
    */
   def twoStepClassifyAndWrite(inputs: Inputs, outputLocation: String, partitions: Int): Unit = {
     val hits = twoStepClassify(inputs.getInputFragments(withRC = false, withAmbiguous = true).
-      coalesce(partitions))
+      coalesce(partitions),
+      outputLocation)
     base.classifyHitsAndWrite(hits, outputLocation, cpar)
   }
 
@@ -67,7 +68,7 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
    * The dynamic index is built from a taxon set, which can be either supplied (a gold standard set)
    * or detected using a heuristic.
    */
-  def twoStepClassify(subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])] = {
+  def twoStepClassify(subjects: Dataset[InputFragment], indexReportLocation: String): Dataset[(SeqTitle, Array[TaxonHit])] = {
 
     val taxonSet = goldStandardTaxonSet match {
       case Some((path,classifyWithGoldSet)) =>
@@ -94,6 +95,7 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
 
     //Dynamically create a new index containing only the identified taxa and their descendants
     val buckets = base.makeBuckets(genomes, false, Some(taxonSet))
+    base.report(buckets, None, indexReportLocation + "_dynamic")
     base.classify(buckets, subjects)
   }
 }
