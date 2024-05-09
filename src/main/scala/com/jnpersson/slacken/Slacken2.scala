@@ -128,9 +128,11 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       val goldStandardTaxonSet = opt[String](descr = "Location of gold standard reference taxon set in dynamic mode")
       val dynamicMinFraction = opt[Double](descr = "Min taxon k-mer fraction for taxon inclusion in dynamic mode (default 1e-5)",
         default = Some(1e-5))
+      val reportDynamicIndex = opt[Boolean](descr = "Report statistics on the dynamic index", default = Some(false),
+        hidden = true)
 
       val classifyWithGoldStandard = opt[Boolean](descr = "whether to classify with the gold taxon set or just get " +
-        "statistics wrt gold standard", default = Some(false))
+        "statistics wrt gold standard", default = Some(false), short = 'C')
       val goldStandardTaxonSet = opt[String](descr = "Location of gold standard reference taxon set in dynamic mode")
 
       def cpar = ClassifyParams(minHitGroups(), unclassified(), confidence(), sampleRegex.toOption)
@@ -161,8 +163,9 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
           case Some(library) =>
             val genomes = findGenomes(library, Some(i.params.k))
             val goldStandardOpt = goldStandardTaxonSet.toOption.map(x => (x,classifyWithGoldStandard()))
+            val reportLocation = if (reportDynamicIndex()) Some(output() + "_dynamic") else None
             val dyn = new Dynamic(i, genomes, dynamicRank(), dynamicMinFraction(),
-              cpar, goldStandardOpt)
+              cpar, goldStandardOpt, reportLocation)
 
             dyn.twoStepClassifyAndWrite(inputs, output(), partitions())
           case None =>

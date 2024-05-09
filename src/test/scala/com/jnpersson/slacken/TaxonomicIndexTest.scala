@@ -164,9 +164,9 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
 
     val dyn = new Dynamic(idx,
       GenomeLibrary(genomes, "testData/slacken/seqid2taxid.map"),
-      Species, 1e-5, cpar, None)
+      Species, 1e-5, cpar, None, None)
 
     val reads = simulateReads(200, 1000).toDS()
-    val hits = dyn.twoStepClassify(reads)
+    val hits = dyn.twoStepClassify(reads, None)
   }
 }
