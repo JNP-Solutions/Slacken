@@ -2,9 +2,7 @@ package com.jnpersson.slacken
 
 import com.jnpersson.discount.SeqTitle
 import com.jnpersson.discount.hash.InputFragment
-import com.jnpersson.discount.spark.Inputs
-
-
+import com.jnpersson.discount.spark.{HDFSUtil, Inputs}
 import com.jnpersson.slacken.Taxonomy.{ROOT, Rank}
 import org.apache.spark.sql.{DataFrame, Dataset, SparkSession, functions}
 
@@ -23,7 +21,8 @@ import scala.collection.mutable
  */
 class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
                       reclassifyRank: Rank, taxonMinFraction: Double, cpar: ClassifyParams,
-                      goldStandardTaxonSet: Option[(String,Boolean)])(implicit spark: SparkSession) {
+                      goldStandardTaxonSet: Option[(String,Boolean)],
+                      reportDynamicIndexLocation: Option[String])(implicit spark: SparkSession) {
   import spark.sqlContext.implicits._
 
   def taxonomy = base.taxonomy
@@ -41,16 +40,16 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
    * @param partitions Number of partitions for the dynamically generated index in step 2
    */
   def twoStepClassifyAndWrite(inputs: Inputs, outputLocation: String, partitions: Int): Unit = {
-    val hits = twoStepClassify(inputs.getInputFragments(withRC = false, withAmbiguous = true).
-      coalesce(partitions),
-      outputLocation)
+    val reads = inputs.getInputFragments(withRC = false, withAmbiguous = true).
+      coalesce(partitions)
+    val hits = twoStepClassify(reads, Some(outputLocation + "_taxonSet.txt"))
     base.classifyHitsAndWrite(hits, outputLocation, cpar)
   }
 
   /** Find an estimated taxon set in the given reads (to be classified),
    * emphasising recall over precision.
    */
-  def findTaxonSet(subjects: Dataset[InputFragment]): mutable.BitSet = {
+  def findTaxonSet(subjects: Dataset[InputFragment], writeLocation: Option[String]): mutable.BitSet = {
     val taxonCounts = step1AggregateTaxa(subjects)
     val taxonTotal = taxonCounts.iterator.map(_._2.toDouble).sum
 
@@ -61,11 +60,14 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
     //    flatMap(t => List(t, taxonomy.ancestorAtLevel(t, reclassifyRank))).
 
     println(s"Initial scan produced ${keepTaxa.size} taxa, filtered at $reclassifyRank to ${taxaAtRank.size} taxa")
+    for { loc <- writeLocation }
+      HDFSUtil.writeTextLines(loc, taxaAtRank.iterator.map(_.toString))
     taxaAtRank
   }
 
   def readGoldSet(path: String): mutable.BitSet = {
-    val goldSet = mutable.BitSet.empty ++ spark.read.csv(path).map(x => x.getString(0).toInt).collect()
+    val goldSet = mutable.BitSet.empty ++
+      spark.read.csv(path).map(x => x.getString(0).toInt).collect()
     val taxaAtRank = goldSet.filter(t => taxonomy.depth(t) >= reclassifyRank.depth)
     println(s"Gold set contained ${goldSet.size} taxa, filtered at $reclassifyRank to ${taxaAtRank.size} taxa")
     taxaAtRank
@@ -74,8 +76,11 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
   /** Reclassify reads using a dynamic index. This produces the final result.
    * The dynamic index is built from a taxon set, which can be either supplied (a gold standard set)
    * or detected using a heuristic.
+   *
+   * @param subjects reads to classify
+   * @param setWriteLocation location to write the detected taxon set (optionally) for later inspection
    */
-  def twoStepClassify(subjects: Dataset[InputFragment], indexReportLocation: String): Dataset[(SeqTitle, Array[TaxonHit])] = {
+  def twoStepClassify(subjects: Dataset[InputFragment], setWriteLocation: Option[String]): Dataset[(SeqTitle, Array[TaxonHit])] = {
 
     val taxonSet = goldStandardTaxonSet match {
       case Some((path,classifyWithGoldSet)) =>
@@ -85,7 +90,7 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
         } else {
           import com.jnpersson.discount.spark.Output.formatPerc
           //Only compare the gold standard set to the detected set, use the latter for classification
-          val taxaAtRank = findTaxonSet(subjects)
+          val taxaAtRank = findTaxonSet(subjects, setWriteLocation)
           val tp = taxaAtRank.intersect(goldSet).size
           val fp = (taxaAtRank -- taxaAtRank.intersect(goldSet)).size
           val fn = (goldSet -- taxaAtRank.intersect(goldSet)).size
@@ -97,12 +102,18 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
         }
 
       case None =>
-        findTaxonSet(subjects)
+        findTaxonSet(subjects, setWriteLocation)
     }
 
     //Dynamically create a new index containing only the identified taxa and their descendants
     val buckets = base.makeBuckets(genomes, false, Some(taxonSet))
-    base.report(buckets, None, indexReportLocation + "_dynamic")
+
+    //Write genome and minimizer reports for the dynamic index
+    //Inefficient but simple (could be caching buckets), intended for debugging purposes
+    for { location <- reportDynamicIndexLocation } {
+      base.report(buckets, None, location)
+    }
+
     base.classify(buckets, subjects)
   }
 }
