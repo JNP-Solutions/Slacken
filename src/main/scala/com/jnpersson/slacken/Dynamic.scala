@@ -64,6 +64,13 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
     taxaAtRank
   }
 
+  def readGoldSet(path: String): mutable.BitSet = {
+    val goldSet = mutable.BitSet.empty ++ spark.read.csv(path).map(x => x.getString(0).toInt).collect()
+    val taxaAtRank = goldSet.filter(t => taxonomy.depth(t) >= reclassifyRank.depth)
+    println(s"Gold set contained ${goldSet.size} taxa, filtered at $reclassifyRank to ${taxaAtRank.size} taxa")
+    taxaAtRank
+  }
+
   /** Reclassify reads using a dynamic index. This produces the final result.
    * The dynamic index is built from a taxon set, which can be either supplied (a gold standard set)
    * or detected using a heuristic.
@@ -72,7 +79,7 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
 
     val taxonSet = goldStandardTaxonSet match {
       case Some((path,classifyWithGoldSet)) =>
-        val goldSet = mutable.BitSet.empty ++ spark.read.csv(path).map(x => x.getString(0).toInt).collect()
+        val goldSet = readGoldSet(path)
         if(classifyWithGoldSet) {
           goldSet
         } else {
