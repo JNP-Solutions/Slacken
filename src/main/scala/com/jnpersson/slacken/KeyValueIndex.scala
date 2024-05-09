@@ -187,19 +187,6 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     writeBuckets(compacted, outputLocation)
   }
 
-  def joinNegativeBuckets(positive: DataFrame, negative: DataFrame): DataFrame = {
-    val bcTax = this.bcTaxonomy
-    val taxonHits = positive.as("positive").join(negative.as("negative"), idColumnNames, "left")
-    val lca = TaxonLCA(bcTax)
-    val udfLca = udf(lca.merge(_, _))
-    taxonHits.select(idColumns ++
-      Seq(
-        when(isnull($"negative.taxon"), $"positive.taxon").
-          otherwise(udfLca($"negative.taxon", $"positive.taxon")).
-          as("taxon")
-      ) :_*)
-  }
-
   def getSpans(buckets: DataFrame, subjects: Dataset[InputFragment], withTitle: Boolean): Dataset[OrdinalSpan] = {
     val bcSplit = this.bcSplit
     val k = this.k

@@ -51,21 +51,6 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
   /** Sanity check input data */
   def checkInput(inputs: Inputs): Unit = {}
 
-  /** Convenience function to make buckets with both regular and negative (subtractive) inputs.
-   * @param regular pair of (regular genomes, taxon label file)
-   * @param negative optional pair of (negative genomes, taxon label file)
-   * @param addRC whether to add reverse complements
-   * @return index buckets
-   */
-  def makeBuckets(regular: GenomeLibrary, negative: Option[GenomeLibrary], addRC: Boolean): Dataset[Record] = {
-    negative match {
-      case Some(negativeLib) =>
-        joinNegativeBuckets(makeBuckets(regular, addRC), makeBuckets(negativeLib, addRC))
-      case None =>
-        makeBuckets(regular, addRC)
-    }
-  }
-
   /**
    * Construct buckets for a new index from genomes.
    *
@@ -108,19 +93,6 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
    * @param taxonLabels  Pairs of (genome title, taxon)
    */
   def makeBuckets(idsSequences: Dataset[(Taxon, NTSeq)])(implicit spark: SparkSession): Dataset[Record]
-
-  /** Join buckets with negative (subtractive) buckets.
-   * This is the "subtractive LCA" operation.
-   * All positive records are kept but may change:
-   * The LCA function is applied to pairs of positive and negative values when both exist for a given minimizer.
-   * When they only exist on the positive side, they are left unchanged.
-   * Thus, the negative buckets are not allowed to introduce new minimizers.
-   *
-   * @param positive positive minimizers
-   * @param negative negative minimizers
-   * @return combined minimizers
-   */
-  def joinNegativeBuckets(positive: Dataset[Record], negative: Dataset[Record]): Dataset[Record]
 
   def writeBuckets(buckets: Dataset[Record], location: String): Unit
 
