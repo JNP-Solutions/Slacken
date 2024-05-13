@@ -145,24 +145,17 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
    */
   def classifyHitsAndWrite(subjectsHits: Dataset[(SeqTitle, Array[TaxonHit])], outputLocation: String,
                            cpar: ClassifyParams): Unit = {
-    if (cpar.thresholds.size == 1) {
-      val t = cpar.thresholds.head
-
-      val classified = classifyHits(subjectsHits, cpar, t)
-      writeForSamples(classified, outputLocation, t, cpar)
-    } else {
-      //Multi-threshold mode
-      //Cache taxon hits and then classify for multiple thresholds.
-      //Amortizes the cost of generating taxon hits.
+    if (cpar.thresholds.size > 1) {
       subjectsHits.cache()
-      try {
-        for {t <- cpar.thresholds} {
-          val classified = classifyHits(subjectsHits, cpar, t)
-          writeForSamples(classified, outputLocation, t, cpar)
-        }
-      } finally {
-        subjectsHits.unpersist()
+    }
+
+    try {
+      for {t <- cpar.thresholds} {
+        val classified = classifyHits(subjectsHits, cpar, t)
+        writeForSamples(classified, outputLocation, t, cpar)
       }
+    } finally {
+      subjectsHits.unpersist()
     }
   }
 
