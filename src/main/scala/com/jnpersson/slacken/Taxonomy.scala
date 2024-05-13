@@ -194,6 +194,17 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
     }
   }
 
+  /** Find the ancestor of the query at the given level, if it exists. Searches upward.
+   * If it doesn't exist at the specified rank, then None will be returned.
+   * @param query taxon to search from
+   * @param rank rank to find ancestor at
+   * @return ancestor at the given level, or None if none was found
+   */
+  def ancestorAtLevelStrict(query: Taxon, rank: Rank): Option[Taxon] = {
+    val atLevel = ancestorAtLevel(query, rank)
+    if (depth(atLevel) == rank.depth) Some(atLevel) else None
+  }
+
   /** By traversing the tree upward from a given starting set of leaf taxa, count the total number of distinct taxa
    * present in the entire tree.
    * @param taxa leaf taxa to start from
