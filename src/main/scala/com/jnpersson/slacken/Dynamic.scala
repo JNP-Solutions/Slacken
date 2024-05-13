@@ -4,6 +4,7 @@ import com.jnpersson.discount.SeqTitle
 import com.jnpersson.discount.hash.InputFragment
 import com.jnpersson.discount.spark.{HDFSUtil, Inputs}
 import com.jnpersson.slacken.Taxonomy.{ROOT, Rank}
+import org.apache.spark.sql.functions.udf
 import org.apache.spark.sql.{DataFrame, Dataset, SparkSession, functions}
 
 import scala.collection.mutable
@@ -15,12 +16,12 @@ import scala.collection.mutable
  * @param base Initial index for identifying taxa by minimizer
  * @param genomes genomic library for construction of new indexes on the fly
  * @param reclassifyRank rank for the initial classification. Taxa at this level will be used to construct the second index
- * @param taxonMinFraction minimum k-mer fraction to keep a taxon in the first pass
+ * @param taxonMinCount minimum distinct minimizers to keep a taxon in the first pass
  * @param cpar parameters for classification
  * @param goldStandardTaxonSet parameters for deciding whether to get stats or classify wrt gold standard
  */
 class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
-                      reclassifyRank: Rank, taxonMinFraction: Double, cpar: ClassifyParams,
+                      reclassifyRank: Rank, taxonMinCount: Int, cpar: ClassifyParams,
                       goldStandardTaxonSet: Option[(String,Boolean)],
                       reportDynamicIndexLocation: Option[String])(implicit spark: SparkSession) {
   import spark.sqlContext.implicits._
@@ -29,8 +30,23 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
 
   def step1AggregateTaxa(subjects: Dataset[InputFragment]): Array[(Taxon, Long)] = {
     val hits = base.findHits(base.loadBuckets(), subjects)
-    hits.flatMap(h => h.trueTaxon.map(t => (t, h.count.toLong))).
-      toDF("taxon", "count").groupBy("taxon").agg(functions.sum("count").as("count")).
+
+    val bcTax = base.bcTaxonomy
+    val rank = reclassifyRank
+
+    //approx_count_distinct uses hyperLogLogPlusPlus to estimate the number of distinct values
+    //https://en.wikipedia.org/wiki/HyperLogLog#HLL++
+    hits.flatMap(h =>
+      for { t <- h.trueTaxon
+        if bcTax.value.depth(t) >= rank.depth
+          //move hits up to given ancestor level e.g. species, so that we can aggregate counts from strains and
+          //subspecies. However, sometimes not every level is present, in which case we use t as it was.
+          atLevel = bcTax.value.ancestorAtLevelStrict(t, rank)
+          mappedTaxon = atLevel.getOrElse(t)
+        } yield (mappedTaxon, h.minimizer)
+      ).
+      toDF("taxon", "minimizer").groupBy("taxon").
+      agg(functions.approx_count_distinct("minimizer").as("count")).
       as[(Taxon, Long)].collect()
   }
 
@@ -53,16 +69,12 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
     val taxonCounts = step1AggregateTaxa(subjects)
     val taxonTotal = taxonCounts.iterator.map(_._2.toDouble).sum
 
-    val keepTaxa = mutable.BitSet.empty ++ taxonCounts.iterator.filter(_._2/taxonTotal >= taxonMinFraction).map(_._1)
+    val keepTaxa = mutable.BitSet.empty ++ taxonCounts.iterator.filter(_._2 >= taxonMinCount).map(_._1)
 
-    val taxaAtRank = keepTaxa.
-      filter(t => taxonomy.depth(t) >= reclassifyRank.depth)
-    //    flatMap(t => List(t, taxonomy.ancestorAtLevel(t, reclassifyRank))).
-
-    println(s"Initial scan produced ${keepTaxa.size} taxa, filtered at $reclassifyRank to ${taxaAtRank.size} taxa")
+    println(s"Initial scan produced ${keepTaxa.size} taxa at rank $reclassifyRank")
     for { loc <- writeLocation }
-      HDFSUtil.writeTextLines(loc, taxaAtRank.iterator.map(_.toString))
-    taxaAtRank
+      HDFSUtil.writeTextLines(loc, keepTaxa.iterator.map(_.toString))
+    keepTaxa
   }
 
   def readGoldSet(path: String): mutable.BitSet = {
