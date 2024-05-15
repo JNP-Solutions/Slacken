@@ -44,7 +44,7 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
         } yield (t, h.minimizer)
       ).
       toDF("taxon", "minimizer").groupBy("taxon").
-      agg(functions.approx_count_distinct("minimizer").as("count")).
+      agg(functions.count_distinct($"minimizer").as("count")).
       as[(Taxon, Long)].collect()
   }
 
