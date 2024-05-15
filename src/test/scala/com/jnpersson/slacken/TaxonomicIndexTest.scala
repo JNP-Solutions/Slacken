@@ -167,6 +167,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
       Species, 1000, 10, cpar, None, None)
 
     val reads = simulateReads(200, 1000).toDS()
-    val hits = dyn.twoStepClassify(reads, None)
+    val bkts = dyn.makeBuckets(reads, None)
+    val hits = idx.classify(bkts, reads)
   }
 }
