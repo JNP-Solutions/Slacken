@@ -2,6 +2,7 @@ package com.jnpersson.slacken
 
 import com.jnpersson.discount.SeqTitle
 import com.jnpersson.discount.hash.InputFragment
+import com.jnpersson.discount.spark.Output.formatPerc
 import com.jnpersson.discount.spark.{HDFSUtil, Inputs}
 import com.jnpersson.slacken.Taxonomy.{ROOT, Rank}
 import org.apache.spark.sql.functions.udf
@@ -21,7 +22,8 @@ import scala.collection.mutable
  * @param goldStandardTaxonSet parameters for deciding whether to get stats or classify wrt gold standard
  */
 class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
-                      reclassifyRank: Rank, taxonMinCount: Int, cpar: ClassifyParams,
+                      reclassifyRank: Rank, taxonMinCount: Int, leafMinCount: Int,
+                      cpar: ClassifyParams,
                       goldStandardTaxonSet: Option[(String,Boolean)],
                       reportDynamicIndexLocation: Option[String])(implicit spark: SparkSession) {
   import spark.sqlContext.implicits._
@@ -39,11 +41,7 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
     hits.flatMap(h =>
       for { t <- h.trueTaxon
         if bcTax.value.depth(t) >= rank.depth
-          //move hits up to given ancestor level e.g. species, so that we can aggregate counts from strains and
-          //subspecies. However, sometimes not every level is present, in which case we use t as it was.
-          atLevel = bcTax.value.ancestorAtLevelStrict(t, rank)
-          mappedTaxon = atLevel.getOrElse(t)
-        } yield (mappedTaxon, h.minimizer)
+        } yield (t, h.minimizer)
       ).
       toDF("taxon", "minimizer").groupBy("taxon").
       agg(functions.approx_count_distinct("minimizer").as("count")).
@@ -66,15 +64,38 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
    * emphasising recall over precision.
    */
   def findTaxonSet(subjects: Dataset[InputFragment], writeLocation: Option[String]): mutable.BitSet = {
-    val taxonCounts = step1AggregateTaxa(subjects)
-    val taxonTotal = taxonCounts.iterator.map(_._2.toDouble).sum
+    val report = new KrakenReport(taxonomy, step1AggregateTaxa(subjects))
+    val aggregated = report.cladeCounts //propagate counts up to ancestors
 
-    val keepTaxa = mutable.BitSet.empty ++ taxonCounts.iterator.filter(_._2 >= taxonMinCount).map(_._1)
+    val keepTaxa = mutable.BitSet.empty ++
+      (for {(taxon, count) <- aggregated
+            if taxonomy.depth(taxon) >= reclassifyRank.depth
+            if count >= taxonMinCount}
+      yield taxon)
 
-    println(s"Initial scan produced ${keepTaxa.size} taxa at rank $reclassifyRank")
     for { loc <- writeLocation }
       HDFSUtil.writeTextLines(loc, keepTaxa.iterator.map(_.toString))
-    keepTaxa
+
+    goldStandardTaxonSet match {
+      case Some((path, _)) =>
+        val goldSet = readGoldSet(path)
+        val tp = keepTaxa.intersect(goldSet).size
+        val fp = (keepTaxa -- keepTaxa.intersect(goldSet)).size
+        val fn = (goldSet -- keepTaxa.intersect(goldSet)).size
+        val precision = tp.toDouble/(tp+fp)
+        val recall = tp.toDouble/goldSet.size
+        println(s"True Positives: $tp, False Positives: $fp, False Negatives: $fn, " +
+          s"Precision: ${formatPerc(precision)}, Recall: ${formatPerc(recall)}")
+      case _ =>
+    }
+
+    //include descendants (leaf genomes) if they have enough unique minimizers
+    val allowedTaxa =
+      taxonomy.taxaWithDescendants(keepTaxa).filter(t => report.countMap.getOrElse(t, 0L) >= leafMinCount)
+    println(s"Initial scan (cutoff $taxonMinCount) produced ${keepTaxa.size} taxa at rank $reclassifyRank, " +
+      s"expanded with descendants to ${allowedTaxa.size} (cutoff $leafMinCount)")
+
+    allowedTaxa
   }
 
   def readGoldSet(path: String): mutable.BitSet = {
@@ -96,23 +117,13 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
 
     val taxonSet = goldStandardTaxonSet match {
       case Some((path,classifyWithGoldSet)) =>
-        val goldSet = readGoldSet(path)
         if(classifyWithGoldSet) {
-          goldSet
+          val goldSet = readGoldSet(path)
+          taxonomy.taxaWithDescendants(goldSet)
         } else {
-          import com.jnpersson.discount.spark.Output.formatPerc
           //Only compare the gold standard set to the detected set, use the latter for classification
-          val taxaAtRank = findTaxonSet(subjects, setWriteLocation)
-          val tp = taxaAtRank.intersect(goldSet).size
-          val fp = (taxaAtRank -- taxaAtRank.intersect(goldSet)).size
-          val fn = (goldSet -- taxaAtRank.intersect(goldSet)).size
-          val precision = tp.toDouble/(tp+fp)
-          val recall = tp.toDouble/goldSet.size
-          println(s"True Positives: $tp, False Positives: $fp, False Negatives: $fn, " +
-            s"Precision: ${formatPerc(precision)}, Recall: ${formatPerc(recall)}")
-          taxaAtRank
+          findTaxonSet(subjects, setWriteLocation)
         }
-
       case None =>
         findTaxonSet(subjects, setWriteLocation)
     }
