@@ -56,9 +56,22 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
   def twoStepClassifyAndWrite(inputs: Inputs, outputLocation: String, partitions: Int): Unit = {
     val reads = inputs.getInputFragments(withRC = false, withAmbiguous = true).
       coalesce(partitions)
-    val hits = twoStepClassify(reads, Some(outputLocation + "_taxonSet.txt"))
-    base.classifyHitsAndWrite(hits, outputLocation, cpar)
+    val buckets = makeBuckets(reads, Some(outputLocation + "_taxonSet.txt"))
+
+    try {
+      //Write genome and minimizer reports for the dynamic index
+      //Inefficient but simple (could be caching buckets), intended for debugging purposes
+      for {location <- reportDynamicIndexLocation} {
+        buckets.cache()
+        base.report(buckets, None, location)
+      }
+      val hits = base.classify(buckets, reads)
+      base.classifyHitsAndWrite(hits, outputLocation, cpar)
+    } finally {
+      buckets.unpersist()
+    }
   }
+
 
   /** Find an estimated taxon set in the given reads (to be classified),
    * emphasising recall over precision.
@@ -106,18 +119,17 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
     taxaAtRank
   }
 
-  /** Reclassify reads using a dynamic index. This produces the final result.
-   * The dynamic index is built from a taxon set, which can be either supplied (a gold standard set)
+  /** Build a dynamic index from a taxon set, which can be either supplied (a gold standard set)
    * or detected using a heuristic.
    *
-   * @param subjects reads to classify
+   * @param subjects reads for detecting a taxon set
    * @param setWriteLocation location to write the detected taxon set (optionally) for later inspection
    */
-  def twoStepClassify(subjects: Dataset[InputFragment], setWriteLocation: Option[String]): Dataset[(SeqTitle, Array[TaxonHit])] = {
+  def makeBuckets(subjects: Dataset[InputFragment], setWriteLocation: Option[String]): Dataset[Record] = {
 
     val taxonSet = goldStandardTaxonSet match {
-      case Some((path,classifyWithGoldSet)) =>
-        if(classifyWithGoldSet) {
+      case Some((path, classifyWithGoldSet)) =>
+        if (classifyWithGoldSet) {
           val goldSet = readGoldSet(path)
           taxonomy.taxaWithDescendants(goldSet)
         } else {
@@ -129,14 +141,7 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
     }
 
     //Dynamically create a new index containing only the identified taxa and their descendants
-    val buckets = base.makeBuckets(genomes, false, Some(taxonSet))
-
-    //Write genome and minimizer reports for the dynamic index
-    //Inefficient but simple (could be caching buckets), intended for debugging purposes
-    for { location <- reportDynamicIndexLocation } {
-      base.report(buckets, None, location)
-    }
-
-    base.classify(buckets, subjects)
+    base.makeBuckets(genomes, false, Some(taxonSet))
   }
+
 }
