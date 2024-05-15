@@ -63,9 +63,8 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
                   taxonFilter: Option[mutable.BitSet] = None)(implicit spark: SparkSession): Dataset[Record] = {
     val input = taxonFilter match {
       case Some(tf) =>
-        val allowedTaxa = taxonomy.taxaWithDescendants(tf)
         val titlesTaxa = getTaxonLabels(library.labelFile).
-          filter(l => allowedTaxa.contains(l._2)).as[(SeqTitle, Taxon)].toDF("header", "taxon").cache //TODO unpersist
+          filter(l => tf.contains(l._2)).as[(SeqTitle, Taxon)].toDF("header", "taxon").cache //TODO unpersist
 
         println("Construct dynamic buckets from:")
         titlesTaxa.select(countDistinct($"header"), countDistinct($"taxon")).show()

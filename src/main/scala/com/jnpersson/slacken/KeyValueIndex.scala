@@ -227,9 +227,8 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   }
 
   /** Classify subject sequences using the supplied index (as a dataset) */
-  def classify(buckets: DataFrame, subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])] = {
+  def classify(buckets: DataFrame, subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])] =
     classifySpans(buckets, getSpans(buckets, subjects, true))
-  }
 
   def classifySpans(buckets: DataFrame, subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit])] = {
     //The 'subject' struct constructs an OrdinalSpan
