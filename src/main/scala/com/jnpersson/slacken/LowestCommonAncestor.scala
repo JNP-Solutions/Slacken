@@ -73,7 +73,7 @@ final class LowestCommonAncestor(taxonomy: Taxonomy) {
     var maxScore = 0
 
     //the number of times each taxon was seen in a read, excluding ambiguous
-    val hitCounts = hitSummary.toMap
+    val hitCounts = hitSummary.toMap.withDefaultValue(0)
     val requiredScore = Math.ceil(confidenceThreshold * hitSummary.totalTaxa)
 
     for { (taxon, _) <- hitCounts } {
@@ -81,7 +81,7 @@ final class LowestCommonAncestor(taxonomy: Taxonomy) {
       var score = 0
       //Accumulate score across this path to the root
       while (node != NONE) {
-        score += hitCounts.getOrElse(node, 0)
+        score += hitCounts(node)
         node = parents(node)
       }
 
@@ -94,7 +94,7 @@ final class LowestCommonAncestor(taxonomy: Taxonomy) {
     }
 
     //Gradually lift maxTaxon to try to achieve the required score
-    maxScore = hitCounts.getOrElse(maxTaxon, 0)
+    maxScore = hitCounts(maxTaxon)
     while (maxTaxon != NONE && maxScore < requiredScore) {
       maxScore = 0
       for {

@@ -3,8 +3,8 @@ package com.jnpersson.slacken
 import com.jnpersson.discount.hash.InputFragment
 import com.jnpersson.discount.spark.Output.formatPerc
 import com.jnpersson.discount.spark.{HDFSUtil, Inputs}
-import com.jnpersson.slacken.Taxonomy.{ROOT, Rank}
-import org.apache.spark.sql.{DataFrame, Dataset, SparkSession, functions}
+import com.jnpersson.slacken.Taxonomy.Rank
+import org.apache.spark.sql.{Dataset, SparkSession, functions}
 
 import scala.collection.mutable
 
@@ -102,7 +102,7 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
 
     //include descendants (leaf genomes) if they have enough unique minimizers
     val allowedTaxa =
-      taxonomy.taxaWithDescendants(keepTaxa).filter(t => report.countMap.getOrElse(t, 0L) >= leafMinCount)
+      taxonomy.taxaWithDescendants(keepTaxa).filter(t => report.taxonCounts(t) >= leafMinCount)
     println(s"Initial scan (cutoff $taxonMinCount) produced ${keepTaxa.size} taxa at rank $reclassifyRank, " +
       s"expanded with descendants to ${allowedTaxa.size} (cutoff $leafMinCount)")
 
@@ -126,15 +126,10 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
   def makeBuckets(subjects: Dataset[InputFragment], setWriteLocation: Option[String]): Dataset[Record] = {
 
     val taxonSet = goldStandardTaxonSet match {
-      case Some((path, classifyWithGoldSet)) =>
-        if (classifyWithGoldSet) {
-          val goldSet = readGoldSet(path)
-          taxonomy.taxaWithDescendants(goldSet)
-        } else {
-          //Only compare the gold standard set to the detected set, use the latter for classification
-          findTaxonSet(subjects, setWriteLocation)
-        }
-      case None =>
+      case Some((path, true)) =>
+        val goldSet = readGoldSet(path)
+        taxonomy.taxaWithDescendants(goldSet)
+      case _ =>
         findTaxonSet(subjects, setWriteLocation)
     }
 
