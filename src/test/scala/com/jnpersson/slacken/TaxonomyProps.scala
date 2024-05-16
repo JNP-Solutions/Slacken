@@ -51,6 +51,7 @@ class TaxonomyProps extends AnyFunSuite with ScalaCheckPropertyChecks {
       for {t <- tax.taxa
            } {
         tax.stepsToAncestor(t, ROOT) should not equal(-1)
+        tax.pathToRoot(t).size should equal (tax.stepsToAncestor(t, ROOT) + 1)
       }
     }
   }
