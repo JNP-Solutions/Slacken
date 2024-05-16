@@ -16,27 +16,24 @@ import scala.collection.mutable.{Map => MMap}
  * @param counts Number of hits (reads) for each taxon
  */
 final class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
-  lazy val cladeCounts = aggregateCounts()
-  lazy val countMap = MMap.empty ++ counts
+  lazy val cladeCounts = aggregateCounts().withDefaultValue(0L)
+  lazy val taxonCounts = (MMap.empty ++ counts).withDefaultValue(0L)
   lazy val totalSequences = counts.iterator.map(_._2).sum
-
 
   /** Build a lookup map for aggregate taxon hit counts.
    * Adds counts recursively to ancestors, propagating up the tree. */
   def aggregateCounts(): MMap[Taxon, Long] = {
-    val r = MMap[Taxon, Long]()
+    val r = MMap[Taxon, Long]().withDefaultValue(0L)
     for {
       (taxid, count) <- counts
-    } {
-      for { p <- taxonomy.pathToRoot(taxid) }
-        r += (p -> (r.getOrElse(p, 0L) + count))
-    }
+      p <- taxonomy.pathToRoot(taxid)
+    } r(p) += count
     r
   }
 
   def reportLine(taxid: Taxon, rank: Rank, rankDepth: Int, depth: Int): String = {
-    val cladeCount = cladeCounts.getOrElse(taxid, 0L) //aggregate
-    val taxonCount = countMap.getOrElse(taxid, 0L)
+    val cladeCount = cladeCounts(taxid) //aggregate
+    val taxonCount = taxonCounts(taxid)
     val percent = "%6.2f".format(100.0 * cladeCount / totalSequences)
     val depthString = if (rankDepth == 0) "" else rankDepth.toString
     val indent = "  " * depth
@@ -59,7 +56,7 @@ final class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
     //sort by descending clade count
     //Because counts have already been aggregated upward, filtering > 0 will not remove any intermediate nodes
     val sortedChildren = taxonomy.children(taxid).toArray.
-      map(c => (c, cladeCounts.getOrElse(c, 0L))).sortWith((a, b) => a._2 > b._2)
+      map(c => (c, cladeCounts(c))).sortWith((a, b) => a._2 > b._2)
     for {
       (child, count) <- sortedChildren
       if reportZeros || count > 0
@@ -69,7 +66,7 @@ final class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
   }
 
   def reportDFS(output: PrintWriter, reportZeros: Boolean): Unit = {
-    val totalUnclassified = countMap.getOrElse(NONE, 0)
+    val totalUnclassified = taxonCounts(NONE)
     if (totalUnclassified != 0 || reportZeros) {
       output.println(reportLine(NONE, Unclassified, 0, 0))
     }

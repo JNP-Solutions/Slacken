@@ -182,13 +182,8 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
   }
 
   /** Compute L1 distance of two vectors of equal length. */
-  def l1Dist(v1: Array[Double], v2: Array[Double]): Double = {
-    var r = 0d
-    for { i <- v1.indices } {
-      r += Math.abs(v1(i) - v2(i))
-    }
-    r
-  }
+  def l1Dist(v1: Array[Double], v2: Array[Double]): Double =
+    v1.indices.foldLeft(0d)((sum, i) => sum + Math.abs(v1(i) - v2(i)))
 
   def perReadComparison(cmpData: DataFrame, rank: Option[Rank]): PerReadMetrics = {
     val joint = referenceData.join(cmpData, referenceData("id") === cmpData("id"), "outer").
@@ -215,12 +210,12 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
       })
     }).toDF("category").groupBy("category").count().as[(String, Long)].cache()
     categoryBreakdown.show()
-    val catMap = categoryBreakdown.collect().toMap
+    val catMap = categoryBreakdown.collect().toMap.withDefaultValue(0L)
 
-    val tp = catMap.getOrElse("TruePos", 0L)
-    val fp = catMap.getOrElse("FalsePos", 0L)
-    val vp = catMap.getOrElse("VaguePos", 0L)
-    val fn = catMap.getOrElse("FalseNeg", 0L)
+    val tp = catMap("TruePos")
+    val fp = catMap("FalsePos")
+    val vp = catMap("VaguePos")
+    val fn = catMap("FalseNeg")
     val sensitivity = tp.toDouble / totalReads
     val ppv = if (tp + fp > 0)
       tp.toDouble / (tp + fp)
