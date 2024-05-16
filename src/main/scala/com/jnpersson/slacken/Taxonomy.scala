@@ -36,16 +36,16 @@ object Taxonomy {
 
   //See kraken2 reports.cc
   def rank(title: String): Option[Rank] = title match {
-    case "unclassified" => Some(Unclassified)
-    case "root" => Some(Root)
-    case "superkingdom" => Some(Superkingdom)
-    case "kingdom" => Some(Kingdom)
-    case "phylum" => Some(Phylum)
-    case "class" => Some(Class)
-    case "order" => Some(Order)
-    case "family" => Some(Family)
-    case "genus" => Some(Genus)
-    case "species" => Some(Species)
+    case Unclassified.title => Some(Unclassified)
+    case Root.title => Some(Root)
+    case Superkingdom.title => Some(Superkingdom)
+    case Kingdom.title => Some(Kingdom)
+    case Phylum.title => Some(Phylum)
+    case Class.title => Some(Class)
+    case Order.title => Some(Order)
+    case Family.title => Some(Family)
+    case Genus.title => Some(Genus)
+    case Species.title => Some(Species)
     case _ => None
   }
 
@@ -127,6 +127,20 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
     children
   }
 
+  /** Iterate all steps to ROOT from a starting taxon, including the taxon itself. */
+  def pathToRoot(from: Taxon): Iterator[Taxon] =
+    new Iterator[Taxon] {
+      private var t = from
+      override def hasNext: Boolean =
+        t != NONE
+
+      override def next(): Taxon = {
+        val r = t
+        t = parents(t)
+        r
+      }
+    }
+
   /**
    * Numerical depth of a taxon. Standardised to correspond to ranks, so that 0 = root,
    * 1 = superkingdom etc. This need not correspond to the actual depth of the tree structure.
@@ -151,15 +165,9 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
 
   /** Number of levels between a taxon and a given ancestor. The result will always be -1
    * if the given ancestor is not in the lineage of the taxon. */
-  @tailrec
   def stepsToAncestor(tax: Taxon, ancestor: Taxon, acc: Int = 0): Int = {
-    if (tax == NONE) {
-      -1
-    } else if (ancestor == tax) {
-      acc
-    } else {
-      stepsToAncestor(parents(tax), ancestor, acc + 1)
-    }
+    val path = pathToRoot(tax)
+    if (path.isEmpty) -1 else path.indexOf(ancestor)
   }
 
   /** Find the ancestor of the query at the given level, if it exists. Searches upward.
@@ -170,7 +178,7 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
    * @return ancestor at the given level, or ROOT if none was found
    */
   def ancestorAtLevel(query: Taxon, rank: Rank): Taxon =
-    ancestorAtLevel(query, query, rank)
+    pathToRoot(query).find(t => depth(t) <= rank.depth).getOrElse(ROOT)
 
   /** Convenience function that optionally returns the query itself if no ancestor level is specified */
   def ancestorAtLevel(query: Taxon, rank: Option[Rank]): Taxon =
@@ -179,31 +187,14 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
       case None => query
     }
 
-  @tailrec
-  private def ancestorAtLevel(query: Taxon, at: Taxon, level: Rank): Taxon = {
-    if (at != NONE && depth(at) <= level.depth) { //already at or above the requested level
-      at
-    } else {
-      val p = parents(at)
-      if (p == NONE | p == ROOT) {
-//        println(s"Warning: no ancestor at level $level for taxon $query. Assigning ROOT=$ROOT")
-        ROOT
-      } else {
-        ancestorAtLevel(query, p, level)
-      }
-    }
-  }
-
   /** Find the ancestor of the query at the given level, if it exists. Searches upward.
    * If it doesn't exist at the specified rank, then None will be returned.
    * @param query taxon to search from
    * @param rank rank to find ancestor at
    * @return ancestor at the given level, or None if none was found
    */
-  def ancestorAtLevelStrict(query: Taxon, rank: Rank): Option[Taxon] = {
-    val atLevel = ancestorAtLevel(query, rank)
-    if (depth(atLevel) == rank.depth) Some(atLevel) else None
-  }
+  def ancestorAtLevelStrict(query: Taxon, rank: Rank): Option[Taxon] =
+    pathToRoot(query).find(t => depth(t) == rank.depth)
 
   /** By traversing the tree upward from a given starting set of leaf taxa, count the total number of distinct taxa
    * present in the entire tree.
@@ -215,48 +206,26 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
 
   /** For a given taxon, find which of the standard 8 levels are missing in its path to the root.
    */
-  @tailrec
   def missingStepsToRoot(taxon: Taxon, acc: List[Int] = Nil): List[Int] = {
-    if (taxon == NONE || taxon == ROOT)
-      acc
-    else {
-      val p = parents(taxon)
-      if (p == NONE) return acc
-      val l1 = depth(taxon)
-      val l2 = depth(p)
-      if (l1 - l2 > 1)
-        missingStepsToRoot(p, (l2 + 1).until(l1).toList ::: acc)
-      else
-        missingStepsToRoot(p, acc)
-    }
+    val found = pathToRoot(taxon).toList.map(t => depth(t))
+    (Superkingdom.depth to Species.depth).toList.
+      filter(level => !found.contains(level))
   }
 
   /** Complete a taxonomic tree upwards to ROOT by including all ancestors */
-  def taxaWithAncestors(taxa: Iterable[Taxon]): mutable.BitSet = {
-    val r = mutable.BitSet.empty
-    for { a <- taxa} {
-      var p = a
-      while (p != NONE && !r.contains(p)) {
-        r += p
-        p = parents(p)
-      }
-    }
-    r
-  }
+  def taxaWithAncestors(taxa: Iterable[Taxon]): mutable.BitSet =
+    taxa.foldLeft(mutable.BitSet.empty)((set, a) => {
+      set ++= pathToRoot(a).takeWhile(e => ! set.contains(e))
+    })
 
   /** Complete a taxonomic tree downward (entire clades) starting from the given set,
    * including all descendants */
-  def taxaWithDescendants(taxa: Iterable[Taxon]): mutable.BitSet = {
-    val r = mutable.BitSet.empty ++ taxa
-    for { a <- taxa } addDescendants(r, a)
-    r
-  }
+  def taxaWithDescendants(taxa: Iterable[Taxon]): mutable.BitSet =
+    taxa.foldLeft(mutable.BitSet.empty)(addDescendants)
 
-  def addDescendants(to: mutable.BitSet, from: Taxon): Unit = {
+  def addDescendants(to: mutable.BitSet, from: Taxon): mutable.BitSet = {
     to ++= children(from)
-    for { c <- children(from) } {
-      addDescendants(to, c)
-    }
+    children(from).foldLeft(to)(addDescendants)
   }
 
   @tailrec

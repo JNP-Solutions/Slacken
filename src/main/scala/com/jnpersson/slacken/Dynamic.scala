@@ -1,11 +1,9 @@
 package com.jnpersson.slacken
 
-import com.jnpersson.discount.SeqTitle
 import com.jnpersson.discount.hash.InputFragment
 import com.jnpersson.discount.spark.Output.formatPerc
 import com.jnpersson.discount.spark.{HDFSUtil, Inputs}
 import com.jnpersson.slacken.Taxonomy.{ROOT, Rank}
-import org.apache.spark.sql.functions.udf
 import org.apache.spark.sql.{DataFrame, Dataset, SparkSession, functions}
 
 import scala.collection.mutable

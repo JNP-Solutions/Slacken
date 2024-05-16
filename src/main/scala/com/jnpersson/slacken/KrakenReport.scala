@@ -20,14 +20,6 @@ final class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
   lazy val countMap = MMap.empty ++ counts
   lazy val totalSequences = counts.iterator.map(_._2).sum
 
-  @tailrec
-  def addParents(to: MMap[Taxon, Long], from: Taxon, count: Long): Unit = {
-    val parent = taxonomy.parents(from)
-    if (parent != NONE) {
-      to += (parent -> (to.getOrElse(parent, 0L) + count))
-      addParents(to, parent, count)
-    }
-  }
 
   /** Build a lookup map for aggregate taxon hit counts.
    * Adds counts recursively to ancestors, propagating up the tree. */
@@ -36,8 +28,8 @@ final class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
     for {
       (taxid, count) <- counts
     } {
-      r += (taxid -> (r.getOrElse(taxid, 0L) + count))
-      addParents(r, taxid, count)
+      for { p <- taxonomy.pathToRoot(taxid) }
+        r += (p -> (r.getOrElse(p, 0L) + count))
     }
     r
   }
