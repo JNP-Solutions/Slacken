@@ -62,10 +62,9 @@ class SparkConfiguration(args: Array[String])(implicit val spark: SparkSession) 
       method(), partitions())
   }
 
-  def discount(p: IndexParams): Discount = {
-    val session = SparkTool.newSession(spark, p.buckets)
-    new Discount(p.k, parseMinimizerSource, p.m, ordering(), sample(), maxSequenceLength(), normalize(), method(),
-      p.buckets)(session)
+  def minimizerConfig(): MinimizerConfig = {
+    requireSuppliedK()
+    new MinimizerConfig(k(), parseMinimizerSource, minimizerWidth(), ordering(), sample(), maxSequenceLength(), normalize())
   }
 
   def finishSetup(): this.type = {

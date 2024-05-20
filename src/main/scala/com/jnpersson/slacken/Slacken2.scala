@@ -69,7 +69,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
 
         val params = IndexParams(
           spark.sparkContext.broadcast(
-            MinSplitter(seedMask(discount.getSplitter(Some(genomes.inputs.files)).priorities), k())
+            MinSplitter(seedMask(minimizerConfig().getSplitter(Some(genomes.inputs.files)).priorities), k())
           ), partitions(), location())
         println(s"Splitter ${params.splitter}")
 
