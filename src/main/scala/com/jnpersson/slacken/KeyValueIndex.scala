@@ -179,15 +179,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     spark.sql(s"SELECT $idColumnsString, taxon FROM kv_taxidx")
   }
 
-  /** Union several indexes. The indexes must use the same splitter and taxonomy.
-   */
-  def unionIndexes(locations: Iterable[String], outputLocation: String): Unit = {
-    val buckets = locations.map(loadBuckets).foldLeft(spark.emptyDataFrame)(_ union _)
-    val compacted = reduceLCAs(buckets)
-    writeBuckets(compacted, outputLocation)
-  }
-
-  def getSpans(buckets: DataFrame, subjects: Dataset[InputFragment], withTitle: Boolean): Dataset[OrdinalSpan] = {
+  def getSpans(subjects: Dataset[InputFragment], withTitle: Boolean): Dataset[OrdinalSpan] = {
     val bcSplit = this.bcSplit
     val k = this.k
     val ni = numIdColumns
@@ -211,7 +203,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
 
   /** Find TaxonHits from InputFragments and set their taxa, without grouping them by seqTitle. */
   def findHits(buckets: DataFrame, subjects: Dataset[InputFragment]): Dataset[TaxonHit] = {
-    val spans = getSpans(buckets, subjects, false)
+    val spans = getSpans(subjects, false)
     //The 'subject' struct constructs an OrdinalSpan
     val taggedSpans = spans.select(
       struct($"minimizer", $"kmers", $"flag", $"ordinal", $"seqTitle").as("subject") +:
@@ -228,7 +220,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
 
   /** Classify subject sequences using the supplied index (as a dataset) */
   def classify(buckets: DataFrame, subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])] =
-    classifySpans(buckets, getSpans(buckets, subjects, true))
+    classifySpans(buckets, getSpans(subjects, true))
 
   def classifySpans(buckets: DataFrame, subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit])] = {
     //The 'subject' struct constructs an OrdinalSpan
