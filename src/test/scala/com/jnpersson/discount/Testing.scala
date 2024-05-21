@@ -17,7 +17,6 @@
 
 package com.jnpersson.discount
 
-import com.jnpersson.discount.spark.Rule.Sum
 import com.jnpersson.discount.bucket.{BucketStats, ReduceParams, Reducer, ReducibleBucket, Tag}
 
 import scala.collection.{immutable, mutable}
@@ -124,14 +123,6 @@ object TestGenerators {
 
   def encodedMinimizers(m: Int): Gen[Long] = Gen.choose(Long.MinValue, Long.MaxValue).
     map(x => x & (-1L >>> (64 - 2 * m)))
-
-  def kmerTags(n: Int): Gen[Array[Tag]] =
-    Gen.listOfN(n, abundances).map(_.toArray)
-
-  def kmerTags(sm: NTBitArray, k: Int): Gen[Array[Tag]] = kmerTags(sm.size - (k - 1))
-
-  def kmerTags(sms: Array[NTBitArray], k: Int): Gen[Seq[Array[Tag]]] =
-    Gen.sequence(sms.map(sm => kmerTags(sm, k)))(Buildable.buildableSeq)
 
 }
 

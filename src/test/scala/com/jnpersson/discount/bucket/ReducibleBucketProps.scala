@@ -19,8 +19,7 @@ package com.jnpersson.discount.bucket
 
 import com.jnpersson.discount.Abundance
 import com.jnpersson.discount.spark.CountingTestGenerators._
-import com.jnpersson.discount.spark.Rule
-import com.jnpersson.discount.spark.Rule._
+import com.jnpersson.discount.bucket.Rule._
 import org.scalatest.funsuite._
 import org.scalatest.matchers.should.Matchers._
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
