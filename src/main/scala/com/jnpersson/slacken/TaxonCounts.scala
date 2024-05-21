@@ -44,11 +44,6 @@ object TaxonCounts {
     }
     new TaxonCounts(summaries.headOption.map(_.ordinal).getOrElse(0), taxonRet, countRet)
   }
-
-  /** Construct a TaxonCounts object for a single counted taxon */
-  def forTaxon(ordinal: Int, taxon: Taxon, kmers: Int): TaxonCounts =
-    TaxonCounts(ordinal, Array(taxon), Array(kmers))
-
 }
 
 /**

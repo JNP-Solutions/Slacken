@@ -89,10 +89,9 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
   /**
    * Build index buckets
    *
-   * @param idsSequences Pairs of (genome title, genome)
-   * @param taxonLabels  Pairs of (genome title, taxon)
+   * @param taxaSequences Pairs of (taxon, genome)
    */
-  def makeBuckets(idsSequences: Dataset[(Taxon, NTSeq)])(implicit spark: SparkSession): Dataset[Record]
+  def makeBuckets(taxaSequences: Dataset[(Taxon, NTSeq)]): Dataset[Record]
 
   def writeBuckets(buckets: Dataset[Record], location: String): Unit
 
@@ -138,8 +137,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
   /** Classify subject sequences using the given index, optionally for multiple samples,
    * writing the results to a designated output location
    *
-   * @param buckets        minimizer index
-   * @param subjects       sequences to be classified
+   * @param subjectsHits       sequences to be classified
    * @param outputLocation location (directory, if multi-sample or prefix, if single sample) to write output
    * @param cpar           classification parameters
    */
