@@ -9,10 +9,8 @@ import com.jnpersson.discount.NTSeq
 import com.jnpersson.discount.hash.{BucketId, InputFragment}
 import com.jnpersson.discount.spark.AnyMinSplitter
 import com.jnpersson.discount.util.NTBitArray
-import org.apache.spark.broadcast.Broadcast
 
-import scala.annotation.{switch, tailrec}
-import scala.collection.mutable.ArrayBuffer
+
 import scala.util.Random
 
 /** A super-mer with a single minimizer.

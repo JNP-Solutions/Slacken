@@ -8,7 +8,6 @@ package com.jnpersson.slacken
 import com.jnpersson.slacken.Taxonomy.{NONE, ROOT, Rank, Root, Unclassified}
 
 import java.io.PrintWriter
-import scala.annotation.tailrec
 import scala.collection.mutable.{Map => MMap}
 
 /** A Kraken 1/2 style taxonomic report with a tree structure.
