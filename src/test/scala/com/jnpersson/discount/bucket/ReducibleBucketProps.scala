@@ -18,7 +18,7 @@
 package com.jnpersson.discount.bucket
 
 import com.jnpersson.discount.Abundance
-import com.jnpersson.discount.TestGenerators._
+import com.jnpersson.discount.spark.CountingTestGenerators._
 import com.jnpersson.discount.spark.Rule
 import com.jnpersson.discount.spark.Rule._
 import org.scalatest.funsuite._
