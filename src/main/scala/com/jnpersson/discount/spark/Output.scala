@@ -18,9 +18,7 @@
 package com.jnpersson.discount.spark
 
 import com.jnpersson.discount._
-import com.jnpersson.discount.bucket.BucketStats
 import org.apache.hadoop.fs.{Path => HPath}
-import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
 
 /**

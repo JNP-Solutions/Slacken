@@ -17,12 +17,7 @@
 
 package com.jnpersson.discount.spark
 
-import com.jnpersson.discount.{Both, ForwardOnly, Frequency, Given}
-import com.jnpersson.discount.bucket.Reducer
-import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.SparkSession
-import org.rogach.scallop.ScallopConf
-
 
 /** A Spark-based tool.
  * @param appName Name of the application */
