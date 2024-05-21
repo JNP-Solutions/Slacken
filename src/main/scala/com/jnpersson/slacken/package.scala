@@ -6,7 +6,6 @@
 package com.jnpersson
 
 import com.jnpersson.discount.SeqTitle
-import com.jnpersson.discount.hash.BucketId
 import com.jnpersson.discount.spark.Inputs
 
 /**
