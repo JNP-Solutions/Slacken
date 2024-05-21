@@ -20,6 +20,7 @@ package com.jnpersson.discount.spark
 import com.jnpersson.discount._
 import com.jnpersson.discount.bucket.{BucketStats, Reducer, ReducibleBucket, Tag}
 import com.jnpersson.discount.hash.BucketId
+import com.jnpersson.discount.spark.Helpers.randomTableName
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.functions.{collect_list, explode, udf}
 import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
@@ -28,12 +29,6 @@ import java.util.SplittableRandom
 
 object Index {
   import org.apache.spark.sql._
-
-  def randomTableName: String = {
-    val rnd = scala.util.Random.nextLong()
-    val useRnd = if (rnd < 0) - rnd else rnd
-    s"discount_$useRnd"
-  }
 
   def read(location: String, knownParams: Option[IndexParams] = None)(implicit spark: SparkSession): Index =
     synchronized {
@@ -63,9 +58,8 @@ object Index {
     //A unique table name is needed to make saveAsTable happy, but we will not need it again
     //when we read the index back (by HDFS path)
     val tableName = randomTableName
-    /*
-     * Use saveAsTable instead of ordinary parquet save to preserve buckets/partitioning.
-     */
+
+     //Use saveAsTable instead of ordinary parquet save to preserve buckets/partitioning.
     data.
       write.mode(SaveMode.Overwrite).
       option("path", location).

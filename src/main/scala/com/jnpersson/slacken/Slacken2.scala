@@ -5,7 +5,7 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, MinSplitter, RandomXOR, SpacedSeed}
-import com.jnpersson.discount.spark.{Commands, HDFSUtil, IndexParams, Inputs, RunCmd, SparkConfiguration, SparkTool}
+import com.jnpersson.discount.spark.{Commands, HDFSUtil, IndexParams, RunCmd, SparkConfiguration, SparkTool}
 import com.jnpersson.slacken.Taxonomy.Species
 import com.jnpersson.slacken.analysis.{MappingComparison, Metrics, MinimizerMigration}
 import org.apache.spark.sql.SparkSession
