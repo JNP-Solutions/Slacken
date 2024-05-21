@@ -134,7 +134,7 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
     }
 
     //Dynamically create a new index containing only the identified taxa and their descendants
-    base.makeBuckets(genomes, false, Some(taxonSet))
+    base.makeBuckets(genomes, addRC = false, Some(taxonSet))
   }
 
 }

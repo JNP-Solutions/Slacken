@@ -47,7 +47,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
     val inFiles = HDFSUtil.findFiles(location + "/library", ".fna")
     println(s"Discovered input files: $inFiles")
     val reader = k match {
-      case Some(k) => inputReader(inFiles, k, false)
+      case Some(k) => inputReader(inFiles, k, pairedEnd = false)
       case None => inputReader(inFiles)
     }
     GenomeLibrary(reader, s"$location/seqid2taxid.map")
@@ -96,7 +96,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       val spaces = opt[List[Int]](required = true, descr = "Numbers of spaces to generate indexes for")
 
       def run(): Unit = {
-        val i = index
+        val i = index()
         i.respaceMultiple(i.loadBuckets(), spaces(), output())
       }
     }
@@ -154,7 +154,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       }
 
       def run(): Unit = {
-        val i = index
+        val i = index()
         val inputs = inputReader(inFiles(), i.params.k, paired())
 
         dynamic.toOption match {
@@ -179,7 +179,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       val library = opt[String](descr = "Location of sequence files (directory containing library/) for coverage check")
 
       def run(): Unit = {
-        val i = index
+        val i = index()
         val p = i.params
         p.splitter.priorities match {
           case ss@SpacedSeed(_, inner) =>
@@ -205,9 +205,9 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
 //      val output = opt[String](descr = "Output location", required = true) //TODO
       def run(): Unit = {
         println("Minimizer depths")
-        index.kmerDepthHistogram().show()
+        index().kmerDepthHistogram().show()
         println("Taxon depths")
-        index.taxonDepthHistogram().show()
+        index().taxonDepthHistogram().show()
       }
     }
     addSubcommand(histogram)
@@ -219,7 +219,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       val labels = opt[String](descr = "Labels file to check for missing nodes")
 
       def run(): Unit = {
-        index.report(labels.toOption, output())
+        index().report(labels.toOption, output())
       }
     }
     addSubcommand(report)
@@ -230,7 +230,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
 
       def run(): Unit = {
         val ref = KeyValueIndex.load(reference(), getTaxonomy(reference()))
-        new MinimizerMigration(index, ref).run(output())
+        new MinimizerMigration(index(), ref).run(output())
       }
     }
     addSubcommand(compare)

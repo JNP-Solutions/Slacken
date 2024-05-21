@@ -35,7 +35,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   lazy val idLongs = NTBitArray.longsForSize(params.m)
 
   override def checkInput(inputs: Inputs): Unit = {
-    val fragments = inputs.getInputFragments(false).map(x => (x.header, x.nucleotides))
+    val fragments = inputs.getInputFragments(withRC = false).map(x => (x.header, x.nucleotides))
 
     /* Check if there are input sequences with no valid minimizers.
     * If so, report them.  */
@@ -91,11 +91,10 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   }
 
   /** Given input genomes and their taxon IDs, build an index of minimizers and LCA taxa.
-   * @param idsSequences pairs of (genome title, genome DNA)
-   * @param seqLabels pairs of (genome title, taxon ID)
+   * @param taxaSequences pairs of (taxon, genome DNA)
    */
-  def makeBuckets(idsSequences: Dataset[(Taxon, NTSeq)])(implicit spark: SparkSession): DataFrame =
-    reduceLCAs(findMinimizers(idsSequences))
+  def makeBuckets(taxaSequences: Dataset[(Taxon, NTSeq)]): DataFrame =
+    reduceLCAs(findMinimizers(taxaSequences))
 
   /** Write buckets to the given location */
   def writeBuckets(buckets: DataFrame, location: String): Unit = {
@@ -158,7 +157,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
    * @param minimizersTaxa tuples of (minimizer part 1, minimizer part 2, taxon)
    * @return tuples of (minimizer part 1, minimizer part 2, LCA taxon)
    */
-  def reduceLCAs(minimizersTaxa: DataFrame)(implicit spark: SparkSession): DataFrame = {
+  def reduceLCAs(minimizersTaxa: DataFrame): DataFrame = {
     val bcTax = this.bcTaxonomy
     val udafLca = udaf(TaxonLCA(bcTax))
     minimizersTaxa.
@@ -202,7 +201,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
 
   /** Find TaxonHits from InputFragments and set their taxa, without grouping them by seqTitle. */
   def findHits(buckets: DataFrame, subjects: Dataset[InputFragment]): Dataset[TaxonHit] = {
-    val spans = getSpans(subjects, false)
+    val spans = getSpans(subjects, withTitle = false)
     //The 'subject' struct constructs an OrdinalSpan
     val taggedSpans = spans.select(
       struct($"minimizer", $"kmers", $"flag", $"ordinal", $"seqTitle").as("subject") +:
@@ -219,7 +218,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
 
   /** Classify subject sequences using the supplied index (as a dataset) */
   def classify(buckets: DataFrame, subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])] =
-    classifySpans(buckets, getSpans(subjects, true))
+    classifySpans(buckets, getSpans(subjects, withTitle = true))
 
   def classifySpans(buckets: DataFrame, subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit])] = {
     //The 'subject' struct constructs an OrdinalSpan
@@ -264,11 +263,11 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
    *               to build the index)
    */
   private def showTaxonCoverageStats(indexBuckets: DataFrame, genomes: GenomeLibrary): Unit = {
-    val inputSequences = joinSequencesAndLabels(genomes, false)
+    val inputSequences = joinSequencesAndLabels(genomes, addRC = false)
     val mins = findMinimizers(inputSequences)
 
     //1. Count how many times per input taxon each minimizer occurs
-    val agg = mins.groupBy((idColumns :+ $"taxon"): _*).agg(count("*").as("countAll"))
+    val agg = mins.groupBy(idColumns :+ $"taxon": _*).agg(count("*").as("countAll"))
 
     //2. Join with buckets, find the fraction that is assigned to the same (leaf) taxon
     val joint = agg.join(indexBuckets.withColumnRenamed("taxon", "idxTaxon"),
@@ -353,16 +352,6 @@ object KeyValueIndex {
 final case class TaxonHit(minimizer: Array[Long], ordinal: Int, taxon: Taxon, count: Int) {
   def summary: TaxonCounts =
     TaxonCounts(ordinal, Array(taxon), Array(count))
-
-  /** Convert a taxon hit back to a span, so that it can be classified again. */
-  def toSpan(seqTitle: String): OrdinalSpan = {
-    val flag = taxon match {
-      case AMBIGUOUS_SPAN => AMBIGUOUS_FLAG
-      case MATE_PAIR_BORDER => MATE_PAIR_BORDER_FLAG
-      case _ => SEQUENCE_FLAG
-    }
-    OrdinalSpan(minimizer, count, flag, ordinal, seqTitle)
-  }
 
   def trueTaxon: Option[Taxon] = taxon match {
     case AMBIGUOUS_SPAN | MATE_PAIR_BORDER => None
