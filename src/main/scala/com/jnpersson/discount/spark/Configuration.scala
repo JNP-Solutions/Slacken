@@ -105,15 +105,6 @@ class Configuration(args: Seq[String]) extends ScallopConf(args) {
     descr = s"Maximum length of a single sequence/read (default $defaultMaxSequenceLength)",
     default = Some(defaultMaxSequenceLength))
 
-  val method: ScallopOption[CountMethod] =
-    choice(Seq("simple", "pregrouped", "auto"),
-    default = Some("auto"), descr = "Counting method (default auto).").
-    map {
-      case "auto" => Auto
-      case "simple" => Simple
-      case "pregrouped" => Pregrouped
-    }
-
   val extendMinimizers = opt[Int](descr = "Extended width of minimizers")
 
   protected def extendedWithSuffix: Boolean = false

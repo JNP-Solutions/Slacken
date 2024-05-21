@@ -19,9 +19,42 @@ package com.jnpersson.discount.spark
 
 import com.jnpersson.discount.{Both, ForwardOnly, Frequency, Given}
 import com.jnpersson.discount.bucket.Reducer
+import com.jnpersson.discount.hash.MinimizerPriorities
 import org.apache.spark.broadcast.Broadcast
-
 import org.apache.spark.sql.SparkSession
+import org.rogach.scallop.ScallopOption
+
+
+/** Defines a strategy for counting k-mers in Spark. */
+sealed trait CountMethod {
+  /** Whether reverse complement data should be added at the input stage */
+  def addRCToMainData(discount: Discount): Boolean = discount.normalize
+
+  /** Resolve a definite count method (in case of Auto) */
+  def resolve(priorities: MinimizerPriorities): CountMethod = this
+}
+
+/** Indicate that a strategy should be auto-selected */
+case object Auto extends CountMethod {
+  override def resolve(priorities: MinimizerPriorities): CountMethod = {
+    val r = if (priorities.numLargeBuckets > 0) Pregrouped else Simple
+    println(s"Counting method: $r (use --method to override if running from command line)")
+    r
+  }
+}
+
+/** Pregrouped counting: groups and counts identical super-mers before counting k-mers.
+ * Faster for datasets with high redundancy. */
+case object Pregrouped extends CountMethod {
+  override def addRCToMainData(discount: Discount): Boolean = false
+
+  override def toString = "Pregrouped"
+}
+
+/** Non-pregrouped: counts k-mers immediately. Faster for datasets with low redundancy. */
+case object Simple extends CountMethod {
+  override def toString = "Simple"
+}
 
 /**
  * Command-line configuration for Discount. Run the tool with --help to see the various arguments.
@@ -44,6 +77,15 @@ private[jnpersson] class DiscountConf(args: Array[String])(implicit spark: Spark
     hidden = true)
   val min = opt[Int](descr = "Filter for minimum k-mer abundance", noshort = true)
   val max = opt[Int](descr = "Filter for maximum k-mer abundance", noshort = true)
+
+  val method: ScallopOption[CountMethod] =
+    choice(Seq("simple", "pregrouped", "auto"),
+      default = Some("auto"), descr = "Counting method (default auto).").
+      map {
+        case "auto" => Auto
+        case "simple" => Simple
+        case "pregrouped" => Pregrouped
+      }
 
   def discount(): Discount = {
     requireSuppliedK()
