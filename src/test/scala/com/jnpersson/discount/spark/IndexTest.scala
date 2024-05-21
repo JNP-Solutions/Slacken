@@ -17,17 +17,32 @@
 
 package com.jnpersson.discount.spark
 
-import com.jnpersson.discount.bucket.BucketStats
+import com.jnpersson.discount.TestGenerators.reducibleBucket
+import com.jnpersson.discount.bucket.{BucketStats, ReducibleBucket}
+import com.jnpersson.discount.hash.{MinSplitter, RandomXOR}
 import com.jnpersson.discount.{Lexicographic, Testing}
 import org.apache.spark.sql.SparkSession
+import org.scalacheck.Gen
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 
+object IndexTest {
+  val indexBuckets = 10
+  /** Generate a random index with 10 buckets and a bogus splitter */
+  def index(k: Int, m: Int)(implicit s: SparkSession): Gen[Index] = {
+    import s.sqlContext.implicits._
+    val splitter = MinSplitter(RandomXOR(m, 0, false), k) //dummy splitter, not used
+    val params = IndexParams(s.sparkContext.broadcast(splitter), indexBuckets, "")
+    Gen.containerOfN[List, ReducibleBucket](indexBuckets, reducibleBucket(k)).map(bs => {
+      new Index(params, bs.zipWithIndex.map(x => x._1.copy(id = x._2)).toDS)
+    })
+  }
+}
 
 class IndexTest extends AnyFunSuite with Matchers with SparkSessionTestWrapper with ScalaCheckPropertyChecks {
   implicit val s: SparkSession = spark
-  import com.jnpersson.discount.TestGenerators._
+  import IndexTest._
   import spark.sqlContext.implicits._
 
   val m = 9
