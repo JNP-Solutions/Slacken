@@ -29,7 +29,6 @@ import scala.collection.mutable
 final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit val spark: SparkSession)
   extends TaxonomicIndex[Row](params, taxonomy) with KmerKeyedIndex {
   import spark.sqlContext.implicits._
-  import KeyValueIndex._
 
   lazy val recordColumnNames: Seq[String] = idColumnNames :+ "taxon"
 
