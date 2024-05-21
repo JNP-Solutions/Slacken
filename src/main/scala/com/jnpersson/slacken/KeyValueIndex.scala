@@ -5,13 +5,12 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.discount.hash.{InputFragment, MinSplitter, SpacedSeed}
-import com.jnpersson.discount.spark.Index.randomTableName
+import com.jnpersson.discount.spark.Helpers.randomTableName
 import com.jnpersson.discount.spark.Output.formatPerc
-import com.jnpersson.discount.spark.{AnyMinSplitter, Discount, HDFSUtil, IndexParams, Inputs, KmerKeyedIndex, SparkTool}
+import com.jnpersson.discount.spark.{AnyMinSplitter, HDFSUtil, IndexParams, Inputs, KmerKeyedIndex, SparkTool}
 import com.jnpersson.discount.util.NTBitArray
-import com.jnpersson.discount.{NTSeq, SeqTitle, hash}
+import com.jnpersson.discount.{NTSeq, SeqTitle}
 import com.jnpersson.slacken.TaxonomicIndex.getTaxonLabels
-import com.jnpersson.slacken.Taxonomy.NONE
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.expressions.Aggregator
 import org.apache.spark.sql.functions._
@@ -102,11 +101,10 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     println(s"Saving index into ${params.buckets} partitions at $location")
 
     //A unique table name is needed to make saveAsTable happy, but we will not need it again
-    //when we read the index back (by HDFS path)
+    //when we read the index back (by HDFS path).
     val tableName = randomTableName
-    /*
-     * Use saveAsTable instead of ordinary parquet save to preserve buckets/partitioning.
-     */
+
+    //Use saveAsTable instead of ordinary parquet save to preserve buckets/partitioning.
     buckets.
       write.mode(SaveMode.Overwrite).
       option("path", location).
@@ -329,16 +327,6 @@ object KeyValueIndex {
     val params = IndexParams.read(location)
     val sp = SparkTool.newSession(spark, params.buckets) //Ensure that new datasets have the same number of partitions
     new KeyValueIndex(params, taxonomy)(sp)
-  }
-
-  /** Build an empty KeyValueIndex.
-   * @param inFiles Input files used for minimizer ordering construction only
-   */
-  def empty(discount: Discount, taxonomyLocation: String, inFiles: List[String])
-           (implicit spark: SparkSession): KeyValueIndex = {
-    val spl = discount.getSplitter(Some(inFiles))
-    val params = IndexParams(spark.sparkContext.broadcast(spl), discount.partitions, "")
-    new KeyValueIndex(params, TaxonomicIndex.getTaxonomy(taxonomyLocation))
   }
 }
 

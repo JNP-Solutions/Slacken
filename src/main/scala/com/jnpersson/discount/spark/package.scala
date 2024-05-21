@@ -47,6 +47,12 @@ package object spark {
       }
     }
 
+    def randomTableName: String = {
+      val rnd = scala.util.Random.nextLong()
+      val useRnd = if (rnd < 0) - rnd else rnd
+      s"discount_$useRnd"
+    }
+
     private var formatsById = Map[String, SplitterFormat[_]](
       "standard" -> new StandardFormat(),
       "randomXOR" -> new RandomXORFormat(),
