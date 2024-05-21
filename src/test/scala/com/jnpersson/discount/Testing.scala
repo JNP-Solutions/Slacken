@@ -17,15 +17,12 @@
 
 package com.jnpersson.discount
 
-import com.jnpersson.discount.bucket.{BucketStats, ReduceParams, Reducer, ReducibleBucket, Tag}
-
 import scala.collection.{immutable, mutable}
 import com.jnpersson.discount.hash.{MinTable, MinimizerPriorities, RandomXOR, SpacedSeed}
 import com.jnpersson.discount.util.{BitRepresentation, NTBitArray}
 import org.scalacheck.Gen.Parameters
 import org.scalacheck.Shrink.{shrink, shrinkContainer}
 import org.scalacheck.rng.Seed
-import org.scalacheck.util.Buildable
 import org.scalacheck.{Gen, Shrink}
 
 object Testing {
