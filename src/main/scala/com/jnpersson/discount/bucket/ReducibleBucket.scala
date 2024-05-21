@@ -18,7 +18,6 @@
 package com.jnpersson.discount.bucket
 
 import com.jnpersson.discount.hash.BucketId
-import com.jnpersson.discount.spark.Rule
 import com.jnpersson.discount.util.KmerTable.BuildParams
 import com.jnpersson.discount.util._
 import com.jnpersson.discount.{Abundance, Both, Orientation, bucket}

@@ -19,7 +19,6 @@ package com.jnpersson.discount.bucket
 
 import com.jnpersson.discount.{Both, Orientation}
 import com.jnpersson.discount.util.KmerTable
-import com.jnpersson.discount.spark.Rule
 
 /** K-mer reduction parameters
  * @param k The length of k-mers
