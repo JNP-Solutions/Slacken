@@ -44,18 +44,6 @@ object Testing {
     }
   }
 
-  def correctStats10k31: BucketStats = {
-    //Reference values computed with Jellyfish
-    BucketStats("", 0, 698995, 692378, 686069, 8)
-  }
-
-  /** Helper methods for testing of ReducibleBucket */
-  implicit class TestEnhancedBucket(b: ReducibleBucket) {
-    def totalCount = b.tags.flatten.sum
-    def distinctKmers = b.tags.map(_.length).sum
-    def stats = BucketStats.collectFromCounts("", b.tags)
-  }
-
   /** Generate a list of items when we don't care about preserving parameters.
    * This only works if the generator is guaranteed to succeed. */
   def getList[T](gen: Gen[T], n: Int): immutable.Seq[T] =
@@ -145,31 +133,5 @@ object TestGenerators {
   def kmerTags(sms: Array[NTBitArray], k: Int): Gen[Seq[Array[Tag]]] =
     Gen.sequence(sms.map(sm => kmerTags(sm, k)))(Buildable.buildableSeq)
 
-  def reducibleBucket(k: Int): Gen[ReducibleBucket] = {
-    val sumReducer = Reducer.configure(
-      ReduceParams(k), Sum)
-    for {
-      nSupermers <- Gen.choose(1, 10)
-      supermers <- Gen.listOfN(nSupermers, encodedSupermers(k)).map(_.toArray)
-      tags <- kmerTags(supermers, k)
-      b = ReducibleBucket(0, supermers, tags.toArray)
-    } yield b.reduceCompact(sumReducer)
-  }
-
-  //Generate a pair of buckets that have distinct super-mers and also common super-mers.
-  //For the common super-mers, the tags (counts) need not be the same for the two buckets.
-  def bucketPairWithCommonKmers(k: Int): Gen[(ReducibleBucket, ReducibleBucket)] = {
-    val sumReducer = Reducer.configure(ReduceParams(k), Sum)
-    for {
-      bucket1 <- reducibleBucket(k)
-      bucket2 <- reducibleBucket(k)
-      n <- Gen.choose(1, 10)
-      commonSupermers <- Gen.listOfN(n, encodedSupermers(k)).map(_.toArray)
-      tags1 <- kmerTags(commonSupermers, k)
-      tags2 <- kmerTags(commonSupermers, k)
-      bc1 = bucket1.appendAndCompact(ReducibleBucket(0, commonSupermers, tags1.toArray), sumReducer)
-      bc2 = bucket2.appendAndCompact(ReducibleBucket(0, commonSupermers, tags2.toArray), sumReducer)
-    } yield (bc1, bc2)
-  }
 }
 
