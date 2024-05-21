@@ -34,7 +34,6 @@ object Taxonomy {
   /** All Rank values except Unclassified. */
   val rankValues: List[Rank] = List(Root, Superkingdom, Kingdom, Phylum, Class, Order, Family, Genus, Species)
 
-  //See kraken2 reports.cc
   def rank(title: String): Option[Rank] = title match {
     case Unclassified.title => Some(Unclassified)
     case Root.title => Some(Root)
@@ -165,7 +164,7 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
 
   /** Number of levels between a taxon and a given ancestor. The result will always be -1
    * if the given ancestor is not in the lineage of the taxon. */
-  def stepsToAncestor(tax: Taxon, ancestor: Taxon, acc: Int = 0): Int = {
+  def stepsToAncestor(tax: Taxon, ancestor: Taxon): Int = {
     val path = pathToRoot(tax)
     if (path.isEmpty) -1 else path.indexOf(ancestor)
   }
@@ -206,7 +205,7 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
 
   /** For a given taxon, find which of the standard 8 levels are missing in its path to the root.
    */
-  def missingStepsToRoot(taxon: Taxon, acc: List[Int] = Nil): List[Int] = {
+  def missingStepsToRoot(taxon: Taxon): List[Int] = {
     val found = pathToRoot(taxon).toList.map(t => depth(t))
     (Superkingdom.depth to Species.depth).toList.
       filter(level => !found.contains(level))
