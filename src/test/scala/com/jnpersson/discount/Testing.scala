@@ -21,10 +21,8 @@ import com.jnpersson.discount.spark.Rule.Sum
 import com.jnpersson.discount.bucket.{BucketStats, ReduceParams, Reducer, ReducibleBucket, Tag}
 
 import scala.collection.{immutable, mutable}
-import com.jnpersson.discount.hash.{MinSplitter, MinTable, MinimizerPriorities, RandomXOR, SpacedSeed}
-import com.jnpersson.discount.spark.{Index, IndexParams}
+import com.jnpersson.discount.hash.{MinTable, MinimizerPriorities, RandomXOR, SpacedSeed}
 import com.jnpersson.discount.util.{BitRepresentation, NTBitArray}
-import org.apache.spark.sql.SparkSession
 import org.scalacheck.Gen.Parameters
 import org.scalacheck.Shrink.{shrink, shrinkContainer}
 import org.scalacheck.rng.Seed
@@ -172,17 +170,6 @@ object TestGenerators {
       bc1 = bucket1.appendAndCompact(ReducibleBucket(0, commonSupermers, tags1.toArray), sumReducer)
       bc2 = bucket2.appendAndCompact(ReducibleBucket(0, commonSupermers, tags2.toArray), sumReducer)
     } yield (bc1, bc2)
-  }
-
-  val indexBuckets = 10
-  /** Generate a random index with 10 buckets and a bogus splitter */
-  def index(k: Int, m: Int)(implicit s: SparkSession): Gen[Index] = {
-    import s.sqlContext.implicits._
-    val splitter = MinSplitter(RandomXOR(m, 0, false), k) //dummy splitter, not used
-    val params = IndexParams(s.sparkContext.broadcast(splitter), indexBuckets, "")
-    Gen.containerOfN[List, ReducibleBucket](indexBuckets, reducibleBucket(k)).map(bs => {
-      new Index(params, bs.zipWithIndex.map(x => x._1.copy(id = x._2)).toDS)
-    })
   }
 }
 
