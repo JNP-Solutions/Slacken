@@ -10,28 +10,30 @@ import com.jnpersson.slacken.Taxonomy.{NONE, ROOT, Rank, Root, Unclassified}
 import java.io.PrintWriter
 import scala.collection.mutable.{Map => MMap}
 
+/** Helper for aggregating per-taxon counts in the taxonomic tree */
+class TreeAggregator(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
+  val taxonCounts = (MMap.empty ++ counts).withDefaultValue(0L)
+
+  val cladeTotals = MMap[Taxon, Long]().withDefaultValue(0L)
+  for {
+    (taxid, count) <- counts
+    p <- taxonomy.pathToRoot(taxid)
+  } cladeTotals(p) += count
+}
+
+
 /** A Kraken 1/2 style taxonomic report with a tree structure.
  * @param taxonomy The taxonomy
  * @param counts Number of hits (reads) for each taxon
  */
 final class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
-  lazy val cladeCounts = aggregateCounts().withDefaultValue(0L)
-  lazy val taxonCounts = (MMap.empty ++ counts).withDefaultValue(0L)
+  lazy val agg = new TreeAggregator(taxonomy, counts)
+  lazy val cladeTotals = agg.cladeTotals
+  lazy val taxonCounts = agg.taxonCounts
   lazy val totalSequences = counts.iterator.map(_._2).sum
 
-  /** Build a lookup map for aggregate taxon hit counts.
-   * Adds counts recursively to ancestors, propagating up the tree. */
-  def aggregateCounts(): MMap[Taxon, Long] = {
-    val r = MMap[Taxon, Long]().withDefaultValue(0L)
-    for {
-      (taxid, count) <- counts
-      p <- taxonomy.pathToRoot(taxid)
-    } r(p) += count
-    r
-  }
-
   def reportLine(taxid: Taxon, rank: Rank, rankDepth: Int, depth: Int): String = {
-    val cladeCount = cladeCounts(taxid) //aggregate
+    val cladeCount = cladeTotals(taxid) //aggregate
     val taxonCount = taxonCounts(taxid)
     val percent = "%6.2f".format(100.0 * cladeCount / totalSequences)
     val depthString = if (rankDepth == 0) "" else rankDepth.toString
@@ -55,7 +57,7 @@ final class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
     //sort by descending clade count
     //Because counts have already been aggregated upward, filtering > 0 will not remove any intermediate nodes
     val sortedChildren = taxonomy.children(taxid).toArray.
-      map(c => (c, cladeCounts(c))).sortWith((a, b) => a._2 > b._2)
+      map(c => (c, cladeTotals(c))).sortWith((a, b) => a._2 > b._2)
     for {
       (child, count) <- sortedChildren
       if reportZeros || count > 0

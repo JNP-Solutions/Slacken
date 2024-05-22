@@ -75,8 +75,8 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
    * emphasising recall over precision.
    */
   def findTaxonSet(subjects: Dataset[InputFragment], writeLocation: Option[String]): mutable.BitSet = {
-    val report = new KrakenReport(taxonomy, step1AggregateTaxa(subjects))
-    val aggregated = report.cladeCounts //propagate counts up to ancestors
+    val agg = new TreeAggregator(taxonomy, step1AggregateTaxa(subjects))
+    val aggregated = agg.cladeTotals //propagate counts up to ancestors
 
     val keepTaxa = mutable.BitSet.empty ++
       (for {(taxon, count) <- aggregated
@@ -102,7 +102,7 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
 
     //include descendants (leaf genomes) if they have enough unique minimizers
     val allowedTaxa =
-      taxonomy.taxaWithDescendants(keepTaxa).filter(t => report.taxonCounts(t) >= leafMinCount)
+      taxonomy.taxaWithDescendants(keepTaxa).filter(t => agg.taxonCounts(t) >= leafMinCount)
     println(s"Initial scan (cutoff $taxonMinCount) produced ${keepTaxa.size} taxa at rank $reclassifyRank, " +
       s"expanded with descendants to ${allowedTaxa.size} (cutoff $leafMinCount)")
 
