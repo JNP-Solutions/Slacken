@@ -220,7 +220,7 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
   /** Complete a taxonomic tree downward (entire clades) starting from the given set,
    * including all descendants */
   def taxaWithDescendants(taxa: Iterable[Taxon]): mutable.BitSet =
-    taxa.foldLeft(mutable.BitSet.empty)(addDescendants)
+    taxa.foldLeft(mutable.BitSet.empty ++ taxa)(addDescendants)
 
   def addDescendants(to: mutable.BitSet, from: Taxon): mutable.BitSet = {
     to ++= children(from)
