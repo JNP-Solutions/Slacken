@@ -12,6 +12,8 @@ import scala.collection.mutable.{Map => MMap}
 
 /** Helper for aggregating per-taxon counts in the taxonomic tree */
 class TreeAggregator(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
+  def keys = taxonCounts.keys.toSeq
+
   val taxonCounts = (MMap.empty ++ counts).withDefaultValue(0L)
 
   val cladeTotals = MMap[Taxon, Long]().withDefaultValue(0L)
@@ -26,20 +28,26 @@ class TreeAggregator(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
  * @param taxonomy The taxonomy
  * @param counts Number of hits (reads) for each taxon
  */
-final class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
+class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
   lazy val agg = new TreeAggregator(taxonomy, counts)
   lazy val cladeTotals = agg.cladeTotals
   lazy val taxonCounts = agg.taxonCounts
   lazy val totalSequences = counts.iterator.map(_._2).sum
 
-  def reportLine(taxid: Taxon, rank: Rank, rankDepth: Int, depth: Int): String = {
+  /** Data columns for each line in the report. This method can be overridden to add
+   * additional columns. */
+  def dataColumns(taxid: Taxon): String = {
     val cladeCount = cladeTotals(taxid) //aggregate
     val taxonCount = taxonCounts(taxid)
     val percent = "%6.2f".format(100.0 * cladeCount / totalSequences)
+    s"$percent\t$cladeCount\t$taxonCount"
+  }
+
+  def reportLine(taxid: Taxon, rank: Rank, rankDepth: Int, depth: Int): String = {
     val depthString = if (rankDepth == 0) "" else rankDepth.toString
     val indent = "  " * depth
     val name = taxonomy.getName(taxid).getOrElse("")
-    s"$percent\t$cladeCount\t$taxonCount\t${rank.code}$depthString\t$taxid\t$indent$name"
+    s"${dataColumns(taxid)}\t${rank.code}$depthString\t$taxid\t$indent$name"
   }
 
   /** Depth-first search to generate report lines and print them.
