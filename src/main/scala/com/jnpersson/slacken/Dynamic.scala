@@ -2,7 +2,7 @@ package com.jnpersson.slacken
 
 import com.jnpersson.discount.hash.InputFragment
 import com.jnpersson.discount.spark.Output.formatPerc
-import com.jnpersson.discount.spark.{HDFSUtil, Inputs}
+import com.jnpersson.discount.spark.{HDFSUtil, Inputs, Output}
 import com.jnpersson.slacken.Taxonomy.Rank
 import org.apache.spark.sql.{Dataset, SparkSession, functions}
 
@@ -15,12 +15,12 @@ import scala.collection.mutable
  * @param base Initial index for identifying taxa by minimizer
  * @param genomes genomic library for construction of new indexes on the fly
  * @param reclassifyRank rank for the initial classification. Taxa at this level will be used to construct the second index
- * @param taxonMinCount minimum distinct minimizers to keep a taxon in the first pass
+ * @param taxonMinFraction minimum distinct minimizers to keep a taxon in the first pass
  * @param cpar parameters for classification
  * @param goldStandardTaxonSet parameters for deciding whether to get stats or classify wrt gold standard
  */
 class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
-                      reclassifyRank: Rank, taxonMinCount: Int, leafMinCount: Int,
+                      reclassifyRank: Rank, taxonMinFraction: Double,
                       cpar: ClassifyParams,
                       goldStandardTaxonSet: Option[(String,Boolean)],
                       reportDynamicIndexLocation: Option[String])(implicit spark: SparkSession) {
@@ -45,6 +45,9 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
       agg(functions.count_distinct($"minimizer").as("count")).
       as[(Taxon, Long)].collect()
   }
+
+  def minimizersPerTaxon(taxa: Seq[Taxon]): Array[(Taxon, Long)] =
+    base.distinctMinimizersPerTaxa(base.loadBuckets(), taxa)
 
   /** Perform two-step classification, writing the final results to a location.
    * @param inputs Subjects to classify (reads)
@@ -75,13 +78,36 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
    * emphasising recall over precision.
    */
   def findTaxonSet(subjects: Dataset[InputFragment], writeLocation: Option[String]): mutable.BitSet = {
-    val agg = new TreeAggregator(taxonomy, step1AggregateTaxa(subjects))
-    val aggregated = agg.cladeTotals //propagate counts up to ancestors
+    val agg = step1AggregateTaxa(subjects)
+    val hitMinimizers = new TreeAggregator(taxonomy, agg)
+    val atRank = hitMinimizers.keys.filter(taxon => taxonomy.depth(taxon) >= reclassifyRank.depth)
+    val withDescendants = taxonomy.taxaWithDescendants(atRank)
+    val totalMinimizers = new TreeAggregator(taxonomy, minimizersPerTaxon(withDescendants.toSeq))
+
+    /** Fraction of distinct minimizers in a taxon (including the entire clade)
+     * that were seen
+     */
+    def hitFraction(t: Taxon) = {
+      if (totalMinimizers.cladeTotals(t) == 0) 0.0 else
+        hitMinimizers.cladeTotals(t).toDouble / totalMinimizers.cladeTotals(t)
+    }
+
+    for { loc <- reportDynamicIndexLocation } {
+      val report = new KrakenReport(taxonomy, agg) {
+        override def dataColumns(taxid: Taxon): String = {
+          s"${super.dataColumns(taxid)}\t${totalMinimizers.cladeTotals(taxid)}\t${totalMinimizers.taxonCounts(taxid)}\t${"%.3f".format(hitFraction(taxid))}"
+        }
+      }
+      HDFSUtil.usingWriter(loc + "_support_report.txt", wr =>
+        report.print(wr)
+      )
+    }
 
     val keepTaxa = mutable.BitSet.empty ++
-      (for {(taxon, count) <- aggregated
+      (for {(taxon, count) <- hitMinimizers.cladeTotals
             if taxonomy.depth(taxon) >= reclassifyRank.depth
-            if count >= taxonMinCount}
+            if hitFraction(taxon) >= taxonMinFraction
+            }
       yield taxon)
 
     for { loc <- writeLocation }
@@ -102,9 +128,10 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
 
     //include descendants (leaf genomes) if they have enough unique minimizers
     val allowedTaxa =
-      taxonomy.taxaWithDescendants(keepTaxa).filter(t => agg.taxonCounts(t) >= leafMinCount)
-    println(s"Initial scan (cutoff $taxonMinCount) produced ${keepTaxa.size} taxa at rank $reclassifyRank, " +
-      s"expanded with descendants to ${allowedTaxa.size} (cutoff $leafMinCount)")
+      keepTaxa ++
+        taxonomy.taxaWithDescendants(keepTaxa).filter(t => hitFraction(t) >= taxonMinFraction)
+    println(s"Initial scan (cutoff $taxonMinFraction) produced ${keepTaxa.size} taxa at rank $reclassifyRank, " +
+      s"expanded with descendants (min fraction $taxonMinFraction) to ${allowedTaxa.size}")
 
     allowedTaxa
   }
