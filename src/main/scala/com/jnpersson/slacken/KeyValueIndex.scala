@@ -214,6 +214,23 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       select($"hit.*").as[TaxonHit]
   }
 
+  def distinctMinimizersPerTaxa(buckets: DataFrame, taxa: Seq[Taxon]): Array[(Taxon, Long)] = {
+    val precalcLocation = s"${params.location}_distinctMinimizers"
+    if (!HDFSUtil.fileExists(precalcLocation)) {
+      /** Precompute these values and store them for reuse later */
+      println(s"$precalcLocation didn't exist, creating now.")
+      buckets.
+        groupBy("taxon").agg(functions.count_distinct(idColumns.head, idColumns.tail :_*).as("count")).
+        coalesce(200).
+        write.mode(SaveMode.Overwrite).option("sep", "\t").csv(precalcLocation)
+    }
+    spark.read.option("sep", "\t").csv(precalcLocation).map(x =>
+      (x.getString(0).toInt, x.getString(1).toLong)).
+      toDF("taxon", "count").
+      join(taxa.toDF("taxon"), List("taxon")).as[(Taxon, Long)].
+      collect()
+  }
+
   /** Classify subject sequences using the supplied index (as a dataset) */
   def classify(buckets: DataFrame, subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])] =
     classifySpans(buckets, getSpans(subjects, withTitle = true))
