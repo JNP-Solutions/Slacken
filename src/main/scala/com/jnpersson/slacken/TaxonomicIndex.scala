@@ -129,6 +129,9 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
   /** Find TaxonHits from InputFragments and set their taxa, without grouping them by seqTitle. */
   def findHits(buckets: Dataset[Record], subjects: Dataset[InputFragment]): Dataset[TaxonHit]
 
+  /** Find the number of distinct minimizers for each of the given taxa */
+  def distinctMinimizersPerTaxa(buckets: Dataset[Record], taxa: Seq[Taxon]): Array[(Taxon, Long)]
+
   /** Classify subject sequences */
   def classify(buckets: Dataset[Record], subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])]
 
