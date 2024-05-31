@@ -34,8 +34,6 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
     val bcTax = base.bcTaxonomy
     val rank = reclassifyRank
 
-    //approx_count_distinct uses hyperLogLogPlusPlus to estimate the number of distinct values
-    //https://en.wikipedia.org/wiki/HyperLogLog#HLL++
     hits.flatMap(h =>
       for { t <- h.trueTaxon
         if bcTax.value.depth(t) >= rank.depth
@@ -79,23 +77,32 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
    */
   def findTaxonSet(subjects: Dataset[InputFragment], writeLocation: Option[String]): mutable.BitSet = {
     val agg = step1AggregateTaxa(subjects)
+    val sum = agg.map(_._2).sum
     val hitMinimizers = new TreeAggregator(taxonomy, agg)
     val atRank = hitMinimizers.keys.filter(taxon => taxonomy.depth(taxon) >= reclassifyRank.depth)
     val withDescendants = taxonomy.taxaWithDescendants(atRank)
     val totalMinimizers = new TreeAggregator(taxonomy, minimizersPerTaxon(withDescendants.toSeq))
 
     /** Fraction of distinct minimizers in a taxon (including the entire clade)
-     * that were seen
+     * that were seen in the sample
      */
-    def hitFraction(t: Taxon) = {
+    def fractionOfGenome(t: Taxon) = {
       if (totalMinimizers.cladeTotals(t) == 0) 0.0 else
         hitMinimizers.cladeTotals(t).toDouble / totalMinimizers.cladeTotals(t)
     }
 
+    def fractionOfSample(t: Taxon): Double =
+      hitMinimizers.cladeTotals(t).toDouble / sum
+
     for { loc <- reportDynamicIndexLocation } {
       val report = new KrakenReport(taxonomy, agg) {
+        override def dataColumnHeaders: String = {
+          s"${super.dataColumnHeaders}\tSample agg\tSample taxon\tGenome distinct frac\tSample distinct frac\t"
+        }
+
         override def dataColumns(taxid: Taxon): String = {
-          s"${super.dataColumns(taxid)}\t${totalMinimizers.cladeTotals(taxid)}\t${totalMinimizers.taxonCounts(taxid)}\t${"%.3f".format(hitFraction(taxid))}"
+          s"${super.dataColumns(taxid)}\t${totalMinimizers.cladeTotals(taxid)}\t${totalMinimizers.taxonCounts(taxid)}\t" +
+            s"${"%.3f".format(fractionOfGenome(taxid))}\t${"%.2g".format(fractionOfSample(taxid))}"
         }
       }
       HDFSUtil.usingWriter(loc + "_support_report.txt", wr =>

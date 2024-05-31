@@ -27,12 +27,19 @@ class TreeAggregator(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
 /** A Kraken 1/2 style taxonomic report with a tree structure.
  * @param taxonomy The taxonomy
  * @param counts Number of hits (reads) for each taxon
+ * @param compatibleFormat Traditional output format (no headers, identical to Kraken/Kraken 2 reports)
  */
-class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
+class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], compatibleFormat: Boolean = false) {
   lazy val agg = new TreeAggregator(taxonomy, counts)
   lazy val cladeTotals = agg.cladeTotals
   lazy val taxonCounts = agg.taxonCounts
   lazy val totalSequences = counts.iterator.map(_._2).sum
+
+  def dataColumnHeaders: String =
+    "Perc\tAggregate\tIn taxon"
+
+  def headers: String =
+    s"${dataColumnHeaders}\tRank\tTaxon\tName"
 
   /** Data columns for each line in the report. This method can be overridden to add
    * additional columns. */
@@ -75,6 +82,9 @@ class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
   }
 
   def reportDFS(output: PrintWriter, reportZeros: Boolean): Unit = {
+    if (!compatibleFormat) {
+      output.println(headers)
+    }
     val totalUnclassified = taxonCounts(NONE)
     if (totalUnclassified != 0 || reportZeros) {
       output.println(reportLine(NONE, Unclassified, 0, 0))
