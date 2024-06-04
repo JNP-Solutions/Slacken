@@ -113,7 +113,7 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
     val keepTaxa = mutable.BitSet.empty ++
       (for {(taxon, count) <- hitMinimizers.cladeTotals
             if taxonomy.depth(taxon) >= reclassifyRank.depth
-            if hitFraction(taxon) >= taxonMinFraction
+            if fractionOfGenome(taxon) >= taxonMinFraction
             }
       yield taxon)
 
@@ -136,7 +136,7 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
     //include descendants (leaf genomes) if they have enough unique minimizers
     val allowedTaxa =
       keepTaxa ++
-        taxonomy.taxaWithDescendants(keepTaxa).filter(t => hitFraction(t) >= taxonMinFraction)
+        taxonomy.taxaWithDescendants(keepTaxa).filter(t => fractionOfGenome(t) >= taxonMinFraction)
     println(s"Initial scan (cutoff $taxonMinFraction) produced ${keepTaxa.size} taxa at rank $reclassifyRank, " +
       s"expanded with descendants (min fraction $taxonMinFraction) to ${allowedTaxa.size}")
 
