@@ -96,6 +96,19 @@ class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], compatibleF
     reportDFS(output, reportZeros)
 }
 
+class GenomeLengthReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], genomeSizes: Array[(Taxon, Long)])
+  extends KrakenReport(taxonomy, counts){
+
+  lazy val genomeAgg = new TreeAggregator(taxonomy, genomeSizes)
+
+  override def dataColumnHeaders: String =
+    s"${super.dataColumnHeaders}\tGenome Size (K-mer count w/ duplicates)"
+  override def dataColumns(taxid: Taxon): String = {
+    val genomeSize = genomeAgg.cladeTotals(taxid)
+    s"${super.dataColumns(taxid)}\t$genomeSize"
+  }
+}
+
 object KrakenReport {
   def color(level: Int): String = {
     import Taxonomy._

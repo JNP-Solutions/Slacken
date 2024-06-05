@@ -296,13 +296,24 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     joint.select("fracLeaf", "total").summary().show()
   }
 
-  def report(indexBuckets: DataFrame, checkLabelFile: Option[String], output: String): Unit = {
+  def report(indexBuckets: DataFrame, checkLabelFile: Option[String], output: String, genomelib: Option[GenomeLibrary]): Unit = {
 
     //Report the contents of the index, count minimizers
-    val allTaxa = indexBuckets.groupBy("taxon").agg(count("taxon")).as[(Taxon, Long)].collect()
-    HDFSUtil.usingWriter(output + "_min_report.txt", wr =>
-      new KrakenReport(taxonomy, allTaxa).print(wr)
-    )
+    val allTaxa = indexBuckets.groupBy("taxon").agg(count("minimizer")).as[(Taxon, Long)].collect() //Dataframe
+    // of taxa with distinct minimizer counts
+    genomelib match {
+      case Some(gl) =>
+        val taxaLengthArray = joinSequencesAndLabels(gl, addRC = false).map(x => (x._1, x._2.length))
+          .toDF("taxon", "length").groupBy("taxon").agg(functions.sum($"length")).as[(Taxon, Long)].collect()
+        HDFSUtil.usingWriter(output + "_min_report.txt", wr =>
+          new GenomeLengthReport(taxonomy, allTaxa, taxaLengthArray).print(wr)
+        )
+
+      case None =>
+        HDFSUtil.usingWriter(output + "_min_report.txt", wr =>
+          new KrakenReport(taxonomy, allTaxa).print(wr)
+        )
+    }
 
     //count of 1 per genome
     HDFSUtil.usingWriter(output + "_genome_report.txt", wr =>
