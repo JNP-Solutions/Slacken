@@ -214,7 +214,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       select($"hit.*").as[TaxonHit]
   }
 
-  def distinctMinimizersPerTaxa(buckets: DataFrame, taxa: Seq[Taxon]): Array[(Taxon, Long)] = {
+  def distinctMinimizersPerTaxon(buckets: DataFrame, taxa: Seq[Taxon]): Array[(Taxon, Long)] = {
     val precalcLocation = s"${params.location}_distinctMinimizers"
     if (!HDFSUtil.fileExists(precalcLocation)) {
       /** Precompute these values and store them for reuse later */
@@ -296,13 +296,11 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     joint.select("fracLeaf", "total").summary().show()
   }
 
-  def report(indexBuckets: DataFrame, checkLabelFile: Option[String], output: String): Unit = {
+  def report(indexBuckets: DataFrame, checkLabelFile: Option[String],
+             output: String): Unit = {
 
     //Report the contents of the index, count minimizers
     val allTaxa = indexBuckets.groupBy("taxon").agg(count("taxon")).as[(Taxon, Long)].collect()
-    HDFSUtil.usingWriter(output + "_min_report.txt", wr =>
-      new KrakenReport(taxonomy, allTaxa).print(wr)
-    )
 
     //count of 1 per genome
     HDFSUtil.usingWriter(output + "_genome_report.txt", wr =>

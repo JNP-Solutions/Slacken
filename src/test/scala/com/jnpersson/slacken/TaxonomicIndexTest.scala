@@ -164,7 +164,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
 
     val dyn = new Dynamic(idx,
       GenomeLibrary(genomes, "testData/slacken/seqid2taxid.map"),
-      Species, 0.1, cpar, None, None)
+      Species, 0.1, 100, cpar, None, None)
 
     val reads = simulateReads(200, 1000).toDS()
     val bkts = dyn.makeBuckets(reads, None)
