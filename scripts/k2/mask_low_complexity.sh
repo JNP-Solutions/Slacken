@@ -26,17 +26,21 @@ if ! which $MASKER > /dev/null; then
   exit 1
 fi
 
+#Note: segmasker doesn't support the -r flag and instead it would be necessary
+#to pipe through sed:
+#  | sed -e '/^>/!s/[a-z]/x/g'
+
 if [ -d $target ]; then
   for file in $(find $target '(' -name '*.fna' -o -name '*.faa' ')'); do
     if [ ! -e "$file.masked" ]; then
-      $MASKER -t $THREADS -in $file -outfmt fasta | sed -e '/^>/!s/[a-z]/x/g' > "$file.tmp"
+      $MASKER -t $THREADS -in $file -outfmt fasta -r x > "$file.tmp"
       mv "$file.tmp" $file
       touch "$file.masked"
     fi
   done
 elif [ -f $target ]; then
   if [ ! -e "$target.masked" ]; then
-    $MASKER -t $THREADS -in $target -outfmt fasta | sed -e '/^>/!s/[a-z]/x/g' > "$target.tmp"
+    $MASKER -t $THREADS -in $target -outfmt fasta -r x > "$target.tmp"
     mv "$target.tmp" $target
     touch "$target.masked"
   fi
