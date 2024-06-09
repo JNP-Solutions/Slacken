@@ -223,7 +223,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       def run(): Unit = {
         val genomes: Option[GenomeLibrary] = library.toOption match {
           case Some(lb) =>
-            Some(findGenomes(library()))
+            Some(findGenomes(lb))
           case None =>
             None
         }
