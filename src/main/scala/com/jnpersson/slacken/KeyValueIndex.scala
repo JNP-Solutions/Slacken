@@ -299,11 +299,12 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   def report(indexBuckets: DataFrame, checkLabelFile: Option[String], output: String, genomelib: Option[GenomeLibrary]): Unit = {
 
     //Report the contents of the index, count minimizers
-    val allTaxa = indexBuckets.groupBy("taxon").agg(count("minimizer")).as[(Taxon, Long)].collect() //Dataframe
+    val allTaxa = indexBuckets.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect() //Dataframe
     // of taxa with distinct minimizer counts
     genomelib match {
       case Some(gl) =>
-        val taxaLengthArray = joinSequencesAndLabels(gl, addRC = false).map(x => (x._1, x._2.length))
+        val k = this.k
+        val taxaLengthArray = joinSequencesAndLabels(gl, addRC = false).map(x => (x._1, x._2.length-(k-1)))
           .toDF("taxon", "length").groupBy("taxon").agg(functions.sum($"length")).as[(Taxon, Long)].collect()
         HDFSUtil.usingWriter(output + "_min_report.txt", wr =>
           new GenomeLengthReport(taxonomy, allTaxa, taxaLengthArray).print(wr)

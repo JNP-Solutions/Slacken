@@ -8,6 +8,7 @@ package com.jnpersson.slacken
 import com.jnpersson.slacken.Taxonomy.{NONE, ROOT, Rank, Root, Unclassified}
 
 import java.io.PrintWriter
+import scala.collection.mutable
 import scala.collection.mutable.{Map => MMap}
 
 /** Helper for aggregating per-taxon counts in the taxonomic tree */
@@ -23,6 +24,40 @@ class TreeAggregator(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
   } cladeTotals(p) += count
 }
 
+class TreeAggregatorBreadthFirstS2(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
+  val taxonDepthMap: Map[Int, Array[(Taxon, Long)]] = counts.groupBy { count => taxonomy.depth(count._1) }
+  val allTaxa: Map[Int, mutable.BitSet] = taxonomy.taxaWithAncestors(Iterable(counts.map(x => x._1): _*)).groupBy(taxonomy.depth)
+  val genomeSizeTotalsS2 = MMap[Taxon, Double]().withDefaultValue(0.0)
+  for {i <- taxonDepthMap.keys.max to taxonDepthMap.keys.min by -1
+       taxonAtLevel <- allTaxa(i)
+    taxonDepthAtLevel = taxonDepthMap(i).toMap
+       } {
+    val children = taxonomy.taxaWithDescendants(Some(taxonAtLevel))
+    val totalLength = children.foldLeft(0L) { (totalLength, child) =>
+      totalLength + taxonDepthAtLevel.getOrElse(child, 0L)
+    }
+    val childrenSize = if(children.size > 1) children.size else 1
+    genomeSizeTotalsS2(taxonAtLevel) = totalLength.toDouble/(childrenSize) // because we get taxon as well.
+  }
+}
+
+class TreeAggregatorBreadthFirstS3(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
+  val taxonDepthMap: Map[Int, Array[(Taxon, Long)]] = counts.groupBy { count => taxonomy.depth(count._1) }
+  val allTaxa: Map[Int, mutable.BitSet] = taxonomy.taxaWithAncestors(Iterable(counts.map(x => x._1): _*)).groupBy(taxonomy.depth)
+  val genomeSizeTotalsS3 = MMap[Taxon, Double]().withDefaultValue(0.0)
+  for {i <- taxonDepthMap.keys.max to taxonDepthMap.keys.min by -1
+       taxonAtLevel <- allTaxa(i)
+       taxonDepthAtLevel = taxonDepthMap(i).toMap
+       } {
+    val children = if(i==taxonDepthMap.keys.max) taxonomy.taxaWithDescendants(Some(taxonAtLevel)) else
+      taxonomy.taxaWithDescendants(Some(taxonAtLevel)).groupBy(taxonomy.depth)(i-1)
+    val totalLength: Long = children.foldLeft(0L) { (totalLength, child) =>
+      totalLength + taxonDepthAtLevel.getOrElse(child, 0L)
+    }
+    val childrenSize = if(children.size > 1) children.size else 1
+    genomeSizeTotalsS3(taxonAtLevel) = totalLength.toDouble/childrenSize // because we get taxon as well.
+  }
+}
 
 /** A Kraken 1/2 style taxonomic report with a tree structure.
  * @param taxonomy The taxonomy
@@ -99,13 +134,35 @@ class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], compatibleF
 class GenomeLengthReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], genomeSizes: Array[(Taxon, Long)])
   extends KrakenReport(taxonomy, counts){
 
-  lazy val genomeAgg = new TreeAggregator(taxonomy, genomeSizes)
+
+  lazy val genomeAggS2 = new TreeAggregatorBreadthFirstS2(taxonomy, genomeSizes)
+  lazy val genomeAggS3 = new TreeAggregatorBreadthFirstS3(taxonomy,genomeSizes)
+  // for taxon in genomeAgg, legitimate_children= filter(taxon.children)
+  // genomeAgg(taxon)=genomeAgg(taxon)/len(legitimate_children)
+
+  lazy val genomeSizeS1Agg: Map[Taxon,Double] = taxonomy.taxa.map { tax =>
+    val children: mutable.BitSet = taxonomy.taxaWithDescendants(Some(tax))
+    val genomeSizesMap = genomeSizes.toMap
+    val totalLength: Double = children.foldLeft(0L) { (totalLength, child) =>
+      totalLength + genomeSizesMap.getOrElse(child, 0L)
+    }
+    val leafChildSize: Long = children.count(child => genomeSizesMap.contains(child))
+    val averageLength: Double = if(leafChildSize > 0) totalLength.toDouble/leafChildSize else 0.0
+    (tax,averageLength)
+    }.toMap
 
   override def dataColumnHeaders: String =
-    s"${super.dataColumnHeaders}\tGenome Size (K-mer count w/ duplicates)"
+//    s"${super.dataColumnHeaders}\tGS1-LeafOnly\tGS2-AllChildren\tGS3-FirstChildren"
+    s"${super.dataColumnHeaders}\tGS1-LeafOnly\tGS2-AllChildren\tGS3-FirstChildren"
+
   override def dataColumns(taxid: Taxon): String = {
-    val genomeSize = genomeAgg.cladeTotals(taxid)
-    s"${super.dataColumns(taxid)}\t$genomeSize"
+    //val genomeSize = genomeAgg.cladeTotals(taxid)
+    val genomeSizeS1 = genomeSizeS1Agg(taxid)
+    val genomeSizeS2 = genomeAggS2.genomeSizeTotalsS2(taxid)
+    val genomeSizeS3 = genomeAggS3.genomeSizeTotalsS3(taxid)
+//    s"${super.dataColumns(taxid)}\t$genomeSizeS1$genomeSizeS2$genomeSizeS3"
+    s"${super.dataColumns(taxid)}\t$genomeSizeS1\t$genomeSizeS2$genomeSizeS3"
+
   }
 }
 
