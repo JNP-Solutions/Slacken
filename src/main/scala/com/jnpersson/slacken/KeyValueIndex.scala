@@ -301,6 +301,9 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
 
     //Report the contents of the index, count minimizers
     val allTaxa = indexBuckets.groupBy("taxon").agg(count("taxon")).as[(Taxon, Long)].collect()
+    HDFSUtil.usingWriter(output + "_min_report.txt", wr =>
+      new KrakenReport(taxonomy, allTaxa).print(wr)
+    )
 
     //count of 1 per genome
     HDFSUtil.usingWriter(output + "_genome_report.txt", wr =>
