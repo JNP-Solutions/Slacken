@@ -214,7 +214,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       select($"hit.*").as[TaxonHit]
   }
 
-  def distinctMinimizersPerTaxa(buckets: DataFrame, taxa: Seq[Taxon]): Array[(Taxon, Long)] = {
+  def distinctMinimizersPerTaxon(buckets: DataFrame, taxa: Seq[Taxon]): Array[(Taxon, Long)] = {
     val precalcLocation = s"${params.location}_distinctMinimizers"
     if (!HDFSUtil.fileExists(precalcLocation)) {
       /** Precompute these values and store them for reuse later */
@@ -296,7 +296,8 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     joint.select("fracLeaf", "total").summary().show()
   }
 
-  def report(indexBuckets: DataFrame, checkLabelFile: Option[String], output: String, genomelib: Option[GenomeLibrary]): Unit = {
+  def report(indexBuckets: DataFrame, checkLabelFile: Option[String],
+             output: String, genomelib: Option[GenomeLibrary]): Unit = {
 
     //Report the contents of the index, count minimizers
     val allTaxa = indexBuckets.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect() //Dataframe

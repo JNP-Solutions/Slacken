@@ -4,6 +4,7 @@ import com.jnpersson.discount.hash.InputFragment
 import com.jnpersson.discount.spark.Output.formatPerc
 import com.jnpersson.discount.spark.{HDFSUtil, Inputs, Output}
 import com.jnpersson.slacken.Taxonomy.Rank
+import org.apache.spark.sql.functions.{approx_count_distinct, count}
 import org.apache.spark.sql.{Dataset, SparkSession, functions}
 
 import scala.collection.mutable
@@ -21,6 +22,7 @@ import scala.collection.mutable
  */
 class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
                       reclassifyRank: Rank, taxonMinFraction: Double,
+                      taxonMinCount: Long,
                       cpar: ClassifyParams,
                       goldStandardTaxonSet: Option[(String,Boolean)],
                       reportDynamicIndexLocation: Option[String])(implicit spark: SparkSession) {
@@ -28,24 +30,136 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
 
   def taxonomy = base.taxonomy
 
-  def step1AggregateTaxa(subjects: Dataset[InputFragment]): Array[(Taxon, Long)] = {
+  /** Counting method that counts the number of distinct minimizers per taxon in the sample,
+   * to aid taxon set filtering */
+  def distinctMinimizersPerTaxon(subjects: Dataset[InputFragment]): Array[(Taxon, Long)] = {
     val hits = base.findHits(base.loadBuckets(), subjects)
 
     val bcTax = base.bcTaxonomy
     val rank = reclassifyRank
 
-    hits.flatMap(h =>
+    val grouped = hits.flatMap(h =>
       for { t <- h.trueTaxon
         if bcTax.value.depth(t) >= rank.depth
         } yield (t, h.minimizer)
       ).
-      toDF("taxon", "minimizer").groupBy("taxon").
-      agg(functions.count_distinct($"minimizer").as("count")).
+      toDF("taxon", "minimizer").groupBy("taxon")
+
+    grouped.agg(functions.count_distinct($"minimizer").as("count")).
       as[(Taxon, Long)].collect()
   }
 
+  /** Counting method that counts the number of k-mers per taxon in the sample, to aid taxon set filtering */
+  def kmersPerTaxon(subjects: Dataset[InputFragment]): Array[(Taxon, Long)] = {
+    val hits = base.findHits(base.loadBuckets(), subjects)
+
+    val bcTax = base.bcTaxonomy
+    val rank = reclassifyRank
+
+    val grouped = hits.flatMap(h =>
+        for { t <- h.trueTaxon
+              if bcTax.value.depth(t) >= rank.depth
+              } yield (t, h.count)
+      ).
+      toDF("taxon", "count").groupBy("taxon")
+
+    grouped.agg(functions.sum($"count").as("count")).
+      as[(Taxon, Long)].collect()
+  }
+
+  /** Counting method that counts the number of minimizers per taxon, in the buckets, to aid taxon set filtering */
   def minimizersPerTaxon(taxa: Seq[Taxon]): Array[(Taxon, Long)] =
-    base.distinctMinimizersPerTaxa(base.loadBuckets(), taxa)
+    base.distinctMinimizersPerTaxon(base.loadBuckets(), taxa)
+
+  /** Counting method that counts the number of reads classified per taxon to aid taxon set filtering */
+  def classifiedReadsPerTaxon(subjects: Dataset[InputFragment]): Array[(Taxon, Long)] = {
+    val initThreshold = 0.0
+    val hits = base.classify(base.loadBuckets(), subjects)
+    val classified = base.classifyHits(hits, cpar, initThreshold)
+    classified.where($"classified" === true).
+      select("taxon").
+      groupBy("taxon").agg(count("*")).as[(Taxon, Long)].
+      collect()
+  }
+
+  /** Counting method that counts the number of reads classified per taxon, as well as
+   * distinct minimizers, to aid taxon set filtering */
+  def classifiedReadsPerTaxonWithDistinctMinimizers(subjects: Dataset[InputFragment]): Array[(Taxon, Long, Long)] = {
+    val initThreshold = 0.0
+    val hits = base.classify(base.loadBuckets(), subjects)
+    val classified = base.classifyHits(hits, cpar, initThreshold)
+    classified.where($"classified" === true).
+      flatMap(r => r.hits.map(hit => (r.taxon, hit.minimizer, r.title))).toDF("taxon", "minimizer", "title").
+      groupBy("taxon").agg(approx_count_distinct("title"), approx_count_distinct("minimizer")).as[(Taxon, Long, Long)].
+      collect()
+  }
+
+  /** A method for identifying a taxon set in a set of reads. */
+  trait TaxonSetFinder {
+
+    /** The identified taxa */
+    def taxa: mutable.BitSet
+
+    /** A report with all taxa, even non-included, and supporting information that was used to select the set */
+    def report: KrakenReport
+  }
+
+  /** Simple count filter that finds a taxon set by capping at a minimum count threshold.
+   */
+  class CountFilter(counts: Array[(Taxon, Long)]) extends TaxonSetFinder {
+    val hitMinimizers = new TreeAggregator(taxonomy, counts)
+
+    def report: KrakenReport =
+      new KrakenReport(taxonomy, counts)
+
+    def taxa: mutable.BitSet =
+      mutable.BitSet.empty ++
+        (for {taxon <- hitMinimizers.keys
+              if taxonomy.depth(taxon) >= reclassifyRank.depth
+              if hitMinimizers.cladeTotals(taxon) >= taxonMinCount
+              }
+        yield taxon)
+  }
+
+  /** Find an estimated taxon set in the given reads (to be classified),
+   * emphasising recall over precision.
+   */
+  def findTaxonSet(subjects: Dataset[InputFragment], writeLocation: Option[String]): mutable.BitSet = {
+    val finder = new CountFilter(distinctMinimizersPerTaxon(subjects))
+
+    for { loc <- reportDynamicIndexLocation }
+      HDFSUtil.usingWriter(loc + "_support_report.txt", wr => finder.report.print(wr))
+
+    val keepTaxa = finder.taxa
+
+    for { loc <- writeLocation }
+      HDFSUtil.writeTextLines(loc, keepTaxa.iterator.map(_.toString))
+
+    goldStandardTaxonSet match {
+      case Some((path, _)) =>
+        val goldSet = readGoldSet(path)
+        val tp = keepTaxa.intersect(goldSet).size
+        val fp = (keepTaxa -- keepTaxa.intersect(goldSet)).size
+        val fn = (goldSet -- keepTaxa.intersect(goldSet)).size
+        val precision = tp.toDouble/(tp+fp)
+        val recall = tp.toDouble/goldSet.size
+        println(s"True Positives: $tp, False Positives: $fp, False Negatives: $fn, " +
+          s"Precision: ${formatPerc(precision)}, Recall: ${formatPerc(recall)}")
+      case _ =>
+    }
+
+    val withDescendants = taxonomy.taxaWithDescendants(keepTaxa)
+    println(s"Initial scan (cutoff $taxonMinCount) produced ${keepTaxa.size} taxa at rank $reclassifyRank, expanded with descendants to ${withDescendants.size}")
+    withDescendants
+  }
+
+  def readGoldSet(path: String): mutable.BitSet = {
+    val goldSet = mutable.BitSet.empty ++
+      spark.read.csv(path).map(x => x.getString(0).toInt).collect()
+    val taxaAtRank = goldSet.filter(t => taxonomy.depth(t) >= reclassifyRank.depth)
+    println(s"Gold set contained ${goldSet.size} taxa, filtered at $reclassifyRank to ${taxaAtRank.size} taxa.")
+    taxaAtRank
+  }
 
   /** Perform two-step classification, writing the final results to a location.
    * @param inputs Subjects to classify (reads)
@@ -71,86 +185,6 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
     }
   }
 
-
-  /** Find an estimated taxon set in the given reads (to be classified),
-   * emphasising recall over precision.
-   */
-  def findTaxonSet(subjects: Dataset[InputFragment], writeLocation: Option[String]): mutable.BitSet = {
-    val agg = step1AggregateTaxa(subjects)
-    val sum = agg.map(_._2).sum
-    val hitMinimizers = new TreeAggregator(taxonomy, agg)
-    val atRank = hitMinimizers.keys.filter(taxon => taxonomy.depth(taxon) >= reclassifyRank.depth)
-    val withDescendants = taxonomy.taxaWithDescendants(atRank)
-    val totalMinimizers = new TreeAggregator(taxonomy, minimizersPerTaxon(withDescendants.toSeq))
-
-    /** Fraction of distinct minimizers in a taxon (including the entire clade)
-     * that were seen in the sample
-     */
-    def fractionOfGenome(t: Taxon) = {
-      if (totalMinimizers.cladeTotals(t) == 0) 0.0 else
-        hitMinimizers.cladeTotals(t).toDouble / totalMinimizers.cladeTotals(t)
-    }
-
-    def fractionOfSample(t: Taxon): Double =
-      hitMinimizers.cladeTotals(t).toDouble / sum
-
-    for { loc <- reportDynamicIndexLocation } {
-      val report = new KrakenReport(taxonomy, agg) {
-        override def dataColumnHeaders: String = {
-          s"${super.dataColumnHeaders}\tSample agg\tSample taxon\tGenome distinct frac\tSample distinct frac\t"
-        }
-
-        override def dataColumns(taxid: Taxon): String = {
-          s"${super.dataColumns(taxid)}\t${totalMinimizers.cladeTotals(taxid)}\t${totalMinimizers.taxonCounts(taxid)}\t" +
-            s"${"%.3f".format(fractionOfGenome(taxid))}\t${"%.2g".format(fractionOfSample(taxid))}"
-        }
-      }
-      HDFSUtil.usingWriter(loc + "_support_report.txt", wr =>
-        report.print(wr)
-      )
-    }
-
-    val keepTaxa = mutable.BitSet.empty ++
-      (for {(taxon, count) <- hitMinimizers.cladeTotals
-            if taxonomy.depth(taxon) >= reclassifyRank.depth
-            if fractionOfGenome(taxon) >= taxonMinFraction
-            }
-      yield taxon)
-
-    for { loc <- writeLocation }
-      HDFSUtil.writeTextLines(loc, keepTaxa.iterator.map(_.toString))
-
-    goldStandardTaxonSet match {
-      case Some((path, _)) =>
-        val goldSet = readGoldSet(path)
-        val tp = keepTaxa.intersect(goldSet).size
-        val fp = (keepTaxa -- keepTaxa.intersect(goldSet)).size
-        val fn = (goldSet -- keepTaxa.intersect(goldSet)).size
-        val precision = tp.toDouble/(tp+fp)
-        val recall = tp.toDouble/goldSet.size
-        println(s"True Positives: $tp, False Positives: $fp, False Negatives: $fn, " +
-          s"Precision: ${formatPerc(precision)}, Recall: ${formatPerc(recall)}")
-      case _ =>
-    }
-
-    //include descendants (leaf genomes) if they have enough unique minimizers
-    val allowedTaxa =
-      keepTaxa ++
-        taxonomy.taxaWithDescendants(keepTaxa).filter(t => fractionOfGenome(t) >= taxonMinFraction)
-    println(s"Initial scan (cutoff $taxonMinFraction) produced ${keepTaxa.size} taxa at rank $reclassifyRank, " +
-      s"expanded with descendants (min fraction $taxonMinFraction) to ${allowedTaxa.size}")
-
-    allowedTaxa
-  }
-
-  def readGoldSet(path: String): mutable.BitSet = {
-    val goldSet = mutable.BitSet.empty ++
-      spark.read.csv(path).map(x => x.getString(0).toInt).collect()
-    val taxaAtRank = goldSet.filter(t => taxonomy.depth(t) >= reclassifyRank.depth)
-    println(s"Gold set contained ${goldSet.size} taxa, filtered at $reclassifyRank to ${taxaAtRank.size} taxa")
-    taxaAtRank
-  }
-
   /** Build a dynamic index from a taxon set, which can be either supplied (a gold standard set)
    * or detected using a heuristic.
    *
@@ -167,7 +201,7 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
         findTaxonSet(subjects, setWriteLocation)
     }
 
-    //Dynamically create a new index containing only the identified taxa and their descendants
+    //Dynamically create a new index containing only the identified taxa
     base.makeBuckets(genomes, addRC = false, Some(taxonSet))
   }
 
