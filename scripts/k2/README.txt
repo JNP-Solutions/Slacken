@@ -16,8 +16,8 @@ library.
 Example environment:
 KRAKEN2_DB_NAME= (wherever the database is)
 KRAKEN2_DIR= (wherever these scripts are located)
-KRAKEN2_INCOMPLETE=1
+KRAKEN2_INCOMPLETE=
 KRAKEN2_PROTEIN_DB=
-KRAKEN2_SKIP_MAPS=0
-KRAKEN2_USE_FTP=0
+KRAKEN2_SKIP_MAPS=
+KRAKEN2_USE_FTP=
 KRAKEN2_MASK_LC=true
