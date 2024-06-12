@@ -82,11 +82,11 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
           val cpar = ClassifyParams(2, true)
           //The property of known reads classifying correctly.
           val subjectsHits = idx.classify(minimizers, reads)
-          idx.classifyHits(subjectsHits, cpar, 0.0).filter(r => {
+          idx.classifyHits(subjectsHits, cpar, 0.0).filter(hit => {
             //Check that each read got classified to the expected taxon. In the generated reads
             //the title contains the taxon, as a bookkeeping trick.
-            val expTaxon = r.title.split(":")(1).toInt
-            !(r.classified || expTaxon != r.taxon)
+            val expTaxon = hit.title.split(":")(1).toInt
+            !(!hit.classified || expTaxon == hit.taxon)
           }
           ).isEmpty should be(true)
 
