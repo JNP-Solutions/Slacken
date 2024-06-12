@@ -130,7 +130,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
   def findHits(buckets: Dataset[Record], subjects: Dataset[InputFragment]): Dataset[TaxonHit]
 
   /** Find the number of distinct minimizers for each of the given taxa */
-  def distinctMinimizersPerTaxa(buckets: Dataset[Record], taxa: Seq[Taxon]): Array[(Taxon, Long)]
+  def distinctMinimizersPerTaxon(buckets: Dataset[Record], taxa: Seq[Taxon]): Array[(Taxon, Long)]
 
   /** Classify subject sequences */
   def classify(buckets: Dataset[Record], subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])]

@@ -5,6 +5,7 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.slacken.Taxonomy.{ROOT, Root}
+import org.scalacheck.Gen
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers._
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
@@ -88,6 +89,34 @@ class TaxonomyProps extends AnyFunSuite with ScalaCheckPropertyChecks {
           tax.hasAncestor(t, lca) should be(true)
           tax.hasAncestor(u, lca) should be(true)
         }
+      }
+    }
+  }
+
+  test("taxaWithDescendants") {
+    forAll(taxonomies(100)) { tax =>
+      forAll(Gen.someOf(tax.taxa.toList)) { subset =>
+        val withDescendants = tax.taxaWithDescendants(subset)
+        //all taxa in the subset should be in the generated set
+        subset.toSet.intersect(withDescendants) should equal(subset.toSet)
+        //every added descendant must have an ancestor in subset
+        (withDescendants -- subset).filter(t =>
+          !subset.exists(a => tax.hasAncestor(t, a))) should be(empty)
+        //all children should already have been added
+        (withDescendants ++ subset.iterator.flatMap(t => tax.children(t))) should equal(withDescendants)
+      }
+    }
+  }
+
+  test("taxaWithAncestors") {
+    forAll(taxonomies(100)) { tax =>
+      forAll(Gen.someOf(tax.taxa.toList)) { subset =>
+        val withAncestors = tax.taxaWithAncestors(subset)
+        //all taxa in the subset should be in the generated set
+        subset.toSet.intersect(withAncestors) should equal(subset.toSet)
+
+        val allAncestors = subset.iterator.flatMap(t => tax.pathToRoot(t))
+        allAncestors.toSet should equal(withAncestors)
       }
     }
   }
