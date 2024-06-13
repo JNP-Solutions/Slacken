@@ -172,7 +172,7 @@ class TotalMinimizerCountReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]
   lazy val totMinAgg = new TotalMinimizerSizeAggregator(taxonomy, genomeSizes)
 
   override def dataColumnHeaders: String =
-    s"${super.dataColumnHeaders}\tTMS1-LeafOnly\tTMS2-FirstChildren\tTMS3-AllChildren"
+    s"${super.dataColumnHeaders}\tTKC1-LeafOnly\tTKC2-FirstChildren\tTKC3-AllChildren"
 
   override def dataColumns(taxid: Taxon): String = {
     val totMinSizeS1 = totMinAgg.totMinAverageS1(taxid)
