@@ -296,14 +296,42 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     joint.select("fracLeaf", "total").summary().show()
   }
 
-  def report(indexBuckets: DataFrame, checkLabelFile: Option[String],
-             output: String): Unit = {
+  /**
+   * Generates K-mer counts (with duplicates) for each taxon in the library and creates a GenomeLengthReport
+   * @param indexBuckets
+   * @param genomeLibrary
+   * @return
+   */
+  def totalMinimizerCountReport(indexBuckets: DataFrame, genomeLibrary: GenomeLibrary): TotalMinimizerCountReport = {
 
-    //Report the contents of the index, count minimizers
-    val allTaxa = indexBuckets.groupBy("taxon").agg(count("taxon")).as[(Taxon, Long)].collect()
-    HDFSUtil.usingWriter(output + "_min_report.txt", wr =>
-      new KrakenReport(taxonomy, allTaxa).print(wr)
-    )
+    val allTaxa = indexBuckets.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect() //Dataframe
+    val k = this.k
+    val spl = this.bcSplit
+    val taxaLengthArray = joinSequencesAndLabels(genomeLibrary, addRC = false).map {x =>
+        val superkmers = spl.value.superkmerPositions(x._2, false)
+        val superkmerSum = superkmers.map(s => s._3-(k-1)).sum
+        (x._1,superkmerSum)
+      }
+      .toDF("taxon", "length").groupBy("taxon").agg(functions.sum($"length")).as[(Taxon, Long)].collect()
+
+    new TotalMinimizerCountReport(taxonomy, allTaxa, taxaLengthArray)
+  }
+
+  def report(indexBuckets: DataFrame, checkLabelFile: Option[String],
+             output: String, genomelib: Option[GenomeLibrary]): Unit = {
+
+    //Report the contents of the index, count minimizers of taxa with distinct minimizer counts
+    val allTaxa = indexBuckets.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect() //Dataframe
+    genomelib match {
+      case Some(gl) =>
+        val report = totalMinimizerCountReport(indexBuckets,gl)
+        HDFSUtil.usingWriter(output + "_min_report.txt", wr => report.print(wr))
+
+      case None =>
+        HDFSUtil.usingWriter(output + "_min_report.txt", wr =>
+          new KrakenReport(taxonomy, allTaxa).print(wr)
+        )
+    }
 
     //count of 1 per genome
     HDFSUtil.usingWriter(output + "_genome_report.txt", wr =>

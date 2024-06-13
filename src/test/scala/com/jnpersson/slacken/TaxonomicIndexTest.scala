@@ -10,6 +10,7 @@ import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, InputFragment, MinSplit
 import com.jnpersson.discount.spark.{IndexParams, Inputs, SparkSessionTestWrapper}
 import com.jnpersson.discount.{NTSeq, Testing => DTesting}
 import com.jnpersson.slacken.Taxonomy.{ROOT, Species}
+import org.apache.spark.sql.functions
 import org.scalacheck.Gen
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
@@ -119,6 +120,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
         (526997, "Bacillus mycoides DSM 2048"))
     )
 
+
   /* Build a tiny index and write it to disk, then reading it back.
   * At this point there's no correctness check, but the code path is tested.
   */
@@ -169,5 +171,22 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     val reads = simulateReads(200, 1000).toDS()
     val bkts = dyn.makeBuckets(reads, None)
     val hits = idx.classify(bkts, reads)
+  }
+
+  test("A known leaf node total k-mer count is correct with respect to the known value") {
+
+    val dir = System.getProperty("user.dir")
+    val location = s"$dir/testData/slacken/slacken_test_kv"
+    val idx = makeTinyIndex((params, taxonomy) => new KeyValueIndex(params, taxonomy),
+      location).asInstanceOf[KeyValueIndex]
+    val gl = GenomeLibrary(
+      new Inputs(List("testData/slacken/slacken_tinydata.fna"), idx.k, 10000000),
+      "testData/slacken/seqid2taxid.map")
+
+    val genomeSizes = idx.totalMinimizerCountReport(idx.loadBuckets(),gl).genomeSizes.toMap
+    // The total k-mer counts hardcoded below were independently computed using both KMC3 and Discount
+    val realGenomeSizes = Map(526997 -> 2914769, 455631 -> 3594763)
+    genomeSizes should equal(realGenomeSizes)
+
   }
 }
