@@ -172,7 +172,9 @@ abstract class InputReader[R <: AnyRef](file: String, k: Int)(implicit spark: Sp
   protected def rdd: RDD[R] = loadFile(file)
   protected[spark] val parser = FragmentParser(k)
 
-  private val validBases = "[ACTGUactgu\n\r]+".r
+  //Multiline DNA sequences may contain intermittent newlines but should
+  //still be treated as a single valid match
+  private val validBases = "([\n\r]?[ACTGUactgu]+[\n\r]?)+".r
 
   /**
    * Split the fragments around unknown or invalid characters.
