@@ -54,7 +54,9 @@ case $library_name in
       1>&2 echo "Error downloading assembly summary file for $library_name, exiting."
       exit 1
     fi
-    mv "$remote_file" assembly_summary.txt
+    if [ "$library_name" = "refseq" ]; then
+      mv "$remote_file" assembly_summary.txt
+    fi
     if [ "$library_name" = "human" ]; then
       grep "Genome Reference Consortium" assembly_summary.txt > x
       mv x assembly_summary.txt
