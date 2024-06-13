@@ -307,9 +307,10 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     val allTaxa = indexBuckets.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect() //Dataframe
     val k = this.k
     val spl = this.bcSplit
-    val taxaLengthArray = joinSequencesAndLabels(genomeLibrary, addRC = false).flatMap {x =>
-        val superKmers = spl.value.superkmerPositions(x._2, false)
-        superKmers.map(s => (x._1, s._3-(k-1)))
+    val taxaLengthArray = joinSequencesAndLabels(genomeLibrary, addRC = false).map {x =>
+        val superkmers = spl.value.superkmerPositions(x._2, false)
+        val superkmerSum = superkmers.map(s => s._3-(k-1)).sum
+        (x._1,superkmerSum)
       }
       .toDF("taxon", "length").groupBy("taxon").agg(functions.sum($"length")).as[(Taxon, Long)].collect()
 
