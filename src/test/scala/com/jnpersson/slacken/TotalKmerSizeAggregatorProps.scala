@@ -10,7 +10,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 
-class GenomeSizeAggregatorProps extends AnyFunSuite with ScalaCheckPropertyChecks with Matchers {
+class TotalKmerSizeAggregatorProps extends AnyFunSuite with ScalaCheckPropertyChecks with Matchers {
   import Testing._
 
   def genomeSizes(tax: Taxonomy): Array[(Taxon, Long)] = {
@@ -34,9 +34,9 @@ class GenomeSizeAggregatorProps extends AnyFunSuite with ScalaCheckPropertyCheck
       val agg = new TotalMinimizerSizeAggregator(tax, sizes)
       for { t <- tax.taxa } {
         if (tax.isLeafNode(t)) {
-          sizeMap(t) should equal(agg.totMinAverageS1(t))
-          sizeMap(t) should equal(agg.totMinAverageS2(t))
-          sizeMap(t) should equal(agg.totMinAverageS3(t))
+          sizeMap(t) should equal(agg.totKmerAverageS1(t))
+          sizeMap(t) should equal(agg.totKmerAverageS2(t))
+          sizeMap(t) should equal(agg.totKmerAverageS3(t))
         }
       }
     }
