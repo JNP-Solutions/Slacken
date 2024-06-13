@@ -298,10 +298,19 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
    * @param checkLabelFile sequence label file used to build the index
    * @param output         output filename prefix
    */
-  def report(checkLabelFile: Option[String], output: String): Unit =
-    report(loadBuckets(), checkLabelFile, output)
+  def report(checkLabelFile: Option[String], output: String, genomeLib: Option[GenomeLibrary]): Unit =
+    report(loadBuckets(), checkLabelFile, output, genomeLib)
 
-  def report(indexBuckets: Dataset[Record], checkLabelFile: Option[String], output: String): Unit
+  /**
+   * If the genomelib input is given then the function creates a modified kraken 1/2 report with
+   * average total kmer counts for each taxon. Else, the function creates the legacy kraken 1/2 style report
+   * @param indexBuckets
+   * @param checkLabelFile
+   * @param output
+   * @param genomelib
+   */
+  def report(indexBuckets: Dataset[Record], checkLabelFile: Option[String],
+             output: String, genomelib: Option[GenomeLibrary] = None): Unit
 }
 
 object TaxonomicIndex {

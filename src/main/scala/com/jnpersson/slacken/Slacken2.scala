@@ -216,11 +216,18 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
     val report = new RunCmd("report") {
       banner("Generate an index contents report")
 
+      val library = opt[String](descr = "Location of sequence files (directory containing library/)")
       val output = opt[String](descr = "Output location", required = true)
       val labels = opt[String](descr = "Labels file to check for missing nodes")
 
       def run(): Unit = {
-        index().report(labels.toOption, output())
+        val genomes: Option[GenomeLibrary] = library.toOption match {
+          case Some(lb) =>
+            Some(findGenomes(lb))
+          case None =>
+            None
+        }
+        index().report(labels.toOption, output(), genomes)
       }
     }
     addSubcommand(report)
