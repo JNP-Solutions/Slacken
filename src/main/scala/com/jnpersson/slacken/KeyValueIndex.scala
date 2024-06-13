@@ -296,6 +296,26 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     joint.select("fracLeaf", "total").summary().show()
   }
 
+  /**
+   * Generates K-mer counts (with duplicates) for each taxon in the library and creates a GenomeLengthReport
+   * @param indexBuckets
+   * @param genomeLibrary
+   * @return
+   */
+  def totalMinimizerCountReport(indexBuckets: DataFrame, genomeLibrary: GenomeLibrary): TotalMinimizerCountReport = {
+
+    val allTaxa = indexBuckets.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect() //Dataframe
+    val k = this.k
+    val spl = this.bcSplit
+    val taxaLengthArray = joinSequencesAndLabels(genomeLibrary, addRC = false).flatMap {x =>
+        val superKmers = spl.value.superkmerPositions(x._2, false)
+        superKmers.map(s => (x._1, s._3-(k-1)))
+      }
+      .toDF("taxon", "length").groupBy("taxon").agg(functions.sum($"length")).as[(Taxon, Long)].collect()
+
+    new TotalMinimizerCountReport(taxonomy, allTaxa, taxaLengthArray)
+  }
+
   def report(indexBuckets: DataFrame, checkLabelFile: Option[String],
              output: String, genomelib: Option[GenomeLibrary]): Unit = {
 
@@ -304,12 +324,8 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     // of taxa with distinct minimizer counts
     genomelib match {
       case Some(gl) =>
-        val k = this.k
-        val taxaLengthArray = joinSequencesAndLabels(gl, addRC = false).map(x => (x._1, x._2.length-(k-1)))
-          .toDF("taxon", "length").groupBy("taxon").agg(functions.sum($"length")).as[(Taxon, Long)].collect()
-        HDFSUtil.usingWriter(output + "_min_report.txt", wr =>
-          new GenomeLengthReport(taxonomy, allTaxa, taxaLengthArray).print(wr)
-        )
+        val report = totalMinimizerCountReport(indexBuckets,gl)
+        HDFSUtil.usingWriter(output + "_min_report.txt", wr => report.print(wr))
 
       case None =>
         HDFSUtil.usingWriter(output + "_min_report.txt", wr =>

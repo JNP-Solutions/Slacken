@@ -4,6 +4,8 @@
 
 package com.jnpersson.slacken
 
+import com.jnpersson.slacken.Taxonomy.ROOT
+import org.apache.spark.sql.functions
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
@@ -17,18 +19,28 @@ class GenomeSizeAggregatorProps extends AnyFunSuite with ScalaCheckPropertyCheck
     leafNodes.toArray.map(t => (t, scala.util.Random.nextInt(genomeLengthMax).toLong))
   }
 
-  test("leaf node genome sizes are correctly measured") {
+  def testDataTaxonomy =
+    Taxonomy.fromNodesAndNames(
+      Array((455631, ROOT, "strain"),
+        (526997, ROOT, "strain")),
+      Iterator((455631, "Clostridioides difficile QCD-66c26"),
+        (526997, "Bacillus mycoides DSM 2048"))
+    )
+
+  test("leaf node total k-mer counts are correctly measured") {
     forAll(taxonomies(100)) { tax =>
       val sizes = genomeSizes(tax)
       val sizeMap = sizes.toMap
-      val agg = new GenomeSizeAggregator(tax, sizes)
+      val agg = new TotalMinimizerSizeAggregator(tax, sizes)
       for { t <- tax.taxa } {
         if (tax.isLeafNode(t)) {
-          sizeMap(t) should equal(agg.genomeAverageS1(t))
-          sizeMap(t) should equal(agg.genomeAverageS2(t))
-          sizeMap(t) should equal(agg.genomeAverageS3(t))
+          sizeMap(t) should equal(agg.totMinAverageS1(t))
+          sizeMap(t) should equal(agg.totMinAverageS2(t))
+          sizeMap(t) should equal(agg.totMinAverageS3(t))
         }
       }
     }
   }
+
 }
+

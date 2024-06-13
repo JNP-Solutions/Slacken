@@ -26,11 +26,11 @@ class TreeAggregator(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
   } cladeTotals(p) += count
 }
 
-class GenomeSizeAggregator(taxonomy: Taxonomy, genomeSizes: Array[(Taxon, Long)]) {
+class TotalMinimizerSizeAggregator(taxonomy: Taxonomy, genomeSizes: Array[(Taxon, Long)]) {
   val genomeSizesMap = genomeSizes.toMap
   val computedTreeMap: mutable.Map[Taxon, (Long, Long)] = computeFullTree()
 
-  def genomeAverageS1(taxon: Taxon): Double = {
+  def totMinAverageS1(taxon: Taxon): Double = {
     val s1Agg = taxonomy.children(taxon).map(child => computedTreeMap(child)).
       reduceOption((aggSum, pair) => (aggSum._1 + pair._1, aggSum._2 + pair._2))
       .getOrElse(computedTreeMap(taxon))
@@ -38,7 +38,7 @@ class GenomeSizeAggregator(taxonomy: Taxonomy, genomeSizes: Array[(Taxon, Long)]
       s1Agg._1.toDouble / s1Agg._2.toDouble
   }
 
-  def genomeAverageS2(taxon: Taxon): Double = {
+  def totMinAverageS2(taxon: Taxon): Double = {
     if (taxonomy.children(taxon).nonEmpty) {
       val s2Agg = taxonomy.children(taxon).map(child => computedTreeMap(child)).filter(_._2 > 0)
         .map(pair => pair._1.toDouble / pair._2.toDouble)
@@ -49,15 +49,15 @@ class GenomeSizeAggregator(taxonomy: Taxonomy, genomeSizes: Array[(Taxon, Long)]
     }
   }
 
-  def genomeAverageS3(taxon: Taxon): Double = {
+  def totMinAverageS3(taxon: Taxon): Double = {
     val childrenNonZero = taxonomy.children(taxon).map(child => computedTreeMap(child)).filter(_._2 > 0)
     val s1Agg = childrenNonZero.reduceOption { (aggSum, pair) => (aggSum._1 + pair._1, aggSum._2 + pair._2) }
       .getOrElse(computedTreeMap(taxon))
     val nonZeroChildSize = childrenNonZero.size.toDouble
 
     if (s1Agg._2 + nonZeroChildSize == 0) 0 else {
-      ((genomeAverageS1(taxon) * s1Agg._2.toDouble) +
-        (genomeAverageS2(taxon) * nonZeroChildSize)) / (s1Agg._2.toDouble + nonZeroChildSize)
+      ((totMinAverageS1(taxon) * s1Agg._2.toDouble) +
+        (totMinAverageS2(taxon) * nonZeroChildSize)) / (s1Agg._2.toDouble + nonZeroChildSize)
     }
   }
 
@@ -166,19 +166,19 @@ class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], compatibleF
     reportDFS(output, reportZeros)
 }
 
-class GenomeLengthReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], genomeSizes: Array[(Taxon, Long)])
+class TotalMinimizerCountReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], val genomeSizes: Array[(Taxon, Long)])
   extends KrakenReport(taxonomy, counts){
 
-  lazy val genomeAgg = new GenomeSizeAggregator(taxonomy, genomeSizes)
+  lazy val totMinAgg = new TotalMinimizerSizeAggregator(taxonomy, genomeSizes)
 
   override def dataColumnHeaders: String =
-    s"${super.dataColumnHeaders}\tGS1-LeafOnly\tGS2-FirstChildren\tGS3-AllNodes"
+    s"${super.dataColumnHeaders}\tTMS1-LeafOnly\tTMS2-FirstChildren\tTMS3-AllChildren"
 
   override def dataColumns(taxid: Taxon): String = {
-    val genomeSizeS1 = genomeAgg.genomeAverageS1(taxid)
-    val genomeSizeS2 = genomeAgg.genomeAverageS2(taxid)
-    val genomeSizeS3 = genomeAgg.genomeAverageS3(taxid)
-    s"${super.dataColumns(taxid)}\t$genomeSizeS1\t$genomeSizeS2\t$genomeSizeS3"
+    val totMinSizeS1 = totMinAgg.totMinAverageS1(taxid)
+    val totMinSizeS2 = totMinAgg.totMinAverageS2(taxid)
+    val totMinSizeS3 = totMinAgg.totMinAverageS3(taxid)
+    s"${super.dataColumns(taxid)}\t$totMinSizeS1\t$totMinSizeS2\t$totMinSizeS3"
 
   }
 }
