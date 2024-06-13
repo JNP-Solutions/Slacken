@@ -31,7 +31,7 @@ class TotalKmerSizeAggregatorProps extends AnyFunSuite with ScalaCheckPropertyCh
     forAll(taxonomies(100)) { tax =>
       val sizes = genomeSizes(tax)
       val sizeMap = sizes.toMap
-      val agg = new TotalMinimizerSizeAggregator(tax, sizes)
+      val agg = new TotalKmerSizeAggregator(tax, sizes)
       for { t <- tax.taxa } {
         if (tax.isLeafNode(t)) {
           sizeMap(t) should equal(agg.totKmerAverageS1(t))

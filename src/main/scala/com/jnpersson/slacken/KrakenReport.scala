@@ -26,7 +26,7 @@ class TreeAggregator(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
   } cladeTotals(p) += count
 }
 
-class TotalMinimizerSizeAggregator(taxonomy: Taxonomy, genomeSizes: Array[(Taxon, Long)]) {
+class TotalKmerSizeAggregator(taxonomy: Taxonomy, genomeSizes: Array[(Taxon, Long)]) {
   val genomeSizesMap = genomeSizes.toMap
   val computedTreeMap: mutable.Map[Taxon, (Long, Long)] = computeFullTree()
 
@@ -187,7 +187,7 @@ class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], compatibleF
 class TotalMinimizerCountReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], val genomeSizes: Array[(Taxon, Long)])
   extends KrakenReport(taxonomy, counts) {
 
-  lazy val totMinAgg = new TotalMinimizerSizeAggregator(taxonomy, genomeSizes)
+  lazy val totMinAgg = new TotalKmerSizeAggregator(taxonomy, genomeSizes)
 
   override def dataColumnHeaders: String =
     s"${super.dataColumnHeaders}\tTKC1-LeafOnly\tTKC2-FirstChildren\tTKC3-AllChildren"
