@@ -320,9 +320,8 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   def report(indexBuckets: DataFrame, checkLabelFile: Option[String],
              output: String, genomelib: Option[GenomeLibrary]): Unit = {
 
-    //Report the contents of the index, count minimizers
+    //Report the contents of the index, count minimizers of taxa with distinct minimizer counts
     val allTaxa = indexBuckets.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect() //Dataframe
-    // of taxa with distinct minimizer counts
     genomelib match {
       case Some(gl) =>
         val report = totalMinimizerCountReport(indexBuckets,gl)

@@ -30,15 +30,27 @@ class TotalMinimizerSizeAggregator(taxonomy: Taxonomy, genomeSizes: Array[(Taxon
   val genomeSizesMap = genomeSizes.toMap
   val computedTreeMap: mutable.Map[Taxon, (Long, Long)] = computeFullTree()
 
-  def totMinAverageS1(taxon: Taxon): Double = {
+  /**
+   * Average kmer count among all leaf-children of that taxon.
+   * (present in the report under the column header "TKC1-LeafOnly")
+   * @param taxon
+   * @return
+   */
+  def totKmerAverageS1(taxon: Taxon): Double = {
     val s1Agg = taxonomy.children(taxon).map(child => computedTreeMap(child)).
       reduceOption((aggSum, pair) => (aggSum._1 + pair._1, aggSum._2 + pair._2))
       .getOrElse(computedTreeMap(taxon))
 
-      s1Agg._1.toDouble / s1Agg._2.toDouble
+    s1Agg._1.toDouble / s1Agg._2.toDouble
   }
 
-  def totMinAverageS2(taxon: Taxon): Double = {
+  /**
+   * Average kmer count among all first (immediate) children of that taxon.
+   * (present in the report under the column header "TKC2-FirstChildren")
+   * @param taxon
+   * @return
+   */
+  def totKmerAverageS2(taxon: Taxon): Double = {
     if (taxonomy.children(taxon).nonEmpty) {
       val s2Agg = taxonomy.children(taxon).map(child => computedTreeMap(child)).filter(_._2 > 0)
         .map(pair => pair._1.toDouble / pair._2.toDouble)
@@ -49,15 +61,21 @@ class TotalMinimizerSizeAggregator(taxonomy: Taxonomy, genomeSizes: Array[(Taxon
     }
   }
 
-  def totMinAverageS3(taxon: Taxon): Double = {
+  /**
+   * Average kmer count among all children of that taxon.
+   * (present in the report under the column header "TKC3-AllChildren ")
+   * @param taxon
+   * @return
+   */
+  def totKmerAverageS3(taxon: Taxon): Double = {
     val childrenNonZero = taxonomy.children(taxon).map(child => computedTreeMap(child)).filter(_._2 > 0)
     val s1Agg = childrenNonZero.reduceOption { (aggSum, pair) => (aggSum._1 + pair._1, aggSum._2 + pair._2) }
       .getOrElse(computedTreeMap(taxon))
     val nonZeroChildSize = childrenNonZero.size.toDouble
 
     if (s1Agg._2 + nonZeroChildSize == 0) 0 else {
-      ((totMinAverageS1(taxon) * s1Agg._2.toDouble) +
-        (totMinAverageS2(taxon) * nonZeroChildSize)) / (s1Agg._2.toDouble + nonZeroChildSize)
+      ((totKmerAverageS1(taxon) * s1Agg._2.toDouble) +
+        (totKmerAverageS2(taxon) * nonZeroChildSize)) / (s1Agg._2.toDouble + nonZeroChildSize)
     }
   }
 
@@ -67,36 +85,36 @@ class TotalMinimizerSizeAggregator(taxonomy: Taxonomy, genomeSizes: Array[(Taxon
     results
   }
 
-  def computeLeafAggAndCounts(taxon: Taxon, results: mutable.Map[Taxon,(Long,Long)]):(Long, Long)={
+  def computeLeafAggAndCounts(taxon: Taxon, results: mutable.Map[Taxon, (Long, Long)]): (Long, Long) = {
     val children = taxonomy.children(taxon)
     children match {
       case Nil =>
-        if(genomeSizesMap.contains(taxon)) {
-          results += (taxon -> (genomeSizesMap(taxon),1))
-          (genomeSizesMap(taxon),1)
+        if (genomeSizesMap.contains(taxon)) {
+          results += (taxon -> (genomeSizesMap(taxon), 1))
+          (genomeSizesMap(taxon), 1)
         } else {
-          results += (taxon -> (0,0))
-          (0,0)
+          results += (taxon -> (0, 0))
+          (0, 0)
         }
 
       case childList =>
-        val aggCounts = (ListBuffer.empty[Long],ListBuffer.empty[Long])
-        for{i <- childList
-            leafCounts=computeLeafAggAndCounts(i,results)}
-        {
+        val aggCounts = (ListBuffer.empty[Long], ListBuffer.empty[Long])
+        for {i <- childList
+             leafCounts = computeLeafAggAndCounts(i, results)} {
           aggCounts._1 += leafCounts._1
           aggCounts._2 += leafCounts._2
         }
-        results += (taxon -> (aggCounts._1.sum,aggCounts._2.sum))
-        (aggCounts._1.sum,aggCounts._2.sum)
+        results += (taxon -> (aggCounts._1.sum, aggCounts._2.sum))
+        (aggCounts._1.sum, aggCounts._2.sum)
     }
   }
 
 }
 
 /** A Kraken 1/2 style taxonomic report with a tree structure.
- * @param taxonomy The taxonomy
- * @param counts Number of hits (reads) for each taxon
+ *
+ * @param taxonomy         The taxonomy
+ * @param counts           Number of hits (reads) for each taxon
  * @param compatibleFormat Traditional output format (no headers, identical to Kraken/Kraken 2 reports)
  */
 class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], compatibleFormat: Boolean = false) {
@@ -128,7 +146,7 @@ class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], compatibleF
   }
 
   /** Depth-first search to generate report lines and print them.
-   *  Mostly adapted from kraken 2's reports.cc.
+   * Mostly adapted from kraken 2's reports.cc.
    */
   def reportDFS(output: PrintWriter, reportZeros: Boolean, taxid: Taxon, rank: Rank, rankDepth: Int,
                 depth: Int): Unit = {
@@ -167,7 +185,7 @@ class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], compatibleF
 }
 
 class TotalMinimizerCountReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], val genomeSizes: Array[(Taxon, Long)])
-  extends KrakenReport(taxonomy, counts){
+  extends KrakenReport(taxonomy, counts) {
 
   lazy val totMinAgg = new TotalMinimizerSizeAggregator(taxonomy, genomeSizes)
 
@@ -175,9 +193,9 @@ class TotalMinimizerCountReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]
     s"${super.dataColumnHeaders}\tTKC1-LeafOnly\tTKC2-FirstChildren\tTKC3-AllChildren"
 
   override def dataColumns(taxid: Taxon): String = {
-    val totMinSizeS1 = totMinAgg.totMinAverageS1(taxid)
-    val totMinSizeS2 = totMinAgg.totMinAverageS2(taxid)
-    val totMinSizeS3 = totMinAgg.totMinAverageS3(taxid)
+    val totMinSizeS1 = totMinAgg.totKmerAverageS1(taxid)
+    val totMinSizeS2 = totMinAgg.totKmerAverageS2(taxid)
+    val totMinSizeS3 = totMinAgg.totKmerAverageS3(taxid)
     s"${super.dataColumns(taxid)}\t$totMinSizeS1\t$totMinSizeS2\t$totMinSizeS3"
 
   }
@@ -201,13 +219,13 @@ object KrakenReport {
 
   def main(args: Array[String]): Unit = {
     val level = if (args.length > 0) Some(args(0)) else None
-    val minPercent = if(args.length > 1) Some(args(1).toDouble) else None
+    val minPercent = if (args.length > 1) Some(args(1).toDouble) else None
 
     val cutoff = level.map(l => numRankForCode(l.toUpperCase))
     val digits = "[0-9]+".r
     for {
       l <- scala.io.Source.stdin.getLines()
-      if ! l.startsWith("#")
+      if !l.startsWith("#")
       spl = l.split("\t")
 
       frac = spl(0).toDouble

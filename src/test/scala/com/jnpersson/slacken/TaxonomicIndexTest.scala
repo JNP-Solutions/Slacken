@@ -184,6 +184,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
       "testData/slacken/seqid2taxid.map")
 
     val genomeSizes = idx.totalMinimizerCountReport(idx.loadBuckets(),gl).genomeSizes.toMap
+    // The total k-mer counts hardcoded below were independently computed using both KMC3 and Discount
     val realGenomeSizes = Map(526997 -> 2914769, 455631 -> 3594763)
     genomeSizes should equal(realGenomeSizes)
 
