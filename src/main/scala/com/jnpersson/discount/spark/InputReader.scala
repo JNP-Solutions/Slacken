@@ -174,7 +174,7 @@ abstract class InputReader[R <: AnyRef](file: String, k: Int)(implicit spark: Sp
 
   //Multiline DNA sequences may contain intermittent newlines but should
   //still be treated as a single valid match
-  private val validBases = "([\n\r]?[ACTGUactgu]+[\n\r]?)+".r
+  private val validBases = "([ACTGUactgu]+[\n\r]*)+".r
 
   /**
    * Split the fragments around unknown or invalid characters.
