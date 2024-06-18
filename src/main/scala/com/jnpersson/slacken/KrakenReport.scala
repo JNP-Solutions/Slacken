@@ -43,14 +43,11 @@ class TotalKmerSizeAggregator(taxonomy: Taxonomy, genomeSizes: Array[(Taxon, Lon
 
     val s1AggWithTaxon = if(genomeSizesMap.contains(taxon)) (s1Agg._1 + genomeSizesMap(taxon),s1Agg._2 + 1) else s1Agg
 
-    if(taxon==574521) {
-      println(s1Agg, "----", taxonomy.getName(taxon), genomeSizesMap(taxon), "----", taxonomy.children(taxon))
-    }
     s1AggWithTaxon._1.toDouble / s1AggWithTaxon._2.toDouble
   }
 
   /**
-   * Average kmer count among all first (immediate) children of that taxon.
+   * Average kmer count of average kmer counts of all first (immediate) children of that taxon.
    * (present in the report under the column header "TKC2-FirstChildren")
    * @param taxon
    * @return
@@ -59,7 +56,9 @@ class TotalKmerSizeAggregator(taxonomy: Taxonomy, genomeSizes: Array[(Taxon, Lon
     if (taxonomy.children(taxon).nonEmpty) {
       val s2Agg = taxonomy.children(taxon).map(child => computedTreeMap(child)).filter(_._2 > 0)
         .map(pair => pair._1.toDouble / pair._2.toDouble)
-      s2Agg.sum / s2Agg.size.toDouble
+      val s2AggWithTaxon = if(genomeSizesMap.contains(taxon)) genomeSizesMap(taxon).toDouble::s2Agg else s2Agg
+
+      s2AggWithTaxon.sum / s2AggWithTaxon.size.toDouble
     } else {
       val a = computedTreeMap(taxon)
       if (a._2 == 0) 0 else a._1 / a._2
