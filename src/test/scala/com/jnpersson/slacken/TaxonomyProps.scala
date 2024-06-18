@@ -66,10 +66,10 @@ class TaxonomyProps extends AnyFunSuite with ScalaCheckPropertyChecks {
            } {
         if (r == tr) {
           anc should equal(t)
-        } else if (r.isBelow(tr)) {
+        } else if (r > tr) {
           //rank is too low, same value should be returned
           anc should equal(t)
-        } else if (!r.isBelow(tax.ranks(anc))) { //there might not be an ancestor at the requested level r
+        } else if (! (r > tax.ranks(anc))) { //there might not be an ancestor at the requested level r
           tax.ranks(anc) should equal(r)
         }
       }

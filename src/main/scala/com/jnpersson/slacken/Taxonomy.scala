@@ -15,9 +15,9 @@ object Taxonomy {
   final val ROOT: Taxon = 1
 
   /** Levels in the taxonomic hierarchy, from general (higher) to specific (lower) */
-  sealed abstract class Rank(val title: String, val code: String, val depth: Int) extends Serializable {
-    def isBelow(other: Rank): Boolean =
-      depth > other.depth
+  sealed abstract class Rank(val title: String, val code: String, val depth: Int) extends Serializable with Ordered[Rank] {
+    def compare(that: Rank): Int =
+      depth - that.depth
   }
   
   case object Unclassified extends Rank("unclassified", "U", -1)
@@ -47,6 +47,9 @@ object Taxonomy {
     case Species.title => Some(Species)
     case _ => None
   }
+
+  def rankForDepth(d: Int): Option[Rank] =
+    rankValues.find(_.depth == d)
 
   /**
    * Construct a Taxonomy from parsed NCBI style input data.
