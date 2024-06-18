@@ -302,7 +302,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
    * @param genomeLibrary
    * @return
    */
-  def totalMinimizerCountReport(indexBuckets: DataFrame, genomeLibrary: GenomeLibrary): TotalMinimizerCountReport = {
+  def totalKmerCountReport(indexBuckets: DataFrame, genomeLibrary: GenomeLibrary): TotalKmerCountReport = {
 
     val allTaxa = indexBuckets.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect() //Dataframe
     val k = this.k
@@ -314,7 +314,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       }
       .toDF("taxon", "length").groupBy("taxon").agg(functions.sum($"length")).as[(Taxon, Long)].collect()
 
-    new TotalMinimizerCountReport(taxonomy, allTaxa, taxaLengthArray)
+    new TotalKmerCountReport(taxonomy, allTaxa, taxaLengthArray)
   }
 
   def report(indexBuckets: DataFrame, checkLabelFile: Option[String],
@@ -324,7 +324,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     val allTaxa = indexBuckets.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect() //Dataframe
     genomelib match {
       case Some(gl) =>
-        val report = totalMinimizerCountReport(indexBuckets,gl)
+        val report = totalKmerCountReport(indexBuckets,gl)
         HDFSUtil.usingWriter(output + "_min_report.txt", wr => report.print(wr))
 
       case None =>
