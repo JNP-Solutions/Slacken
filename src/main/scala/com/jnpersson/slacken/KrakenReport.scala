@@ -41,7 +41,12 @@ class TotalKmerSizeAggregator(taxonomy: Taxonomy, genomeSizes: Array[(Taxon, Lon
       reduceOption((aggSum, pair) => (aggSum._1 + pair._1, aggSum._2 + pair._2))
       .getOrElse(computedTreeMap(taxon))
 
-    s1Agg._1.toDouble / s1Agg._2.toDouble
+    val s1AggWithTaxon = if(genomeSizesMap.contains(taxon)) (s1Agg._1 + genomeSizesMap(taxon),s1Agg._2 + 1) else s1Agg
+
+    if(taxon==574521) {
+      println(s1Agg, "----", taxonomy.getName(taxon), genomeSizesMap(taxon), "----", taxonomy.children(taxon))
+    }
+    s1AggWithTaxon._1.toDouble / s1AggWithTaxon._2.toDouble
   }
 
   /**
@@ -98,14 +103,20 @@ class TotalKmerSizeAggregator(taxonomy: Taxonomy, genomeSizes: Array[(Taxon, Lon
         }
 
       case childList =>
-        val aggCounts = (ListBuffer.empty[Long], ListBuffer.empty[Long])
+        val genomeSizes = ListBuffer[Long]()
+        val genomeCounts = ListBuffer[Long]()
+        if (genomeSizesMap.contains(taxon)) {
+          genomeSizes += genomeSizesMap(taxon)
+          genomeCounts += 1
+        }
         for {i <- childList
              leafCounts = computeLeafAggAndCounts(i, results)} {
-          aggCounts._1 += leafCounts._1
-          aggCounts._2 += leafCounts._2
+          genomeSizes += leafCounts._1
+          genomeCounts += leafCounts._2
         }
-        results += (taxon -> (aggCounts._1.sum, aggCounts._2.sum))
-        (aggCounts._1.sum, aggCounts._2.sum)
+        results += (taxon -> (genomeSizes.sum, genomeCounts.sum))
+        (genomeSizes.sum, genomeCounts.sum)
+
     }
   }
 
@@ -184,7 +195,7 @@ class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], compatibleF
     reportDFS(output, reportZeros)
 }
 
-class TotalMinimizerCountReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], val genomeSizes: Array[(Taxon, Long)])
+class TotalKmerCountReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], val genomeSizes: Array[(Taxon, Long)])
   extends KrakenReport(taxonomy, counts) {
 
   lazy val totMinAgg = new TotalKmerSizeAggregator(taxonomy, genomeSizes)
