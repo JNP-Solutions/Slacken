@@ -41,11 +41,13 @@ class TotalKmerSizeAggregator(taxonomy: Taxonomy, genomeSizes: Array[(Taxon, Lon
       reduceOption((aggSum, pair) => (aggSum._1 + pair._1, aggSum._2 + pair._2))
       .getOrElse(computedTreeMap(taxon))
 
-    s1Agg._1.toDouble / s1Agg._2.toDouble
+    val s1AggWithTaxon = if(genomeSizesMap.contains(taxon)) (s1Agg._1 + genomeSizesMap(taxon),s1Agg._2 + 1) else s1Agg
+
+    s1AggWithTaxon._1.toDouble / s1AggWithTaxon._2.toDouble
   }
 
   /**
-   * Average kmer count among all first (immediate) children of that taxon.
+   * Average kmer count of average kmer counts of all first (immediate) children of that taxon.
    * (present in the report under the column header "TKC2-FirstChildren")
    * @param taxon
    * @return
@@ -54,7 +56,9 @@ class TotalKmerSizeAggregator(taxonomy: Taxonomy, genomeSizes: Array[(Taxon, Lon
     if (taxonomy.children(taxon).nonEmpty) {
       val s2Agg = taxonomy.children(taxon).map(child => computedTreeMap(child)).filter(_._2 > 0)
         .map(pair => pair._1.toDouble / pair._2.toDouble)
-      s2Agg.sum / s2Agg.size.toDouble
+      val s2AggWithTaxon = if(genomeSizesMap.contains(taxon)) genomeSizesMap(taxon).toDouble::s2Agg else s2Agg
+
+      s2AggWithTaxon.sum / s2AggWithTaxon.size.toDouble
     } else {
       val a = computedTreeMap(taxon)
       if (a._2 == 0) 0 else a._1 / a._2
@@ -98,14 +102,20 @@ class TotalKmerSizeAggregator(taxonomy: Taxonomy, genomeSizes: Array[(Taxon, Lon
         }
 
       case childList =>
-        val aggCounts = (ListBuffer.empty[Long], ListBuffer.empty[Long])
+        val genomeSizes = ListBuffer[Long]()
+        val genomeCounts = ListBuffer[Long]()
+        if (genomeSizesMap.contains(taxon)) {
+          genomeSizes += genomeSizesMap(taxon)
+          genomeCounts += 1
+        }
         for {i <- childList
              leafCounts = computeLeafAggAndCounts(i, results)} {
-          aggCounts._1 += leafCounts._1
-          aggCounts._2 += leafCounts._2
+          genomeSizes += leafCounts._1
+          genomeCounts += leafCounts._2
         }
-        results += (taxon -> (aggCounts._1.sum, aggCounts._2.sum))
-        (aggCounts._1.sum, aggCounts._2.sum)
+        results += (taxon -> (genomeSizes.sum, genomeCounts.sum))
+        (genomeSizes.sum, genomeCounts.sum)
+
     }
   }
 
@@ -184,7 +194,7 @@ class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], compatibleF
     reportDFS(output, reportZeros)
 }
 
-class TotalMinimizerCountReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], val genomeSizes: Array[(Taxon, Long)])
+class TotalKmerCountReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], val genomeSizes: Array[(Taxon, Long)])
   extends KrakenReport(taxonomy, counts) {
 
   lazy val totMinAgg = new TotalKmerSizeAggregator(taxonomy, genomeSizes)
