@@ -172,6 +172,16 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
     if (path.isEmpty) -1 else path.indexOf(ancestor)
   }
 
+  /** Number of standardised levels between a taxon and a given ancestor of it. The result
+   * will always be -1 if the given ancestor is not in the lineage of the taxon. */
+  def standardStepsToAncestor(tax: Taxon, ancestor: Taxon): Int = {
+    if (hasAncestor(tax, ancestor)) {
+      val d1 = depth(tax)
+      val d2 = depth(ancestor)
+      d1 - d2
+    } else -1
+  }
+
   /** Find the ancestor of the query at the given level, if it exists. Searches upward.
    * If it doesn't exist, then ROOT will be returned.
    * If the level is too low, then the value itself will be returned.
