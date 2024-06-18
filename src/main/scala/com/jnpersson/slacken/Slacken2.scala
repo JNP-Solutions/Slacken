@@ -6,7 +6,7 @@ package com.jnpersson.slacken
 
 import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, MinSplitter, RandomXOR, SpacedSeed}
 import com.jnpersson.discount.spark.{Commands, HDFSUtil, IndexParams, RunCmd, SparkConfiguration, SparkTool}
-import com.jnpersson.slacken.Taxonomy.Species
+import com.jnpersson.slacken.Taxonomy.{Genus, Species}
 import com.jnpersson.slacken.analysis.{MappingComparison, Metrics, MinimizerMigration}
 import org.apache.spark.sql.SparkSession
 import org.rogach.scallop.Subcommand
@@ -116,8 +116,8 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       val sampleRegex = opt[String](descr = "Regular expression for extracting sample ID from read header (e.g. \"@(.*):\")")
 
       val dynamic = opt[String](descr = "Library location for dynamic classification (if desired)")
-      val dynamicRank = choice(descr = "Rank for initial classification in dynamic mode (default species)",
-        default = Some(Species.title),
+      val dynamicRank = choice(descr = "Rank for initial classification in dynamic mode (default genus)",
+        default = Some(Genus.title),
         choices = Taxonomy.rankValues.map(_.title)).map(r =>
         Taxonomy.rankValues.find(_.title == r).get)
 
