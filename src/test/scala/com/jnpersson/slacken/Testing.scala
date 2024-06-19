@@ -30,6 +30,7 @@ object Testing {
         toStream.map(i => withoutNode(tax, i))
   }
 
+  /** Generate a taxon with a parent in the ID range 1..maxParent */
   private def taxonAtLevel(n: Taxon, rank: Rank, maxParent: Taxon) =
     for { parent <- Gen.choose(1, maxParent) }
       yield (n, parent, rank.title)
@@ -47,6 +48,7 @@ object Testing {
       Gen.sequence(for {
       rank <- Taxonomy.rankValues
       if rank != Taxonomy.Root
+      subLevel <- Seq(1, 2) //simulate e.g. S1, S2
       maxParent = (rank.depth - 1) * levelSize + 1 //each level has a fixed ID range
       id <- ((rank.depth - 1) * levelSize + 2) until (rank.depth * levelSize + 2)
     } yield taxonAtLevel(id, rank, maxParent))

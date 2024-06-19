@@ -113,7 +113,8 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
 
   def perTaxonComparison(cmpDataRaw: DataFrame, rank: Option[Rank]): PerTaxonMetrics = {
     val tax = this.tax
-    val ancestorAtLevel = udf((x: Taxon) => tax.value.ancestorAtLevel(x, rank))
+    val ancestorAtLevel = udf((x: Taxon) =>
+      rank.map(r => tax.value.ancestorAtLevel(x, r)).getOrElse(x))
     val cmpData = cmpDataRaw.withColumn("taxon", ancestorAtLevel($"testTaxon"))
 
     val refClass = referenceData.
@@ -171,7 +172,7 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
       val tv = bctax.value
       p.map(x => {
         val cat = hitCategory(tv, x._1, x._2, rank)
-        (cat.toString, cat.hitIndex)
+        (cat.hitClass, cat.hitIndex)
       })
     }).toDF("category", "index").cache()
     val categoryBreakdown = hitCategories.groupBy("category").count().as[(String, Long)].cache()
@@ -214,7 +215,7 @@ object MappingComparison {
   //For an explanation of these categories see the Kraken 2 paper
   //https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1891-0#ethics
   //section "Evaluation of accuracy in strain exclusion experiments"
-  sealed trait HitCategory extends Serializable {
+  sealed abstract class HitCategory(val hitClass: String) extends Serializable {
 
     /** Number of standardised steps from the expected taxon (reference) to any ancestor that it was classified as, if applicable.
      * If 0, then the read was classified correctly. If the read was unclassified or incorrectly classified,
@@ -223,33 +224,32 @@ object MappingComparison {
   }
 
   /** At or below the expected taxon */
-  case object TruePos extends HitCategory {
+  case object TruePos extends HitCategory("TruePos") {
     override def hitIndex: Option[Taxon] = Some(0)
   }
 
   /** Ancestor of the expected taxon.
    * @param index Number of steps from the expected taxon to the ancestor the read was classified as */
-  case class VaguePos(index: Int) extends HitCategory {
-    override def toString = "VaguePos"
+  case class VaguePos(index: Int) extends HitCategory("VaguePos") {
     override def hitIndex: Option[Taxon] = Some(index)
   }
 
   /** Not classified, but should have been */
-  case object FalseNeg extends HitCategory
+  case object FalseNeg extends HitCategory("FalseNeg")
 
   /** Incorrectly classified */
-  case object FalsePos extends HitCategory
+  case object FalsePos extends HitCategory("FalsePos")
 
   def hitCategory(tax: Taxonomy, refTaxon: Option[Taxon], testTaxon: Option[Taxon], level: Option[Rank]): HitCategory = {
     (refTaxon, testTaxon) match {
       case (Some(ref), Some(test)) =>
-        val levelAncestor = tax.ancestorAtLevel(ref, level)
+        val refAncestor =
+          level.map(l => tax.standardAncestorAtLevel(ref, l)).getOrElse(ref)
         if (ref == test) TruePos
-        else if (levelAncestor != Taxonomy.ROOT && tax.hasAncestor(test, levelAncestor)) TruePos
-        else if (levelAncestor == Taxonomy.ROOT || tax.hasAncestor(ref, test)) {
+        else if (refAncestor != Taxonomy.ROOT && tax.hasAncestor(test, refAncestor)) TruePos
+        else if (refAncestor == Taxonomy.ROOT || tax.hasAncestor(ref, test)) {
           //classified as some ancestor of ref
-          val index = tax.standardStepsToAncestor(ref, test)
-          VaguePos(index)
+          VaguePos(tax.standardStepsToAncestor(ref, test))
         }
         else if (test == Taxonomy.ROOT) {
           //We never consider ROOT to be a TruePos since this contains no information
