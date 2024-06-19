@@ -56,7 +56,7 @@ object Taxonomy {
    * @param nodes triples of (taxid, parent taxid, rank (long name))
    * @param names tuples of (taxid, scientific name)
    */
-  def fromNodesAndNames(nodes: Array[(Taxon, Taxon, String)], names: Iterator[(Taxon, String)]): Taxonomy = {
+  def fromNodesAndNames(nodes: Iterable[(Taxon, Taxon, String)], names: Iterator[(Taxon, String)]): Taxonomy = {
     val numEntries = nodes.iterator.map(_._1).max + 1
     val scientificNames = new Array[String](numEntries)
     for { (taxon, name) <- names } {
@@ -185,19 +185,21 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
   /** Find the ancestor of the query at the given level, if it exists. Searches upward.
    * If it doesn't exist, then ROOT will be returned.
    * If the level is too low, then the value itself will be returned.
+   * If there are sub-levels such as S2, S1 etc, the first hit in the path to root will be returned.
    * @param query taxon to search from
    * @param rank rank to find ancestor at
-   * @return ancestor at the given level, or ROOT if none was found
+   * @return ancestor at the given level, or the taxon itself if none was found
    */
   def ancestorAtLevel(query: Taxon, rank: Rank): Taxon =
-    pathToRoot(query).find(t => depth(t) <= rank.depth).getOrElse(ROOT)
+    pathToRoot(query).find(t => depth(t) <= rank.depth).getOrElse(query)
 
-  /** Convenience function that optionally returns the query itself if no ancestor level is specified */
-  def ancestorAtLevel(query: Taxon, rank: Option[Rank]): Taxon =
-    rank match {
-      case Some(r) => ancestorAtLevel(query, r)
-      case None => query
-    }
+  /** Get the standardised ancestor at level (e.g. S instead of S1 or S2)
+   * This is the last hit in the path to root that satisfies the criteria.
+   */
+  def standardAncestorAtLevel(query: Taxon, rank: Rank): Taxon = {
+    val below = pathToRoot(query).takeWhile(t => depth(t) >= rank.depth)
+    if (below.nonEmpty) below.toSeq.last else query
+  }
 
   /** Find the ancestor of the query at the given level, if it exists. Searches upward.
    * If it doesn't exist at the specified rank, then None will be returned.
