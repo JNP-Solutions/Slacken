@@ -218,27 +218,33 @@ object MappingComparison {
   sealed abstract class HitCategory(val hitClass: String) extends Serializable {
 
     /** Number of standardised steps from the expected taxon (reference) to any ancestor that it was classified as, if applicable.
-     * If 0, then the read was classified correctly. If the read was unclassified or incorrectly classified,
-     * then this is inapplicable. */
-    def hitIndex: Option[Int] = None
+     * If 0, then the read was classified correctly. If the read was unclassified,
+     * then this is inapplicable.
+     * If the read was a false positive, then the index is maximally large. */
+    def hitIndex: Option[Int]
   }
 
   /** At or below the expected taxon */
   case object TruePos extends HitCategory("TruePos") {
-    override def hitIndex: Option[Taxon] = Some(0)
+    def hitIndex: Option[Int] = Some(0)
   }
 
   /** Ancestor of the expected taxon.
    * @param index Number of steps from the expected taxon to the ancestor the read was classified as */
   case class VaguePos(index: Int) extends HitCategory("VaguePos") {
-    override def hitIndex: Option[Taxon] = Some(index)
+    def hitIndex: Option[Int] = Some(index)
   }
 
   /** Not classified, but should have been */
-  case object FalseNeg extends HitCategory("FalseNeg")
+  case object FalseNeg extends HitCategory("FalseNeg") {
+    def hitIndex: Option[Int] = None
+  }
 
   /** Incorrectly classified */
-  case object FalsePos extends HitCategory("FalsePos")
+  case object FalsePos extends HitCategory("FalsePos") {
+    //Maximally wrong index
+    def hitIndex: Option[Int] = Some(9)
+  }
 
   def hitCategory(tax: Taxonomy, refTaxon: Option[Taxon], testTaxon: Option[Taxon], level: Option[Rank]): HitCategory = {
     (refTaxon, testTaxon) match {
