@@ -117,7 +117,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
 
       val dynamic = opt[String](descr = "Library location for dynamic classification (if desired)")
       val dynamicRank = choice(descr = "Rank for initial classification in dynamic mode (default genus)",
-        default = Some(Genus.title),
+        default = Some(Species.title),
         choices = Taxonomy.rankValues.map(_.title)).map(r =>
         Taxonomy.rankValues.find(_.title == r).get)
 
