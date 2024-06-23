@@ -38,5 +38,8 @@ class MappingComparisonTest extends AnyFunSuite with Matchers {
     hitCategory(tax, Some(4), Some(3), Some(Species)) should equal(TruePos)
 
     hitCategory(tax, Some(3), None, Some(Species)) should equal(FalseNeg)
+
+    //Test is more specific than reference. Considered to be a special case of true positive.
+    hitCategory(tax, Some(3), Some(5), Some(Species)) should equal(TruePos)
   }
 }

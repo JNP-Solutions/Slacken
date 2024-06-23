@@ -114,7 +114,7 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
   def perTaxonComparison(cmpDataRaw: DataFrame, rank: Option[Rank]): PerTaxonMetrics = {
     val tax = this.tax
     val ancestorAtLevel = udf((x: Taxon) =>
-      rank.map(r => tax.value.standardAncestorAtLevel(x, r)).getOrElse(x))
+      rank.flatMap(r => tax.value.standardAncestorAtLevel(x, r)).getOrElse(x))
     val cmpData = cmpDataRaw.withColumn("taxon", ancestorAtLevel($"testTaxon"))
 
     val refClass = referenceData.
@@ -250,7 +250,7 @@ object MappingComparison {
     (refTaxon, testTaxon) match {
       case (Some(ref), Some(test)) =>
         val refAncestor =
-          level.map(l => tax.standardAncestorAtLevel(ref, l)).getOrElse(ref)
+          level.flatMap(l => tax.standardAncestorAtLevel(ref, l)).getOrElse(ref)
         if (ref == test) TruePos
         else if (refAncestor != Taxonomy.ROOT && tax.hasAncestor(test, refAncestor)) TruePos
         else if (refAncestor == Taxonomy.ROOT || tax.hasAncestor(ref, test)) {
