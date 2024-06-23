@@ -65,17 +65,14 @@ class TaxonomyProps extends AnyFunSuite with ScalaCheckPropertyChecks {
            anc = tax.ancestorAtLevel(t, r)
            } {
         if (r == tr) {
-          anc should equal(t)
-        } else if (r <= tr) {
+          anc should equal(Some(t))
+        } else if (r < tr) {
           //reasonable request
-          val firstAncestor = tax.pathToRoot(t).find(tax.depth(_) <= r.depth)
-          firstAncestor match {
-            case Some(fa) => anc should equal(fa)
-            case None => anc should equal(t)
-          }
+          val firstAncestor = tax.pathToRoot(t).find(tax.depth(_) == r.depth)
+          firstAncestor should equal(anc)
         } else {
-          //requested rank is too low, same value should be returned
-          anc should equal(t)
+          //requested rank is too low
+          anc should equal(None)
         }
       }
     }
@@ -88,18 +85,13 @@ class TaxonomyProps extends AnyFunSuite with ScalaCheckPropertyChecks {
            r <- Taxonomy.rankValues
            anc = tax.standardAncestorAtLevel(t, r)
            } {
-        if (r == tr) {
-          anc should equal(t)
-        } else if (r <= tr) {
+        if (r <= tr) {
           //reasonable request
           val lastAncestor = tax.pathToRoot(t).filter(tax.depth(_) >= r.depth).toSeq.lastOption
-          lastAncestor match {
-            case Some(la) => anc should equal(la)
-            case None => anc should equal(t)
-          }
+          anc should equal(lastAncestor)
         } else {
-          //requested rank is too low, same value should be returned
-          anc should equal(t)
+          //requested rank is too low
+          anc should equal(None)
         }
       }
     }

@@ -183,22 +183,20 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
   }
 
   /** Find the ancestor of the query at the given level, if it exists. Searches upward.
-   * If it doesn't exist, then ROOT will be returned.
-   * If the level is too low, then the value itself will be returned.
    * If there are sub-levels such as S2, S1 etc, the first hit in the path to root will be returned.
    * @param query taxon to search from
    * @param rank rank to find ancestor at
-   * @return ancestor at the given level, or the taxon itself if none was found
+   * @return ancestor at the given level, if it exists
    */
-  def ancestorAtLevel(query: Taxon, rank: Rank): Taxon =
-    pathToRoot(query).find(t => depth(t) <= rank.depth).getOrElse(query)
+  def ancestorAtLevel(query: Taxon, rank: Rank): Option[Taxon] =
+    pathToRoot(query).find(t => depth(t) == rank.depth)
 
   /** Get the standardised ancestor at level (e.g. S instead of S1 or S2)
    * This is the last hit in the path to root that satisfies the criteria.
    */
-  def standardAncestorAtLevel(query: Taxon, rank: Rank): Taxon = {
+  def standardAncestorAtLevel(query: Taxon, rank: Rank): Option[Taxon] = {
     val below = pathToRoot(query).takeWhile(t => depth(t) >= rank.depth)
-    if (below.nonEmpty) below.toSeq.last else query
+    below.toSeq.lastOption
   }
 
   /** Find the ancestor of the query at the given level, if it exists. Searches upward.
