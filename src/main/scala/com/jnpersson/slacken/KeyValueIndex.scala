@@ -267,7 +267,8 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     val recTotal = allTaxa.map(_._2).sum
     val leafTotal = leafTaxa.map(_._2).sum
     println(s"Total $m-minimizers: $recTotal, of which leaf records: $leafTotal (${formatPerc(leafTotal.toDouble/recTotal)})")
-    for { library <- genomes} showTaxonCoverageStats(indexBuckets, library)
+//    for { library <- genomes} showTaxonCoverageStats(indexBuckets, library)
+    for { library <- genomes} showTaxonFullCoverageStats(indexBuckets, library)
   }
 
   /** For each genome in the input sequences, count all its minimizers (with repetitions) and calculate the fraction
@@ -283,9 +284,11 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
 
     //1. Count how many times per input taxon each minimizer occurs
     val agg = mins.groupBy(idColumns :+ $"taxon": _*).agg(count("*").as("countAll"))
+    // COLUMNS = [ taxon, minimizer(idColumns), countAll ]
 
     //2. Join with buckets, find the fraction that is assigned to the same (leaf) taxon
     val joint = agg.join(indexBuckets.withColumnRenamed("taxon", "idxTaxon"),
+        // indexBuckets COLUMNS = [ idxTaxon, idColumnNames ]
         idColumnNames, "left").
       withColumn("countLeaf", when($"idxTaxon" === $"taxon", $"countAll").
         otherwise(lit(0L))).
@@ -294,6 +297,34 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
         sum("countAll").as("total"))
 
     joint.select("fracLeaf", "total").summary().show()
+  }
+
+  /**
+   * 
+   * @param indexBuckets
+   * @param genomes
+   * @return
+   */
+  private def showTaxonFullCoverageStats(indexBuckets: DataFrame, genomes: GenomeLibrary):
+  Array[(Taxon, Array[Int], Array[Long])] = {
+    val inputSequences = joinSequencesAndLabels(genomes, addRC = false)
+    val mins = findMinimizers(inputSequences)
+
+    //1. Count how many times per input taxon each minimizer occurs
+    val minCounts = mins.groupBy(idColumns :+ $"taxon": _*).agg(count("*").as("countAll"))
+
+    val bcTaxonomy = this.bcTaxonomy
+    val taxonDepth = udf((taxon:Taxon) => bcTaxonomy.value.depth(taxon))
+    val depthCountConcat = udf((depths: Array[Int],counts: Array[Long]) =>
+      depths.zip(counts).map(x => x._1+":"+x._2).mkString("|"))
+
+    //2. Join with buckets, find the fraction that is assigned to the same (leaf) taxon
+    minCounts.join(indexBuckets.withColumnRenamed("taxon", "idxTaxon"),
+        idColumnNames). //[ taxon, LCA(idxtaxon) , Minimizer(idColumns), countAll ]
+      withColumn("idxTaxDepth", taxonDepth($"idxtaxon")).
+      groupBy("taxon","idxTaxDepth").agg(sum($"countAll").as("countFull"))
+      .groupBy("taxon").agg(collect_list($"idxTaxDepth").as("lcaDepths"),collect_list("countFull").as("counts"))
+      .select("taxon","lcaDepths","counts").as[(Taxon,Array[Int],Array[Long])].collect()
   }
 
   /**
