@@ -134,7 +134,7 @@ class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], compatibleF
   lazy val totalSequences = counts.iterator.map(_._2).sum
 
   def dataColumnHeaders: String =
-    "Perc\tAggregate\tIn taxon"
+    "#Perc\tAggregate\tIn taxon"
 
   def headers: String =
     s"${dataColumnHeaders}\tRank\tTaxon\tName"
