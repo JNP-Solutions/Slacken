@@ -378,7 +378,7 @@ object TaxonomicIndex {
         } else None
       })
 
-    Taxonomy.fromNodesAndNames(nodes.toArray, names)
+    Taxonomy.fromNodesAndNames(nodes.toArray[(Taxon, Taxon, String)], names)
   }
 
   //Copy a taxonomy to a new location (the files needed for classification and index access only.)
