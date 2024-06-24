@@ -196,7 +196,7 @@ object NTBitArray {
  *             The data is left-aligned inside the long, starting from MSB.
  * @param size the size of this data represented (in NTs)
  */
-final case class NTBitArray(data: Array[Long], size: Int) extends Comparable[NTBitArray] {
+final case class NTBitArray(data: Array[Long], size: Int) extends Ordered[NTBitArray] {
   import NTBitArray._
 
   override def toString: String = longsToString(data, 0, size)
@@ -256,11 +256,8 @@ final case class NTBitArray(data: Array[Long], size: Int) extends Comparable[NTB
     if (sliceIsForwardOrientation(0, size)) this.clone() else reverseComplement
   }
 
-  def <(other: NTBitArray): Boolean = compareTo(other) < 0
-  def >(other: NTBitArray): Boolean = compareTo(other) > 0
-
   /** Lexicographic comparison of two NT bit arrays. The arrays must have equal length. */
-  def compareTo(other: NTBitArray): Int =
+  override def compare(other: NTBitArray): Int =
     compareTo(other, 0, data.length - 1)
 
   /** Ordering only well-defined when the arrays have equal size. This must be
