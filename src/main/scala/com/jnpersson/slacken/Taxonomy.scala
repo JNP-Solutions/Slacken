@@ -15,9 +15,9 @@ object Taxonomy {
   final val ROOT: Taxon = 1
 
   /** Levels in the taxonomic hierarchy, from general (higher) to specific (lower) */
-  sealed abstract class Rank(val title: String, val code: String, val depth: Int) extends Serializable {
-    def isBelow(other: Rank): Boolean =
-      depth > other.depth
+  sealed abstract class Rank(val title: String, val code: String, val depth: Int) extends Serializable with Ordered[Rank] {
+    def compare(that: Rank): Int =
+      depth - that.depth
   }
   
   case object Unclassified extends Rank("unclassified", "U", -1)
@@ -48,12 +48,15 @@ object Taxonomy {
     case _ => None
   }
 
+  def rankForDepth(d: Int): Option[Rank] =
+    rankValues.find(_.depth == d)
+
   /**
    * Construct a Taxonomy from parsed NCBI style input data.
    * @param nodes triples of (taxid, parent taxid, rank (long name))
    * @param names tuples of (taxid, scientific name)
    */
-  def fromNodesAndNames(nodes: Array[(Taxon, Taxon, String)], names: Iterator[(Taxon, String)]): Taxonomy = {
+  def fromNodesAndNames(nodes: Iterable[(Taxon, Taxon, String)], names: Iterator[(Taxon, String)]): Taxonomy = {
     val numEntries = nodes.iterator.map(_._1).max + 1
     val scientificNames = new Array[String](numEntries)
     for { (taxon, name) <- names } {
@@ -170,22 +173,32 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
     if (path.isEmpty) -1 else path.indexOf(ancestor)
   }
 
+  /** Number of standardised levels between a taxon and a given ancestor of it. The result
+   * will always be -1 if the given ancestor is not in the lineage of the taxon. */
+  def standardStepsToAncestor(tax: Taxon, ancestor: Taxon): Int = {
+    if (hasAncestor(tax, ancestor)) {
+      val d1 = depth(tax)
+      val d2 = depth(ancestor)
+      d1 - d2
+    } else -1
+  }
+
   /** Find the ancestor of the query at the given level, if it exists. Searches upward.
-   * If it doesn't exist, then ROOT will be returned.
-   * If the level is too low, then the value itself will be returned.
+   * If there are sub-levels such as S2, S1 etc, the first hit in the path to root will be returned.
    * @param query taxon to search from
    * @param rank rank to find ancestor at
-   * @return ancestor at the given level, or ROOT if none was found
+   * @return ancestor at the given level, if it exists
    */
-  def ancestorAtLevel(query: Taxon, rank: Rank): Taxon =
-    pathToRoot(query).find(t => depth(t) <= rank.depth).getOrElse(ROOT)
+  def ancestorAtLevel(query: Taxon, rank: Rank): Option[Taxon] =
+    pathToRoot(query).find(t => depth(t) == rank.depth)
 
-  /** Convenience function that optionally returns the query itself if no ancestor level is specified */
-  def ancestorAtLevel(query: Taxon, rank: Option[Rank]): Taxon =
-    rank match {
-      case Some(r) => ancestorAtLevel(query, r)
-      case None => query
-    }
+  /** Get the standardised ancestor at level (e.g. S instead of S1 or S2)
+   * This is the last hit in the path to root that satisfies the criteria.
+   */
+  def standardAncestorAtLevel(query: Taxon, rank: Rank): Option[Taxon] = {
+    val below = pathToRoot(query).takeWhile(t => depth(t) >= rank.depth)
+    below.toSeq.lastOption
+  }
 
   /** Find the ancestor of the query at the given level, if it exists. Searches upward.
    * If it doesn't exist at the specified rank, then None will be returned.
