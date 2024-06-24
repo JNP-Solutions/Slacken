@@ -153,12 +153,34 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
     withDescendants
   }
 
+  lazy val taxonSetInLibrary: mutable.BitSet = {
+    //Collect a set of all taxa that have sequence in the library, and their ancestors
+    //This (reading the labels file) is more efficient than reading the entire library and looking for distinct taxa,
+    //but if the two diverge, then the label file will be taken as the source of truth here.
+    val withSequence = mutable.BitSet.empty ++
+      TaxonomicIndex.getTaxonLabels(genomes.labelFile).map(_._2).distinct().collect()
+    taxonomy.taxaWithAncestors(withSequence)
+  }
+
   def readGoldSet(path: String): mutable.BitSet = {
     val goldSet = mutable.BitSet.empty ++
       spark.read.csv(path).map(x => x.getString(0).toInt).collect()
-    val taxaAtRank = goldSet.filter(t => taxonomy.depth(t) >= reclassifyRank.depth)
-    println(s"Gold set contained ${goldSet.size} taxa, filtered at $reclassifyRank to ${taxaAtRank.size} taxa.")
-    taxaAtRank
+
+    println(s"Gold set contained ${goldSet.size} taxa")
+    val notFound = goldSet -- taxonSetInLibrary
+
+    val elevated = notFound.flatMap(t => {
+      val path = taxonomy.pathToRoot(t).filter(taxonSetInLibrary.contains)
+      if (path.hasNext) Some(path.next) else None
+    })
+    println(s"${notFound.size} taxa from gold set not found in library, elevated to ${elevated.size} taxa.")
+    val levelCounts = elevated.toSeq.map(t => taxonomy.depth(t)).groupBy(x => x).map(x =>
+      (Taxonomy.rankForDepth(x._1).get, x._2.size)).toSeq.sorted
+    println(s"Elevated to levels: $levelCounts")
+    val total = goldSet ++ elevated
+    val filtered = total.filter(taxonomy.depth(_) >= reclassifyRank.depth)
+    println(s"Total adjusted gold set size ${total.size}, filtered at $reclassifyRank to ${filtered.size}")
+    filtered
   }
 
   /** Perform two-step classification, writing the final results to a location.

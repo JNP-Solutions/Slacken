@@ -134,7 +134,7 @@ class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], compatibleF
   lazy val totalSequences = counts.iterator.map(_._2).sum
 
   def dataColumnHeaders: String =
-    "Perc\tAggregate\tIn taxon"
+    "#Perc\tAggregate\tIn taxon"
 
   def headers: String =
     s"${dataColumnHeaders}\tRank\tTaxon\tName"
@@ -203,9 +203,9 @@ class TotalKmerCountReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], val
     s"${super.dataColumnHeaders}\tTKC1-LeafOnly\tTKC2-FirstChildren\tTKC3-AllChildren"
 
   override def dataColumns(taxid: Taxon): String = {
-    val totMinSizeS1 = totMinAgg.totKmerAverageS1(taxid)
-    val totMinSizeS2 = totMinAgg.totKmerAverageS2(taxid)
-    val totMinSizeS3 = totMinAgg.totKmerAverageS3(taxid)
+    val totMinSizeS1 = math.round(totMinAgg.totKmerAverageS1(taxid)).toLong
+    val totMinSizeS2 = math.round(totMinAgg.totKmerAverageS2(taxid)).toLong
+    val totMinSizeS3 = math.round(totMinAgg.totKmerAverageS3(taxid)).toLong
     s"${super.dataColumns(taxid)}\t$totMinSizeS1\t$totMinSizeS2\t$totMinSizeS3"
 
   }

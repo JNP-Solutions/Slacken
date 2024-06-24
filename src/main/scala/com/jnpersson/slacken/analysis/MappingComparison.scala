@@ -10,50 +10,37 @@ import com.jnpersson.discount.spark.Output.formatPerc
 import com.jnpersson.slacken.Taxonomy.{Genus, Rank, Species}
 import com.jnpersson.slacken.{Taxon, Taxonomy}
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.sql.functions.udf
+import org.apache.spark.sql.functions.{avg, isnotnull, udf}
 import org.apache.spark.sql.{DataFrame, Dataset, SparkSession, functions}
 
 import scala.collection.mutable
 
-
-final case class PerTaxonMetrics(refCount: Long, classifiedCount: Long, l1: Double, precision: Double, recall: Double,
-                           unifrac: Double) {
-  def toTSVString: String = s"$refCount\t$classifiedCount\t$l1\t$precision\t$recall\t$unifrac"
+/** A single line of per-taxon metrics, corresponding to the classification of one sample and a set of parmeters. */
+final case class PerTaxonMetrics(refCount: Long, classifiedCount: Long, precision: Double, recall: Double) {
+  def toTSVString: String = s"$refCount\t$classifiedCount\t$precision\t$recall"
 }
 
 object PerTaxonMetrics {
-  def header = "taxon_classified\ttaxon_total\ttaxon_l1\ttaxon_precision\ttaxon_recall\ttaxon_unifrac"
+  def header = "taxon_classified\ttaxon_total\ttaxon_precision\ttaxon_recall"
 }
 
+/** A single line of per-read metrics, corresponding to the classification of one sample and a set of parameters. */
 case class PerReadMetrics(classifiedCount: Long, totalCount: Long, truePos: Long, falsePos: Long, vaguePos: Long,
-                          falseNeg: Long, ppv: Double, sensitivity: Double) {
-  def toTSVString: String = s"$classifiedCount\t$totalCount\t$truePos\t$falsePos\t$vaguePos\t$falseNeg\t$ppv\t$sensitivity"
+                          falseNeg: Long, ppv: Double, sensitivity: Double, index: Double) {
+  def toTSVString: String = s"$classifiedCount\t$totalCount\t$truePos\t$falsePos\t$vaguePos\t$falseNeg\t$ppv\t$sensitivity\t$index"
 }
 
 object PerReadMetrics {
-  def header = "read_classified\tread_total\tread_tp\tread_fp\tread_vp\tread_fn\tread_ppv\tread_sensitivity"
+  def header = "read_classified\tread_total\tread_tp\tread_fp\tread_vp\tread_fn\tread_ppv\tread_sensitivity\tread_index"
 }
 
-/** A single result line */
+/** A single result line (per taxon and per read) */
 final case class Metrics(title: String, rank: Option[Rank], perTaxon: PerTaxonMetrics, perRead: PerReadMetrics) {
   //Extract some variables from expected filename patterns
-  val pattern1 = """M1_S(\d+)_(.+)_(\d+)_(\d+)(f|ff|)(_\d+)?(_s\d+)?(_c[\d.]+)?_classified""".r
-
-  val pattern2 = """(.*)/(.*)/(.+)_(\d+)_(\d+)_s(\d+)_c([\d.]+)_classified/sample=(.*)""".r
+  val pattern1 = """(.*)/(.*)/(.+)_(\d+)_(\d+)_s(\d+)_c([\d.]+)_classified/sample=(.*)""".r
 
   def toTSVString: Option[String] = title match {
-    case pattern1(sample, library, k, m, freqRaw, freqLenRaw, sRaw, cRaw) =>
-
-      //Note: freqLen is meaningless if the ordering is not frequency
-      val freqLen = Option(freqLenRaw).map(_.drop(1)).getOrElse("10")
-      val c = Option(cRaw).map(_.drop(2)).getOrElse("0.0")
-      val s = Option(sRaw).map(_.drop(2)).getOrElse("7")
-      val frequency = if (freqRaw == "") "none" else freqRaw
-      val rankStr = rank.map(_.toString).getOrElse("All")
-      Some(
-        s"$title\t\t\t$sample\t$library\t$k\t$m\t$frequency\t$freqLen\t$s\t$c\t$rankStr\t${perTaxon.toTSVString}\t${perRead.toTSVString}"
-      )
-    case pattern2(family, group, library, k, m, s, c, sample) =>
+    case pattern1(family, group, library, k, m, s, c, sample) =>
       val rankStr = rank.map(_.toString).getOrElse("All")
       Some(
         s"$title\t$family\t$group\t$sample\t$library\t$k\t$m\t0\t0\t$s\t$c\t$rankStr\t${perTaxon.toTSVString}\t${perRead.toTSVString}"
@@ -68,6 +55,7 @@ object Metrics {
   def header = s"title\tfamily\tgroup\tsample\tlibrary\tk\tm\tfrequency\tfl\ts\tc\trank\t${PerTaxonMetrics.header}\t${PerReadMetrics.header}"
 }
 
+/** Compare a set of classifications against a reference. */
 class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
                         refIdCol: Int, refTaxonCol: Int, skipHeader: Boolean,
                         minCountTaxon: Long,
@@ -99,8 +87,7 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     println(s"--------$dataFile--------")
     Iterator(
       allMetrics(dataFile, Some(Genus)),
-      allMetrics(dataFile, Some(Species)),
-      allMetrics(dataFile, None)
+      allMetrics(dataFile, Some(Species))
     )
   }
 
@@ -126,17 +113,13 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
 
   def perTaxonComparison(cmpDataRaw: DataFrame, rank: Option[Rank]): PerTaxonMetrics = {
     val tax = this.tax
-    val ancestorAtLevel = udf((x: Taxon) => tax.value.ancestorAtLevel(x, rank))
+    val ancestorAtLevel = udf((x: Taxon) =>
+      rank.flatMap(r => tax.value.standardAncestorAtLevel(x, r)).getOrElse(x))
     val cmpData = cmpDataRaw.withColumn("taxon", ancestorAtLevel($"testTaxon"))
 
     val refClass = referenceData.
       withColumn("taxon", ancestorAtLevel($"refTaxon"))
-    val refVector = abundanceVector(
-      refClass.groupBy("taxon").
-        agg(functions.count("taxon").as("count")).
-        select("taxon", "count").
-        as[(Taxon, Long)].collect()
-    )
+
     val refTaxa = mutable.BitSet.empty ++ refClass.
       select("taxon").distinct().
       as[Taxon].collect()
@@ -145,9 +128,6 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     val cmpClass = cmpData.
       groupBy("taxon").agg(functions.count("*").as("count")).
       filter(s"count >= $minCountTaxon")
-    val cmpVector = abundanceVector(
-      cmpClass.select("taxon", "count").as[(Taxon, Long)].collect()
-    )
 
     //when ranks are not rounded to a standard level, we remove every classification above species level instead
     val cmpTaxa = mutable.BitSet.empty ++ cmpClass.select("taxon").
@@ -160,30 +140,15 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     val falseNeg = (refTaxa -- cmpTaxa).size
     val precision = truePos.toDouble / (cmpTaxa -- vagueTaxa).size
     val recall = truePos.toDouble / refTaxa.size
-    val l1 = l1Dist(cmpVector, refVector)
-    val unifrac = new UniFrac(tax.value, cmpTaxa, refTaxa).distance
 
     println(s"*** Per taxon comparison (minimum $minCountTaxon) at level $rank")
     println(s"Total ref taxa ${refTaxa.size}, total classified taxa ${cmpTaxa.size}")
-    println(s"TP $truePos, VP $vaguePos FP $falsePos, FN $falseNeg, L1 dist. ${"%.3g".format(l1)} unifrac dist. ${"%.3g".format(unifrac)}")
+    println(s"TP $truePos, VP $vaguePos FP $falsePos, FN $falseNeg}")
     println(s"Precision ${formatPerc(precision)} recall ${formatPerc(recall)}")
     println("")
 
-    PerTaxonMetrics(cmpTaxa.size, refTaxa.size, l1, precision, recall, unifrac)
+    PerTaxonMetrics(cmpTaxa.size, refTaxa.size, precision, recall)
   }
-
-  def abundanceVector(countedTaxa: Array[(Taxon, Long)]): Array[Double] = {
-    val r = new Array[Double](tax.value.size)
-    val totalWeight = countedTaxa.map(_._2).sum
-    for { (taxon, c) <- countedTaxa} {
-      r(taxon) = c.toDouble / totalWeight
-    }
-    r
-  }
-
-  /** Compute L1 distance of two vectors of equal length. */
-  def l1Dist(v1: Array[Double], v2: Array[Double]): Double =
-    v1.indices.foldLeft(0d)((sum, i) => sum + Math.abs(v1(i) - v2(i)))
 
   def perReadComparison(cmpData: DataFrame, rank: Option[Rank]): PerReadMetrics = {
     val joint = referenceData.join(cmpData, referenceData("id") === cmpData("id"), "outer").
@@ -203,13 +168,16 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
                         totalReads: Long): PerReadMetrics = {
     println(s"*** Per-read comparison at level $rank")
     val bctax = this.tax
-    val categoryBreakdown = refCmp.mapPartitions(p => {
+    val hitCategories = refCmp.mapPartitions(p => {
       val tv = bctax.value
       p.map(x => {
-        hitCategory(tv, x._1, x._2, rank).toString
+        val cat = hitCategory(tv, x._1, x._2, rank)
+        (cat.hitClass, cat.hitIndex)
       })
-    }).toDF("category").groupBy("category").count().as[(String, Long)].cache()
-    categoryBreakdown.show()
+    }).toDF("category", "index").cache()
+    val categoryBreakdown = hitCategories.groupBy("category").count().as[(String, Long)].cache()
+    val avgIndex = hitCategories.where(isnotnull($"index")).agg(avg("index")).as[Double].collect()(0)
+
     val catMap = categoryBreakdown.collect().toMap.withDefaultValue(0L)
 
     val tp = catMap("TruePos")
@@ -222,7 +190,7 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     else 0
     println(s"PPV ${formatPerc(ppv)} Sensitivity ${formatPerc(sensitivity)}")
     println("")
-    PerReadMetrics(classified, totalReads, tp, fp, vp, fn, ppv, sensitivity)
+    PerReadMetrics(classified, totalReads, tp, fp, vp, fn, ppv, sensitivity, avgIndex)
   }
 
   def readKrakenFormat(location: String): Dataset[(SeqTitle, Taxon)] = {
@@ -247,28 +215,52 @@ object MappingComparison {
   //For an explanation of these categories see the Kraken 2 paper
   //https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1891-0#ethics
   //section "Evaluation of accuracy in strain exclusion experiments"
-  sealed trait HitCategory extends Serializable
+  sealed abstract class HitCategory(val hitClass: String) extends Serializable {
+
+    /** Number of standardised steps from the expected taxon (reference) to any ancestor that it was classified as, if applicable.
+     * If 0, then the read was classified correctly. If the read was unclassified,
+     * then this is inapplicable.
+     * If the read was a false positive, then the index is maximally large. */
+    def hitIndex: Option[Int]
+  }
 
   /** At or below the expected taxon */
-  case object TruePos extends HitCategory
+  case object TruePos extends HitCategory("TruePos") {
+    def hitIndex: Option[Int] = Some(0)
+  }
 
-  /** Ancestor of the expected taxon */
-  case object VaguePos extends HitCategory
+  /** Ancestor of the expected taxon.
+   * @param index Number of steps from the expected taxon to the ancestor the read was classified as */
+  case class VaguePos(index: Int) extends HitCategory("VaguePos") {
+    def hitIndex: Option[Int] = Some(index)
+  }
 
   /** Not classified, but should have been */
-  case object FalseNeg extends HitCategory
+  case object FalseNeg extends HitCategory("FalseNeg") {
+    def hitIndex: Option[Int] = None
+  }
 
-  /** Wrongly classified */
-  case object FalsePos extends HitCategory
+  /** Incorrectly classified */
+  case object FalsePos extends HitCategory("FalsePos") {
+    //Maximally wrong index
+    def hitIndex: Option[Int] = Some(9)
+  }
 
   def hitCategory(tax: Taxonomy, refTaxon: Option[Taxon], testTaxon: Option[Taxon], level: Option[Rank]): HitCategory = {
     (refTaxon, testTaxon) match {
       case (Some(ref), Some(test)) =>
-        val levelAncestor = tax.ancestorAtLevel(ref, level)
+        val refAncestor =
+          level.flatMap(l => tax.standardAncestorAtLevel(ref, l)).getOrElse(ref)
         if (ref == test) TruePos
-        else if (levelAncestor != Taxonomy.ROOT && tax.hasAncestor(test, levelAncestor)) TruePos
-        else if (levelAncestor == Taxonomy.ROOT || tax.hasAncestor(ref, test)) VaguePos //classified as some ancestor of ref
-        else if (test == Taxonomy.ROOT) VaguePos //We never consider ROOT to be a TruePos since this contains no information
+        else if (refAncestor != Taxonomy.ROOT && tax.hasAncestor(test, refAncestor)) TruePos
+        else if (refAncestor == Taxonomy.ROOT || tax.hasAncestor(ref, test)) {
+          //classified as some ancestor of ref
+          VaguePos(tax.standardStepsToAncestor(ref, test))
+        }
+        else if (test == Taxonomy.ROOT) {
+          //We never consider ROOT to be a TruePos since this contains no information
+          VaguePos(tax.standardStepsToAncestor(ref, test))
+        }
         else FalsePos
       case (Some(_), None) => FalseNeg
       case (None, Some(_)) =>
