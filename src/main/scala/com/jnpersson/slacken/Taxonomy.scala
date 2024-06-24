@@ -59,6 +59,7 @@ object Taxonomy {
     for { (taxon, name) <- names } {
       scientificNames(taxon) = name
     }
+    scientificNames(NONE) = Unclassified.title
 
     val parents = Array.fill[Taxon](numEntries)(NONE)
     val ranks = new Array[Rank](numEntries)
