@@ -174,6 +174,23 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
     }
     addSubcommand(classify)
 
+    val brackenWeights = new RunCmd("brackenWeights") {
+      banner("Generate a weights file (kmer_distrib) for use with Bracken")
+
+      val library = opt[String](descr = "Location of sequence files (directory containing library/)")
+      val readLen = opt[Int](descr = "Read length (default 100)", default = Some(100))
+
+      def run(): Unit = {
+        val i = index()
+        val genomes = findGenomes(library(), Some(readLen()))
+        val outputLocation = location() + "_database" + readLen() + "mers.kmer_distrib"
+
+        val bw = new BrackenWeights(i.loadBuckets(), i, readLen())
+        bw.buildWeights(genomes, genomes.taxonSet(i.taxonomy))
+      }
+    }
+    addSubcommand(brackenWeights)
+
     val stats = new RunCmd("stats") {
       banner("Get index statistics (optionally referencing input sequences)")
 

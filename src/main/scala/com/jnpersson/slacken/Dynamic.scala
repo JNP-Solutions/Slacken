@@ -153,14 +153,7 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
     withDescendants
   }
 
-  lazy val taxonSetInLibrary: mutable.BitSet = {
-    //Collect a set of all taxa that have sequence in the library, and their ancestors
-    //This (reading the labels file) is more efficient than reading the entire library and looking for distinct taxa,
-    //but if the two diverge, then the label file will be taken as the source of truth here.
-    val withSequence = mutable.BitSet.empty ++
-      TaxonomicIndex.getTaxonLabels(genomes.labelFile).map(_._2).distinct().collect()
-    taxonomy.taxaWithAncestors(withSequence)
-  }
+  lazy val taxonSetInLibrary = genomes.taxonSet(taxonomy)
 
   def readGoldSet(path: String): mutable.BitSet = {
     val goldSet = mutable.BitSet.empty ++
