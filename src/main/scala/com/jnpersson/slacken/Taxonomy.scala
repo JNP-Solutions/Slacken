@@ -183,6 +183,14 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
     } else -1
   }
 
+  /** Count the sublevel that the given taxon is on. E.g. level S = 0,
+   * level S1 = 1, S2 = 2 etc.
+   */
+  def sublevel(tax: Taxon): Int = {
+    val d = depth(tax)
+    pathToRoot(tax).takeWhile(t => depth(t) == d).size - 1
+  }
+
   /** Find the ancestor of the query at the given level, if it exists. Searches upward.
    * If there are sub-levels such as S2, S1 etc, the first hit in the path to root will be returned.
    * @param query taxon to search from
