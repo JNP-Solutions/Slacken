@@ -107,7 +107,6 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
 
     val titlesTaxa = getTaxonLabels(library.labelFile).toDF("header", "taxon")
 
-    //TODO create new Inputs with new value of k (readLen) to ensure no reads are lost between fragments
     val idSeqDF = library.inputs.getInputFragments(withRC = false)
     val presentTaxon = udf((x: Taxon) => taxa.contains(x))
 
