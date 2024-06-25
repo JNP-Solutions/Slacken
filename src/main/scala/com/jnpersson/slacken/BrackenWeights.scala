@@ -1,16 +1,14 @@
 package com.jnpersson.slacken
 
-import com.jnpersson.{discount, slacken}
+import com.jnpersson.slacken
 import com.jnpersson.discount.{NTSeq, SeqLocation, SeqTitle}
-import com.jnpersson.discount.hash.InputFragment
 import com.jnpersson.discount.spark.AnyMinSplitter
 import com.jnpersson.discount.util.NTBitArray
-import com.jnpersson.slacken.TaxonomicIndex.{classify, getTaxonLabels}
-import org.apache.spark.sql.functions.collect_list
-import org.apache.spark.sql.{DataFrame, Dataset, SparkSession, functions}
+import com.jnpersson.slacken.TaxonomicIndex.getTaxonLabels
+import org.apache.spark.sql.functions.{collect_list, udf}
+import org.apache.spark.sql.{DataFrame, SparkSession, functions}
 
 import scala.collection.{BitSet, mutable}
-
 
 object TaxonFragment {
 
@@ -21,38 +19,39 @@ object TaxonFragment {
 }
 
 /**
- *
- * @param taxon
- * @param nucleotides
- * @param id the fragment id
+ * A fragment of a genome.
+ * @param taxon The taxon that this fragment came from
+ * @param nucleotides The nucleotide sequence
+ * @param id Unique ID of this fragment (for grouping)
  */
 final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
 
   /**
    * Returns all distinct minimizers in the nucleotide sequence
    *
-   * @param splitter
+   * @param splitter the minimizer scheme
    * @return
    */
-  def distinctMinimizers(splitter: AnyMinSplitter) = {
+  def distinctMinimizers(splitter: AnyMinSplitter): Iterator[Array[SeqLocation]] =
     splitter.superkmerPositions(nucleotides, addRC = false).map(_._2).toArray.distinct.iterator.map(_.data)
-  }
 
-  def generateReads(seq: NTSeq, readLen: Int): Iterator[NTSeq] = {
 
+/** Generate all reads of a given length */
+  def generateReads(seq: NTSeq, readLen: Int): Iterator[NTSeq] =
     for {
       i <- Iterator.range(0, seq.length - readLen + 1)
       read = seq.substring(i, i + readLen)
     } yield read
 
-  }
-
   /**
-   * Generate reads from the fragment then classify them according to the lca's.
+   * Generate reads from the fragment then classify them according to the LCAs.
    *
-   * @param minimizers
-   * @param lcas
-   * @return
+   * @param taxonomy   the taxonomy
+   * @param minimizers all minimizers encountered in this fragment (to be paired with LCAs)
+   * @param lcas       all LCAs of minimizers encountered in this fragment, in the same order as minimizers
+   * @param splitter   the minimizer scheme
+   * @param readLen    length of reads to be generated
+   * @return an iterator of (taxon, number of reads classified to that taxon)
    */
   def readClassifications(taxonomy: Taxonomy, minimizers: Array[Array[Long]], lcas: Array[Taxon],
                           splitter: AnyMinSplitter, readLen: Int): Iterator[(Taxon, Long)] = {
@@ -83,9 +82,13 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
 }
 
 /**
+ * Generate bracken-style weights (self-classifying all reads of genomes in a library against the library).
+ * This is intended to be fully compatible with Bracken for abundance reestimation.
+ * See: https://github.com/jenniferlu717/Bracken
  *
  * @param buckets       minimizer LCAs to classify genomes against.
  * @param keyValueIndex used to collect minimizer parameters, taxonomy, splitter
+ * @param readLen       length of reads to be generated and classified
  * @param spark
  */
 class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: Int)(implicit val spark: SparkSession) {
@@ -94,15 +97,27 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
 
   def brackenReport = ???
 
+  /**
+   * Build Bracken weights for a given library
+   * @param library The genomes to simulate reads from
+   * @param taxa A taxon filter for the genomes (only included taxa will be simulated)
+   */
   def buildWeights(library: GenomeLibrary, taxa: BitSet) = {
 
     val titlesTaxa = getTaxonLabels(library.labelFile).toDF("header", "taxon")
     val idSeqDF = library.inputs.getInputFragments(withRC = false)
+    val presentTaxon = udf((x: Taxon) => taxa.contains(x))
+
+    //Find all fragments of genomes
     val fragments = idSeqDF.join(titlesTaxa, idSeqDF("header") === titlesTaxa("header")).
-      select("taxon", "nucleotides", "location", "header").as[(Taxon, NTSeq, SeqLocation, SeqTitle)].
-      map(x => TaxonFragment(x._1, x._2, x._4 + x._3))
+      select("taxon", "nucleotides", "location", "header").
+      where(presentTaxon($"taxon")).
+      as[(Taxon, NTSeq, SeqLocation, SeqTitle)].
+      map(x => TaxonFragment(x._1, x._2, x._4 + x._3)) //x._4 + x._3 becomes a unique ID
+
     val bcSplit = keyValueIndex.bcSplit
     val bcTaxonomy = keyValueIndex.bcTaxonomy
+
     val withMins = fragments.flatMap { x =>
         x.distinctMinimizers(bcSplit.value).map(m => (x, m))
       }.toDF("fragment", "minimizer").
