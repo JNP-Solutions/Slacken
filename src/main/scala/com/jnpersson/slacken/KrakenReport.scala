@@ -21,9 +21,10 @@ class TreeAggregator(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
 
   val cladeTotals = MMap[Taxon, Long]().withDefaultValue(0L)
   for {
-    (taxid, count) <- counts
-    p <- taxonomy.pathToRoot(taxid)
-  } cladeTotals(p) += count
+    (taxid, count) <- counts } {
+    for {p <- taxonomy.pathToRoot(taxid)} cladeTotals(p) += count
+    if (taxid == NONE) cladeTotals(taxid) = count //pathToRoot doesn't include NONE
+  }
 }
 
 class TotalKmerSizeAggregator(taxonomy: Taxonomy, genomeSizes: Array[(Taxon, Long)]) {
