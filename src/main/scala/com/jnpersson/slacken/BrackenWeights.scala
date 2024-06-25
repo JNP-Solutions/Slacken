@@ -56,6 +56,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
   def readClassifications(taxonomy: Taxonomy, minimizers: Array[Array[Long]], lcas: Array[Taxon],
                           splitter: AnyMinSplitter, readLen: Int): Iterator[(Taxon, Long)] = {
 
+    //TODO add one more column with srcTaxon (currently we are computing destTaxon)
 
     val encodedMinimizers = minimizers.map(m => NTBitArray(m, splitter.priorities.width))
     // this map will contain a subset of the lca index that supports random access
@@ -105,6 +106,8 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
   def buildWeights(library: GenomeLibrary, taxa: BitSet) = {
 
     val titlesTaxa = getTaxonLabels(library.labelFile).toDF("header", "taxon")
+
+    //TODO create new Inputs with new value of k (readLen) to ensure no reads are lost between fragments
     val idSeqDF = library.inputs.getInputFragments(withRC = false)
     val presentTaxon = udf((x: Taxon) => taxa.contains(x))
 
@@ -128,6 +131,9 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
         f.readClassifications(bcTaxonomy.value, m, t, bcSplit.value, readLen)
       }
 
+    //TODO group by source taxon and count
+    //TODO group by dest taxon and aggregate
+    //TODO collect and output TSV
   }
 }
 
