@@ -5,6 +5,7 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.slacken.Taxonomy.NONE
+import scala.collection.{Map => CMap}
 
 /**
  * Lowest common ancestor algorithm. The calculation needs a data buffer,
@@ -69,12 +70,20 @@ final class LowestCommonAncestor(taxonomy: Taxonomy) {
    *                            matching taxon (if not, the taxon will move up in the tree)
    */
   def resolveTree(hitSummary: TaxonCounts, confidenceThreshold: Double): Taxon = {
-    var maxTaxon = 0
-    var maxScore = 0
-
     //the number of times each taxon was seen in a read, excluding ambiguous
     val hitCounts = hitSummary.toMap.withDefaultValue(0)
     val requiredScore = Math.ceil(confidenceThreshold * hitSummary.totalTaxa)
+    resolveTreeInner(hitCounts, requiredScore)
+  }
+
+  def resolveTree(hitCounts: CMap[Taxon, Int], confidenceThreshold: Double): Taxon = {
+    val requiredScore = Math.ceil(confidenceThreshold * hitCounts.iterator.map(_._2).sum)
+    resolveTreeInner(hitCounts, requiredScore)
+  }
+
+  def resolveTreeInner(hitCounts: CMap[Taxon, Int], requiredScore: Double): Taxon = {
+    var maxTaxon = 0
+    var maxScore = 0
 
     for { (taxon, _) <- hitCounts } {
       var node = taxon
