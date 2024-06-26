@@ -448,7 +448,7 @@ object TaxonomicIndex {
   }
 
   /** For the given set of sorted hits, was there a sufficient number of hit groups wrt the given minimum? */
-  def sufficientHitGroups(sortedHits: Array[TaxonHit], minimum: Int): Boolean = {
+  def sufficientHitGroups(sortedHits: Seq[TaxonHit], minimum: Int): Boolean = {
     var hitCount = 0
     var lastMin = sortedHits(0).minimizer
 
