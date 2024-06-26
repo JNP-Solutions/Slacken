@@ -8,6 +8,7 @@ import org.apache.spark.sql.functions.{collect_list, min, udf}
 import org.apache.spark.sql.{DataFrame, SparkSession, functions}
 
 import scala.collection.{BitSet, mutable}
+import scala.collection.{Map => CMap}
 
 object TaxonFragment {
 
@@ -67,9 +68,13 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
     //classify the corresponding minimizers.
     val classifications = Iterator.range(0, nucleotides.length - readLen + 1).flatMap(start => { // inclusive
       val end = start + readLen //non inclusive
+      val hitCountSummary = mutable.Map.empty[Taxon, Int].withDefaultValue(0)
       remainingHits = remainingHits.dropWhile(_.ordinal < start)
       val inRead = remainingHits.takeWhile(_.ordinal + splitter.priorities.width <= end)
-      classify(lca, inRead)
+      hitCountSummary.clear()
+      for { hit <- inRead } hitCountSummary(hit.taxon) += hit.count
+
+      classify(lca, inRead, hitCountSummary)
     })
 
     val counted = mutable.Map.empty[Taxon, Long].withDefaultValue(0)
@@ -78,12 +83,11 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
   }
 
   /** Classify a single read efficiently */
-  def classify(lca: LowestCommonAncestor, sortedHits: List[TaxonHit]): Option[Taxon] = {
+  def classify(lca: LowestCommonAncestor, sortedHits: List[TaxonHit], summary: CMap[Taxon, Int]): Option[Taxon] = {
     // confidence threshold is irrelevant for this purpose
     val confidenceThreshold = 0.0
     val minHitGroups = 2
-    val totalSummary = TaxonCounts.concatenate(sortedHits.map(_.summary))
-    val taxon = lca.resolveTree(totalSummary, confidenceThreshold)
+    val taxon = lca.resolveTree(summary, confidenceThreshold)
     val classified = taxon != Taxonomy.NONE && sufficientHitGroups(sortedHits, minHitGroups)
     if (classified) Some(taxon) else None
   }
