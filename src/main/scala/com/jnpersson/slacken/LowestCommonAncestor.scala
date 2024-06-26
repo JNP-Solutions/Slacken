@@ -5,6 +5,8 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.slacken.Taxonomy.NONE
+import it.unimi.dsi.fastutil.ints.{Int2IntFunction, Int2IntMap}
+
 import scala.collection.{Map => CMap}
 
 /**
@@ -73,15 +75,10 @@ final class LowestCommonAncestor(taxonomy: Taxonomy) {
     //the number of times each taxon was seen in a read, excluding ambiguous
     val hitCounts = hitSummary.toMap.withDefaultValue(0)
     val requiredScore = Math.ceil(confidenceThreshold * hitSummary.totalTaxa)
-    resolveTreeInner(hitCounts, requiredScore)
+    resolveTree(hitCounts, requiredScore)
   }
 
-  def resolveTree(hitCounts: CMap[Taxon, Int], confidenceThreshold: Double): Taxon = {
-    val requiredScore = Math.ceil(confidenceThreshold * hitCounts.iterator.map(_._2).sum)
-    resolveTreeInner(hitCounts, requiredScore)
-  }
-
-  def resolveTreeInner(hitCounts: CMap[Taxon, Int], requiredScore: Double): Taxon = {
+  def resolveTree(hitCounts: CMap[Taxon, Int], requiredScore: Double): Taxon = {
     var maxTaxon = 0
     var maxScore = 0
 
@@ -112,6 +109,56 @@ final class LowestCommonAncestor(taxonomy: Taxonomy) {
       } {
         //Add score if taxon is in max_taxon's clade
         maxScore += score
+      }
+      if (maxScore >= requiredScore) {
+        return maxTaxon
+      }
+      //Move up the tree, yielding a higher total score.
+      //Run off the tree (NONE) if the required score is never met
+      maxTaxon = parents(maxTaxon)
+    }
+    maxTaxon
+  }
+
+  /** Alternative version of resolveTree that operates on an Int2IntMap (fastutil),
+   * otherwise identical to the above
+   */
+  def resolveTree(hitCounts: Int2IntMap, requiredScore: Double): Taxon = {
+    var maxTaxon = 0
+    var maxScore = 0
+
+    val it = hitCounts.keySet().iterator()
+    while (it.hasNext) {
+      val taxon = it.nextInt()
+      var node = taxon
+      var score = 0
+      //Accumulate score across this path to the root
+      while (node != NONE) {
+        score += hitCounts.asInstanceOf[Int2IntFunction].get(node)
+        node = parents(node)
+      }
+
+      if (score > maxScore) {
+        maxTaxon = taxon
+        maxScore = score
+      } else if (score == maxScore) {
+        maxTaxon = apply(maxTaxon, taxon)
+      }
+    }
+
+    //Gradually lift maxTaxon to try to achieve the required score
+    maxScore = hitCounts(maxTaxon)
+    while (maxTaxon != NONE && maxScore < requiredScore) {
+      maxScore = 0
+
+      val it = hitCounts.keySet().iterator()
+      while (it.hasNext) {
+        val taxon = it.nextInt()
+        val score = hitCounts.asInstanceOf[Int2IntFunction].get(taxon)
+        if (taxonomy.hasAncestor(taxon, maxTaxon)) {
+          //Add score if taxon is in max_taxon's clade
+          maxScore += score
+        }
       }
       if (maxScore >= requiredScore) {
         return maxTaxon
