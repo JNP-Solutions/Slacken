@@ -4,6 +4,7 @@ import com.jnpersson.discount.{NTSeq, SeqLocation, SeqTitle}
 import com.jnpersson.discount.spark.AnyMinSplitter
 import com.jnpersson.discount.util.NTBitArray
 import com.jnpersson.slacken.TaxonomicIndex.{getTaxonLabels, sufficientHitGroups}
+import it.unimi.dsi.fastutil.ints.Int2IntMap
 import org.apache.spark.sql.functions.{collect_list, min, udf}
 import org.apache.spark.sql.{DataFrame, SparkSession, functions}
 
@@ -53,7 +54,10 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
 
     val encodedMinimizers = minimizers.map(m => NTBitArray(m, splitter.priorities.width))
     // this map will contain a subset of the lca index that supports random access
-    val lcaLookup = mutable.Map.empty ++ encodedMinimizers.iterator.zip(lcas.iterator)
+    val lcaLookup = mutable.Map.empty[NTBitArray, Int]
+    lcaLookup.sizeHint(minimizers.size)
+    lcaLookup ++= encodedMinimizers.iterator.zip(lcas.iterator)
+
     val k = splitter.k
 
     val lca = new LowestCommonAncestor(taxonomy)
@@ -66,24 +70,23 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
 
     //For each window corresponding to a read (start and end),
     //classify the corresponding minimizers.
-    val classifications = Iterator.range(0, nucleotides.length - readLen + 1).flatMap(start => { // inclusive
+    Iterator.range(0, nucleotides.length - readLen + 1).flatMap(start => { // inclusive
       val end = start + readLen //non inclusive
-      val hitCountSummary = mutable.Map.empty[Taxon, Int].withDefaultValue(0)
+      val countSummary = new it.unimi.dsi.fastutil.ints.Int2IntArrayMap(16) //specialised, very fast map
+
       remainingHits = remainingHits.dropWhile(_.ordinal < start)
       val inRead = remainingHits.takeWhile(_.ordinal + splitter.priorities.width <= end)
-      hitCountSummary.clear()
-      for { hit <- inRead } hitCountSummary(hit.taxon) += hit.count
+      countSummary.clear()
+      for { hit <- inRead } {
+        countSummary.put(hit.taxon, countSummary.getOrDefault(hit.taxon, 0) + hit.count)
+      }
 
-      classify(lca, inRead, hitCountSummary)
+      classify(lca, inRead, countSummary).map(t => (t, 1L))
     })
-
-    val counted = mutable.Map.empty[Taxon, Long].withDefaultValue(0)
-    for {c <- classifications} counted(c) += 1
-    counted.iterator
   }
 
   /** Classify a single read efficiently */
-  def classify(lca: LowestCommonAncestor, sortedHits: List[TaxonHit], summary: CMap[Taxon, Int]): Option[Taxon] = {
+  def classify(lca: LowestCommonAncestor, sortedHits: List[TaxonHit], summary: Int2IntMap): Option[Taxon] = {
     // confidence threshold is irrelevant for this purpose
     val confidenceThreshold = 0.0
     val minHitGroups = 2
