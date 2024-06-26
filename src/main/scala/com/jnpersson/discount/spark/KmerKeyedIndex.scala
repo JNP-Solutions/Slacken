@@ -17,7 +17,7 @@
 
 package com.jnpersson.discount.spark
 
-import org.apache.spark.sql.functions.{col, element_at, expr}
+import org.apache.spark.sql.functions.{array, col, element_at}
 import org.apache.spark.sql.{Column, Encoder, Encoders, SparkSession}
 
 /** Methods to support an index of key-value pairs
@@ -44,8 +44,13 @@ trait KmerKeyedIndex {
   def idColumnNames: Seq[String] =
     (1 to idLongs).map(i => s"id$i")
 
+  /** Unpack the minimizer array column to multiple columns */
   def idColumnsFromMinimizer: Seq[Column] =
     (1 to idLongs).map(i => element_at($"minimizer", i).as(s"id$i"))
+
+  /** Pack the minimizer columns into a single array */
+  def minimizerColumnFromIdColumns: Column =
+    array(idColumns :_*).as("minimizer")
 
 }
 

@@ -142,7 +142,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     val bcTax = this.bcTaxonomy
     val udafLca = udaf(TaxonLCA(bcTax))
 
-    val nbuckets = buckets.select(applySpaceUdf(array(idColumns :_*)).as("minimizer"), $"taxon").
+    val nbuckets = buckets.select(applySpaceUdf(minimizerColumnFromIdColumns), $"taxon").
       select($"taxon" +: idColumnsFromMinimizer :_*).
       groupBy(idColumns: _*).
       agg(udafLca($"taxon").as("taxon"))
