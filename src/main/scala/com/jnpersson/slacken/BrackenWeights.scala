@@ -99,11 +99,13 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
   def brackenReport = ???
 
   /**
-   * Build Bracken weights for a given library
-   * @param library The genomes to simulate reads from
-   * @param taxa A taxon filter for the genomes (only included taxa will be simulated)
+   * Build Bracken weights for a given library.
+   *
+   * @param library        The genomes to simulate reads from
+   * @param taxa           A taxon filter for the genomes (only included taxa will be simulated)
+   * @param outputLocation File to write the results to
    */
-  def buildWeights(library: GenomeLibrary, taxa: BitSet) = {
+  def buildWeights(library: GenomeLibrary, taxa: BitSet, outputLocation: String) = {
 
     val titlesTaxa = getTaxonLabels(library.labelFile).toDF("header", "taxon")
 
