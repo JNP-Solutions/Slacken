@@ -113,7 +113,7 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
     val presentTaxon = udf((x: Taxon) => taxa.contains(x))
 
     //Find all fragments of genomes
-    val fragments = idSeqDF.join(titlesTaxa, idSeqDF("header") === titlesTaxa("header")).
+    val fragments = idSeqDF.join(titlesTaxa, List("header")).
       select("taxon", "nucleotides", "location", "header").
       where(presentTaxon($"taxon")).
       as[(Taxon, NTSeq, SeqLocation, SeqTitle)].
@@ -125,12 +125,20 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
     val withMins = fragments.flatMap { x =>
         x.distinctMinimizers(bcSplit.value).map(m => (x, m))
       }.toDF("fragment", "minimizer").
+      select(keyValueIndex.idColumnsFromMinimizer :+ $"fragment" :_*).
       join(buckets, keyValueIndex.idColumnNames).
-      groupBy("fragment.id").agg(functions.first("fragment"), collect_list("minimizer"), collect_list("taxon")).
+      groupBy("fragment.id").agg(
+        functions.first("fragment"),
+        collect_list(keyValueIndex.minimizerColumnFromIdColumns),
+        collect_list("taxon")
+      ).
       as[(String, slacken.TaxonFragment, Array[Array[Long]], Array[Taxon])].
       flatMap { case (id, f, m, t) =>
         f.readClassifications(bcTaxonomy.value, m, t, bcSplit.value, readLen)
       }
+
+    //For testing
+    withMins.show()
 
     //TODO group by source taxon and count
     //TODO group by dest taxon and aggregate
