@@ -113,7 +113,7 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
     val presentTaxon = udf((x: Taxon) => taxa.contains(x))
 
     //Find all fragments of genomes
-    val fragments = idSeqDF.join(titlesTaxa, List("header")).
+    def fragments = idSeqDF.join(titlesTaxa, List("header")).
       select("taxon", "nucleotides", "location", "header").
       where(presentTaxon($"taxon")).
       as[(Taxon, NTSeq, SeqLocation, SeqTitle)].
@@ -122,23 +122,29 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
     val bcSplit = keyValueIndex.bcSplit
     val bcTaxonomy = keyValueIndex.bcTaxonomy
 
-    val withMins = fragments.flatMap { x =>
-        x.distinctMinimizers(bcSplit.value).map(m => (x, m))
-      }.toDF("fragment", "minimizer").
-      select(keyValueIndex.idColumnsFromMinimizer :+ $"fragment" :_*).
+    val idMins = fragments.flatMap { x =>
+        x.distinctMinimizers(bcSplit.value).map(m => (x.id, m))
+      }.toDF("id", "minimizer").
+      select(keyValueIndex.idColumnsFromMinimizer :+ $"id" :_*).
       join(buckets, keyValueIndex.idColumnNames).
-      groupBy("fragment.id").agg(
-        functions.first("fragment"),
+      groupBy("id").agg(
         collect_list(keyValueIndex.minimizerColumnFromIdColumns),
         collect_list("taxon")
       ).
-      as[(String, slacken.TaxonFragment, Array[Array[Long]], Array[Taxon])].
-      flatMap { case (id, f, m, t) =>
-        f.readClassifications(bcTaxonomy.value, m, t, bcSplit.value, readLen)
+      toDF("id", "minimizers", "taxa")
+
+    val readLen = this.readLen
+    val withSequence = idMins.join(fragments, List("id")).
+      select("id", "taxon", "nucleotides", "minimizers", "taxa").
+      as[(String, Taxon, NTSeq, Array[Array[Long]], Array[Taxon])].
+      flatMap { case (id, taxon, nts, ms, ts) =>
+        val f = TaxonFragment(taxon, nts, id)
+        f.readClassifications(bcTaxonomy.value, ms, ts, bcSplit.value, readLen)
       }
 
     //For testing
-    withMins.show()
+
+    withSequence.show()
 
     //TODO group by source taxon and count
     //TODO group by dest taxon and aggregate
