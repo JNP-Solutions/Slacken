@@ -1,14 +1,14 @@
 package com.jnpersson.slacken
 
-import com.jnpersson.slacken
 import com.jnpersson.discount.{NTSeq, SeqLocation, SeqTitle}
 import com.jnpersson.discount.spark.AnyMinSplitter
 import com.jnpersson.discount.util.NTBitArray
-import com.jnpersson.slacken.TaxonomicIndex.getTaxonLabels
-import org.apache.spark.sql.functions.{collect_list, udf}
+import com.jnpersson.slacken.TaxonomicIndex.{getTaxonLabels, sufficientHitGroups}
+import org.apache.spark.sql.functions.{collect_list, min, udf}
 import org.apache.spark.sql.{DataFrame, SparkSession, functions}
 
 import scala.collection.{BitSet, mutable}
+import scala.collection.{Map => CMap}
 
 object TaxonFragment {
 
@@ -33,15 +33,8 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
    * @return
    */
   def distinctMinimizers(splitter: AnyMinSplitter): Iterator[Array[SeqLocation]] =
-    splitter.superkmerPositions(nucleotides, addRC = false).map(_._2).toArray.distinct.iterator.map(_.data)
-
-
-/** Generate all reads of a given length */
-  def generateReads(seq: NTSeq, readLen: Int): Iterator[NTSeq] =
-    for {
-      i <- Iterator.range(0, seq.length - readLen + 1)
-      read = seq.substring(i, i + readLen)
-    } yield read
+    splitter.superkmerPositions(nucleotides, addRC = false).map(_._2).
+      toArray.distinct.iterator.map(_.data)
 
   /**
    * Generate reads from the fragment then classify them according to the LCAs.
@@ -61,23 +54,42 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
     val encodedMinimizers = minimizers.map(m => NTBitArray(m, splitter.priorities.width))
     // this map will contain a subset of the lca index that supports random access
     val lcaLookup = mutable.Map.empty ++ encodedMinimizers.iterator.zip(lcas.iterator)
-    val reads = generateReads(nucleotides, readLen)
     val k = splitter.k
-    val bogusOrdinal = 0
-    // confidence threshold is irrelevant for this purpose
-    val confidenceThreshold = 0.0
-    val cpar = ClassifyParams(2, withUnclassified = false, List.empty, None)
-    // true ordinal not needed for this use case
-    val classifications = reads.flatMap { r =>
-      val taxonHits = splitter.superkmerPositions(r, addRC = false).map(s =>
-        TaxonHit(s._2.data, bogusOrdinal, lcaLookup(s._2), s._3 - (k - 1)))
 
-      TaxonomicIndex.classify(taxonomy, taxonHits.toArray, confidenceThreshold, k, cpar)
-    }
+    val lca = new LowestCommonAncestor(taxonomy)
+
+    val minsInFragment = splitter.superkmerPositions(nucleotides, addRC = false)
+    var remainingHits = minsInFragment.map(m =>
+      //Overloading the second argument (ordinal) to mean the absolute position in the fragment in this case
+      TaxonHit(m._2.data, m._1, lcaLookup(m._2), m._3 - (k - 1))
+    ).toList
+
+    //For each window corresponding to a read (start and end),
+    //classify the corresponding minimizers.
+    val classifications = Iterator.range(0, nucleotides.length - readLen + 1).flatMap(start => { // inclusive
+      val end = start + readLen //non inclusive
+      val hitCountSummary = mutable.Map.empty[Taxon, Int].withDefaultValue(0)
+      remainingHits = remainingHits.dropWhile(_.ordinal < start)
+      val inRead = remainingHits.takeWhile(_.ordinal + splitter.priorities.width <= end)
+      hitCountSummary.clear()
+      for { hit <- inRead } hitCountSummary(hit.taxon) += hit.count
+
+      classify(lca, inRead, hitCountSummary)
+    })
 
     val counted = mutable.Map.empty[Taxon, Long].withDefaultValue(0)
     for {c <- classifications} counted(c) += 1
     counted.iterator
+  }
+
+  /** Classify a single read efficiently */
+  def classify(lca: LowestCommonAncestor, sortedHits: List[TaxonHit], summary: CMap[Taxon, Int]): Option[Taxon] = {
+    // confidence threshold is irrelevant for this purpose
+    val confidenceThreshold = 0.0
+    val minHitGroups = 2
+    val taxon = lca.resolveTree(summary, confidenceThreshold)
+    val classified = taxon != Taxonomy.NONE && sufficientHitGroups(sortedHits, minHitGroups)
+    if (classified) Some(taxon) else None
   }
 
 }
