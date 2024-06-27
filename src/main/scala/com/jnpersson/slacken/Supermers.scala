@@ -10,8 +10,8 @@ import com.jnpersson.discount.hash.{BucketId, InputFragment}
 import com.jnpersson.discount.spark.AnyMinSplitter
 import com.jnpersson.discount.util.NTBitArray
 
-
 import scala.util.Random
+import scala.util.matching.Regex
 
 /** A super-mer with a single minimizer.
  * @param minimizer the minimizer
@@ -97,10 +97,18 @@ final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializab
    *         ([[AMBIGUOUS_FLAG]] if the fragment contains ambiguous nucleotides or is shorter than k,
    *         otherwise [[SEQUENCE_FLAG]]). The fragments will be returned in order.
    */
-  def splitByAmbiguity(sequence: NTSeq): Iterator[(NTSeq, SegmentFlag)] = {
+  def splitByAmbiguity(sequence: NTSeq): Iterator[(NTSeq, SegmentFlag)] =
+    Supermers.splitByAmbiguity(sequence, nonAmbiguousRegex)
+
+}
+
+object Supermers {
+  def nonAmbiguousRegex(k: Int) = s"[actguACTGU]{$k,}".r
+
+  def splitByAmbiguity(sequence: NTSeq, regex: Regex): Iterator[(NTSeq, SegmentFlag)] = {
 
     new Iterator[(NTSeq, SegmentFlag)]  {
-      private val matches = nonAmbiguousRegex.findAllMatchIn(sequence).buffered
+      private val matches = regex.findAllMatchIn(sequence).buffered
       private var at = 0
       def hasNext: Boolean =
         at < sequence.length

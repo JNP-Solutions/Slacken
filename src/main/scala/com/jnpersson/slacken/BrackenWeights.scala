@@ -1,6 +1,5 @@
 package com.jnpersson.slacken
 
-import com.jnpersson.discount.hash.MinSplitter
 import com.jnpersson.discount.{NTSeq, SeqLocation, SeqTitle}
 import com.jnpersson.discount.spark.{AnyMinSplitter, HDFSUtil}
 import com.jnpersson.discount.util.NTBitArray
@@ -27,11 +26,17 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
    * @param splitter the minimizer scheme
    * @return
    */
-  def distinctMinimizers(splitter: AnyMinSplitter): Iterator[Array[SeqLocation]] =
-    splitter.superkmerPositions(nucleotides, addRC = false).map(_._2).
-      toArray.distinct.iterator.map(_.data)
+  def distinctMinimizers(splitter: AnyMinSplitter): Iterator[Array[SeqLocation]] = {
+    val noWhitespace = nucleotides.replaceAll("\\s+", "")
+    val segments = Supermers.splitByAmbiguity(noWhitespace, Supermers.nonAmbiguousRegex(splitter.k))
+    segments.flatMap{
+      case (seq, SEQUENCE_FLAG) => splitter.superkmerPositions(seq, addRC = false).map(_._2)
+      case (seq, AMBIGUOUS_FLAG) => Iterator.empty
+    }.toArray.distinct.iterator.map(_.data)
+  }
 
-  /** Sliding window corresponding to a list of minimizers */
+  /** Sliding window corresponding to a list of minimizers.
+   * Each window position corresponds to one read. */
   class FragmentWindow(hits: Array[TaxonHit]) extends IndexedSeq[TaxonHit] {
     private var start = 0 //offsets in the hits array (inclusive)
     private var end = 0 // not inclusive
@@ -100,12 +105,24 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
 
     val lca = new LowestCommonAncestor(taxonomy)
     val noWhitespace = nucleotides.replaceAll("\\s+", "")
+    val segments = Supermers.splitByAmbiguity(noWhitespace, Supermers.nonAmbiguousRegex(k))
+    var pos = 0
 
-    val minsInFragment = splitter.superkmerPositions(noWhitespace, addRC = false)
-    val allHits = minsInFragment.map(m =>
-      //Overloading the second argument (ordinal) to mean the absolute position in the fragment in this case
-      TaxonHit(m._2.data, m._1, lcaLookup(m._2), m._3 - (k - 1))
-    ).toArray
+    //Adjust the position of each supermer to be across the entire fragment
+    val allHits = segments.flatMap{
+      case (seq, SEQUENCE_FLAG) =>
+        val r = splitter.superkmerPositions(seq, addRC = false).map(x =>
+          //Construct each minimizer hit.
+          //Overloading the second argument (ordinal) to mean the absolute position in the fragment in this case
+          TaxonHit(x._2.data, x._1 + pos, lcaLookup(x._2), x._3 - (k - 1))
+        )
+        pos += seq.length
+        r
+      case (seq, AMBIGUOUS_FLAG) =>
+        pos += seq.length
+        Iterator.empty
+    }.toArray
+
     val hitWindow = new FragmentWindow(allHits)
 
     //For each window corresponding to a read (start and end),
