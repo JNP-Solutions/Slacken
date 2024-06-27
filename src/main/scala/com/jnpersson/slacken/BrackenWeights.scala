@@ -150,38 +150,44 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
       toDF("id", "minimizers", "taxa")
 
     val readLen = this.readLen
-    val withSequence = idMins.join(fragments, List("id")).
+
+    val brackenSourceLine = udf((source: Array[Taxon],counts: Array[Long],readCounts:Array[Long]) =>
+      source.zip(counts).zip(readCounts).map{case ((s,c),r) => s+":"+c+":"+r}.mkString(" "))
+
+    val sourceDestCounts = idMins.join(fragments, List("id")).
       select("id", "taxon", "nucleotides", "minimizers", "taxa").
       as[(String, Taxon, NTSeq, Array[Array[Long]], Array[Taxon])].
       flatMap { case (id, taxon, nts, ms, ts) =>
         val f = TaxonFragment(taxon, nts, id)
         f.readClassifications(bcTaxonomy.value, ms, ts, bcSplit.value, readLen)
-      }.toDF("source","dest","count").groupBy("dest","source").agg(sum("count"))
+      }.toDF("source","dest","count").groupBy("dest","source").agg(sum("count").as("count"))
+
+    val bySource = sourceDestCounts.groupBy("source").agg(sum("count").as("totalReads"))
+
+    val byDest =  bySource.groupBy("dest").agg(collect_list("source").as("sources")
+        ,collect_list("count").as("counts"),
+        collect_list("totalReads").as("totalReadsList")).
+      withColumn("brackenLine",brackenSourceLine($"sources",$"counts",$"totalReadsList")).
+      select("dest","brackenLine").as[(Taxon,String)].collect()
+
+    HDFSUtil.usingWriter(outputLocation + "_brackenWeights.txt", wr => brackenWeightsReport(wr,byDest))
+
+    def brackenWeightsReport(output:PrintWriter, brakenOut:Array[(Taxon,String)]):Unit={
 
 
-      //select("dest","source","count").as[(Taxon,(Taxon,Long))].collect().toMap
+      val headers = s"mapped_taxid\tgenome_taxids:kmers_mapped:total_genome_kmers"
+      output.println(headers)
 
-    //For testing
-    //HDFSUtil.usingWriter(outputLocation + "_brackenWeights.txt", wr => brackenWeightsReport(wr,withSequence))
 
-    withSequence.show()
+      for {
+        case (dest, bLine) <- brakenOut
+        outputLine = s"${dest}\t${bLine}"
+      }
+      {
+        output.println(outputLine)
+      }
 
-//    def brackenWeightsReport(output:PrintWriter, brakenOut:Map[Taxon,(Taxon,Long)]):Unit={
-//
-//
-//      val headers = s"mapped_taxid\tgenome_taxids:kmers_mapped:total_genome_kmers"
-//      output.println(headers)
-//
-//
-//      for {
-//        (dest,(source,count)) <- brakenOut
-//        outputLine = s"${dest}\t"
-//      }
-//      {
-//        output.println()
-//      }
-//
-//    }
+    }
 
     //TODO group by source taxon and count
     //TODO group by dest taxon and aggregate
