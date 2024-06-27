@@ -1,24 +1,18 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.discount.{NTSeq, SeqLocation, SeqTitle}
+
 import com.jnpersson.discount.spark.{AnyMinSplitter, HDFSUtil}
 import com.jnpersson.discount.util.NTBitArray
+
 import com.jnpersson.slacken.TaxonomicIndex.{getTaxonLabels, sufficientHitGroups}
 import it.unimi.dsi.fastutil.ints.Int2IntMap
-import org.apache.spark.sql.functions.{collect_list, min, sum, udf}
-import org.apache.spark.sql.{DataFrame, SparkSession, functions}
+import org.apache.spark.sql.functions.{collect_list, sum, udf}
+import org.apache.spark.sql.{DataFrame, SparkSession}
 
 import java.io.PrintWriter
 import scala.collection.{BitSet, mutable}
-import scala.collection.{Map => CMap}
 
-object TaxonFragment {
-
-  //  def fromSeqTaxon(fragment: InputFragment, taxon: Taxon) =
-  //    TaxonFragment(taxon, fragment.nucleotides, fragment.header + fragment.location)
-
-
-}
 
 /**
  * A fragment of a genome.
@@ -38,6 +32,51 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
     splitter.superkmerPositions(nucleotides, addRC = false).map(_._2).
       toArray.distinct.iterator.map(_.data)
 
+  /** Sliding window corresponding to a list of minimizers */
+  class FragmentWindow(hits: Array[TaxonHit]) extends IndexedSeq[TaxonHit] {
+    private var start = 0 //offsets in the hits array (inclusive)
+    private var end = 0 // not inclusive
+
+    val countSummary = new it.unimi.dsi.fastutil.ints.Int2IntArrayMap(16) //specialised, very fast map
+
+    def advanceStart(to: Int): Unit = {
+      while (start < hits.length && hits(start).ordinal < to) {
+        start += 1
+        val removed = hits(start - 1)
+        countSummary.put(removed.taxon, countSummary.get(removed.taxon) - removed.count)
+      }
+    }
+
+    def advanceEnd(to: Int, m: Int): Unit = {
+      while (end < hits.length && hits(end).ordinal + m - 1 < to) {
+        end += 1
+        if (end < hits.length) {
+          val added = hits(end)
+          countSummary.put(added.taxon, countSummary.getOrDefault(added.taxon, 0) + added.count)
+        }
+      }
+    }
+
+    def apply(i: Int): TaxonHit = {
+      hits(i + start)
+    }
+
+    override def length: Int =
+      (end - start)
+
+    override def iterator: Iterator[TaxonHit] = new Iterator[TaxonHit] {
+      private var pos = start
+      override def hasNext: Boolean =
+        pos < end
+
+      override def next(): TaxonHit = {
+        val r = hits(pos)
+        pos += 1
+        r
+      }
+    }
+  }
+
   /**
    * Generate reads from the fragment then classify them according to the LCAs.
    *
@@ -46,14 +85,15 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
    * @param lcas       all LCAs of minimizers encountered in this fragment, in the same order as minimizers
    * @param splitter   the minimizer scheme
    * @param readLen    length of reads to be generated
-   * @return an iterator of (taxon, number of reads classified to that taxon)
+   * @return an iterator of (source taxon, destination taxon, number of reads classified to destination taxon)
    */
   def readClassifications(taxonomy: Taxonomy, minimizers: Array[Array[Long]], lcas: Array[Taxon],
-                          splitter: AnyMinSplitter, readLen: Int): Iterator[(Taxon,Taxon, Long)] = {
+                          splitter: AnyMinSplitter, readLen: Int): Iterator[(Taxon, Taxon, Long)] = {
 
     //TODO add one more column with srcTaxon (currently we are computing destTaxon)
 
     val encodedMinimizers = minimizers.map(m => NTBitArray(m, splitter.priorities.width))
+
     // this map will contain a subset of the lca index that supports random access
     val lcaLookup = mutable.Map.empty[NTBitArray, Int]
     lcaLookup.sizeHint(minimizers.size)
@@ -62,32 +102,30 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
     val k = splitter.k
 
     val lca = new LowestCommonAncestor(taxonomy)
+    val noWhitespace = nucleotides.replaceAll("\\s+", "")
 
-    val minsInFragment = splitter.superkmerPositions(nucleotides, addRC = false)
-    var remainingHits = minsInFragment.map(m =>
+    val minsInFragment = splitter.superkmerPositions(noWhitespace, addRC = false)
+    val remainingHits = minsInFragment.map(m =>
       //Overloading the second argument (ordinal) to mean the absolute position in the fragment in this case
       TaxonHit(m._2.data, m._1, lcaLookup(m._2), m._3 - (k - 1))
-    ).toList
+    ).toArray
+    val hitWindow = new FragmentWindow(remainingHits)
 
     //For each window corresponding to a read (start and end),
     //classify the corresponding minimizers.
-    Iterator.range(0, nucleotides.length - readLen + 1).flatMap(start => { // inclusive
+    Iterator.range(0, noWhitespace.length - readLen).flatMap(start => { // inclusive
       val end = start + readLen //non inclusive
-      val countSummary = new it.unimi.dsi.fastutil.ints.Int2IntArrayMap(16) //specialised, very fast map
+      hitWindow.advanceStart(start)
+      hitWindow.advanceEnd(end, splitter.priorities.width)
 
-      remainingHits = remainingHits.dropWhile(_.ordinal < start)
-      val inRead = remainingHits.takeWhile(_.ordinal + splitter.priorities.width <= end)
-      countSummary.clear()
-      for { hit <- inRead } {
-        countSummary.put(hit.taxon, countSummary.getOrDefault(hit.taxon, 0) + hit.count)
-      }
-
-      classify(lca, inRead, countSummary).map(t => (taxon,t, 1L))
+      if (hitWindow.nonEmpty) {
+        classify(lca, hitWindow, hitWindow.countSummary).map(t => (taxon, t, 1L))
+      } else None
     })
   }
 
   /** Classify a single read efficiently */
-  def classify(lca: LowestCommonAncestor, sortedHits: List[TaxonHit], summary: Int2IntMap): Option[Taxon] = {
+  def classify(lca: LowestCommonAncestor, sortedHits: Seq[TaxonHit], summary: Int2IntMap): Option[Taxon] = {
     // confidence threshold is irrelevant for this purpose
     val confidenceThreshold = 0.0
     val minHitGroups = 2
@@ -129,7 +167,7 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
     val presentTaxon = udf((x: Taxon) => taxa.contains(x))
 
     //Find all fragments of genomes
-    def fragments = idSeqDF.join(titlesTaxa, List("header")).
+    val fragments = idSeqDF.join(titlesTaxa, List("header")).
       select("taxon", "nucleotides", "location", "header").
       where(presentTaxon($"taxon")).
       as[(Taxon, NTSeq, SeqLocation, SeqTitle)].
@@ -152,7 +190,7 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
     val readLen = this.readLen
 
     val brackenSourceLine = udf((source: Array[Taxon],counts: Array[Long],readCounts:Array[Long]) =>
-      source.zip(counts).zip(readCounts).map{case ((s,c),r) => s+":"+c+":"+r}.mkString(" "))
+      source.zip(counts).zip(readCounts).map{case ((s,c),r) => s"$s:$c:$r"}.mkString(" "))
 
     val sourceDestCounts = idMins.join(fragments, List("id")).
       select("id", "taxon", "nucleotides", "minimizers", "taxa").
@@ -160,38 +198,35 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
       flatMap { case (id, taxon, nts, ms, ts) =>
         val f = TaxonFragment(taxon, nts, id)
         f.readClassifications(bcTaxonomy.value, ms, ts, bcSplit.value, readLen)
-      }.toDF("source","dest","count").groupBy("dest","source").agg(sum("count").as("count"))
+      }.toDF("source","dest","count").groupBy("dest","source").agg(sum("count").as("count")).
+      cache()
 
     val bySource = sourceDestCounts.groupBy("source").agg(sum("count").as("totalReads"))
 
-    val byDest =  bySource.groupBy("dest").agg(collect_list("source").as("sources")
-        ,collect_list("count").as("counts"),
+//    bySource.agg(sum("totalReads")).show()
+
+    val byDest = sourceDestCounts.join(bySource, List("source")).
+      groupBy("dest").agg(
+        collect_list("source").as("sources"),
+        collect_list("count").as("counts"),
         collect_list("totalReads").as("totalReadsList")).
-      withColumn("brackenLine",brackenSourceLine($"sources",$"counts",$"totalReadsList")).
-      select("dest","brackenLine").as[(Taxon,String)].collect()
+      select($"dest",brackenSourceLine($"sources",$"counts",$"totalReadsList")).
+      as[(Taxon,String)].collect()
 
     HDFSUtil.usingWriter(outputLocation + "_brackenWeights.txt", wr => brackenWeightsReport(wr,byDest))
 
-    def brackenWeightsReport(output:PrintWriter, brakenOut:Array[(Taxon,String)]):Unit={
 
-
+    def brackenWeightsReport(output: PrintWriter, brackenOut: Array[(Taxon, String)]): Unit = {
       val headers = s"mapped_taxid\tgenome_taxids:kmers_mapped:total_genome_kmers"
       output.println(headers)
 
-
       for {
-        case (dest, bLine) <- brakenOut
+        case (dest, bLine) <- brackenOut
         outputLine = s"${dest}\t${bLine}"
-      }
-      {
+      } {
         output.println(outputLine)
       }
-
     }
-
-    //TODO group by source taxon and count
-    //TODO group by dest taxon and aggregate
-    //TODO collect and output TSV
   }
 }
 
