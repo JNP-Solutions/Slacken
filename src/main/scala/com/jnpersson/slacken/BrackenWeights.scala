@@ -1,13 +1,14 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.discount.{NTSeq, SeqLocation, SeqTitle}
-import com.jnpersson.discount.spark.AnyMinSplitter
+import com.jnpersson.discount.spark.{AnyMinSplitter, HDFSUtil}
 import com.jnpersson.discount.util.NTBitArray
 import com.jnpersson.slacken.TaxonomicIndex.{getTaxonLabels, sufficientHitGroups}
 import it.unimi.dsi.fastutil.ints.Int2IntMap
-import org.apache.spark.sql.functions.{collect_list, min, udf}
+import org.apache.spark.sql.functions.{collect_list, min, sum, udf}
 import org.apache.spark.sql.{DataFrame, SparkSession, functions}
 
+import java.io.PrintWriter
 import scala.collection.{BitSet, mutable}
 import scala.collection.{Map => CMap}
 
@@ -48,7 +49,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
    * @return an iterator of (taxon, number of reads classified to that taxon)
    */
   def readClassifications(taxonomy: Taxonomy, minimizers: Array[Array[Long]], lcas: Array[Taxon],
-                          splitter: AnyMinSplitter, readLen: Int): Iterator[(Taxon, Long)] = {
+                          splitter: AnyMinSplitter, readLen: Int): Iterator[(Taxon,Taxon, Long)] = {
 
     //TODO add one more column with srcTaxon (currently we are computing destTaxon)
 
@@ -81,7 +82,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
         countSummary.put(hit.taxon, countSummary.getOrDefault(hit.taxon, 0) + hit.count)
       }
 
-      classify(lca, inRead, countSummary).map(t => (t, 1L))
+      classify(lca, inRead, countSummary).map(t => (taxon,t, 1L))
     })
   }
 
@@ -155,11 +156,32 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
       flatMap { case (id, taxon, nts, ms, ts) =>
         val f = TaxonFragment(taxon, nts, id)
         f.readClassifications(bcTaxonomy.value, ms, ts, bcSplit.value, readLen)
-      }
+      }.toDF("source","dest","count").groupBy("dest","source").agg(sum("count"))
+
+
+      //select("dest","source","count").as[(Taxon,(Taxon,Long))].collect().toMap
 
     //For testing
+    //HDFSUtil.usingWriter(outputLocation + "_brackenWeights.txt", wr => brackenWeightsReport(wr,withSequence))
 
     withSequence.show()
+
+//    def brackenWeightsReport(output:PrintWriter, brakenOut:Map[Taxon,(Taxon,Long)]):Unit={
+//
+//
+//      val headers = s"mapped_taxid\tgenome_taxids:kmers_mapped:total_genome_kmers"
+//      output.println(headers)
+//
+//
+//      for {
+//        (dest,(source,count)) <- brakenOut
+//        outputLine = s"${dest}\t"
+//      }
+//      {
+//        output.println()
+//      }
+//
+//    }
 
     //TODO group by source taxon and count
     //TODO group by dest taxon and aggregate
