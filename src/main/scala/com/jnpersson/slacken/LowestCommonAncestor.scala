@@ -147,7 +147,7 @@ final class LowestCommonAncestor(taxonomy: Taxonomy) {
     }
 
     //Gradually lift maxTaxon to try to achieve the required score
-    maxScore = hitCounts(maxTaxon)
+    maxScore = hitCounts.asInstanceOf[Int2IntFunction].get(maxTaxon)
     while (maxTaxon != NONE && maxScore < requiredScore) {
       maxScore = 0
 

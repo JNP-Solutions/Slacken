@@ -5,6 +5,7 @@ import com.jnpersson.discount.spark.{AnyMinSplitter, HDFSUtil}
 import com.jnpersson.discount.util.NTBitArray
 import com.jnpersson.slacken.TaxonomicIndex.{getTaxonLabels, sufficientHitGroups}
 import it.unimi.dsi.fastutil.ints.Int2IntMap
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap
 import org.apache.spark.sql.functions.{collect_list, sum, udf}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
@@ -47,7 +48,11 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
       while (start < hits.length && hits(start).ordinal < to) {
         start += 1
         val removed = hits(start - 1)
-        countSummary.put(removed.taxon, countSummary.get(removed.taxon) - removed.count)
+        val updated = countSummary.get(removed.taxon)
+        if (updated == 0)
+          countSummary.remove(removed.taxon)
+        else
+          countSummary.put(removed.taxon, countSummary.get(removed.taxon) - removed.count)
       }
     }
 
@@ -97,9 +102,10 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
     val encodedMinimizers = minimizers.map(m => NTBitArray(m, splitter.priorities.width))
 
     // this map will contain a subset of the lca index that supports random access
-    val lcaLookup = mutable.Map.empty[NTBitArray, Int]
-    lcaLookup.sizeHint(minimizers.size)
-    lcaLookup ++= encodedMinimizers.iterator.zip(lcas.iterator)
+    val lcaLookup = new Object2IntOpenHashMap[NTBitArray](minimizers.size)
+    for { (min, lca) <- encodedMinimizers.iterator.zip(lcas.iterator) } {
+      lcaLookup.put(min, lca)
+    }
 
     val k = splitter.k
 
@@ -114,7 +120,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
         val r = splitter.superkmerPositions(seq, addRC = false).map(x =>
           //Construct each minimizer hit.
           //Overloading the second argument (ordinal) to mean the absolute position in the fragment in this case
-          TaxonHit(x._2.data, x._1 + pos, lcaLookup(x._2), x._3 - (k - 1))
+          TaxonHit(x._2.data, x._1 + pos, lcaLookup.applyAsInt(x._2), x._3 - (k - 1))
         )
         pos += seq.length
         r
