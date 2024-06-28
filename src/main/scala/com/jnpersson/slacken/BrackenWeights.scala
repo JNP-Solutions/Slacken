@@ -36,54 +36,80 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
     }.toArray.distinct.iterator.map(_.data)
   }
 
-  /** Sliding window corresponding to a list of minimizers.
-   * Each window position corresponds to one read. */
-  class FragmentWindow(hits: Array[TaxonHit]) extends IndexedSeq[TaxonHit] {
-    private var start = 0 //offsets in the hits array (inclusive)
-    private var end = 0 // not inclusive
+  /** Sliding window corresponding to a list of hits. Each hit is a super-mer with some number of k-mers.
+   * Each window position corresponds to one read.
+   *
+   * Assumptions:
+   * Positions refer to k-mer starting positions.
+   * hits are sorted in order ("ordinal" which means absolute position here).
+   * Every k-mer in the fragment is accounted for in some hit.
+   * NONE hits are inserted to account for ambiguous regions (quasi-supermers with the correct length).
+   */
+  class FragmentWindow(var hits: List[TaxonHit], kmersPerWindow: Int) {
 
-    val countSummary = new it.unimi.dsi.fastutil.ints.Int2IntArrayMap(16) //specialised, very fast map
+    //Offsets in the fragment
+    private var windowStart = 0 //inclusive
+    private var windowEnd = kmersPerWindow // not inclusive
+    private var lastInWindow: TaxonHit = null //cache this for optimisation
 
-    def advanceStart(to: Int): Unit = {
-      while (start < hits.length && hits(start).ordinal < to) {
-        start += 1
-        val removed = hits(start - 1)
-        val updated = countSummary.get(removed.taxon)
-        if (updated == 0)
-          countSummary.remove(removed.taxon)
-        else
-          countSummary.put(removed.taxon, countSummary.get(removed.taxon) - removed.count)
-      }
-    }
+    //Map taxon to k-mer count.
+    //This mutable maps updates to reflect the current window.
+    val countSummary = new it.unimi.dsi.fastutil.ints.Int2IntArrayMap(100) //specialised, very fast map
 
-    def advanceEnd(to: Int, m: Int): Unit = {
-      while (end < hits.length && hits(end).ordinal + m - 1 < to) {
-        end += 1
-        if (end < hits.length) {
-          val added = hits(end)
-          countSummary.put(added.taxon, countSummary.getOrDefault(added.taxon, 0) + added.count)
+    //Is at least one k-mer from the hit contained in the window?
+    //compare last possible start and first possible end with the bounds.
+    private def inWindow(hit: TaxonHit) =
+      (hit.ordinal + hit.count - 1 >= windowStart) && (hit.ordinal < windowEnd)
+
+    private def inWindow(pos: Int) =
+      pos >= windowStart && pos < windowEnd
+
+    //Has the hit already passed through the window (i.e., is it behind it?)
+    private def passedWindow(hit: TaxonHit) =
+      hit.ordinal + (hit.count - 1) < windowStart
+
+    //Populate the initial state
+    for { h <- hitsInWindow } {
+      for {kmerStart <- h.ordinal until h.ordinal + h.count} {
+        if (inWindow(kmerStart)) {
+          countSummary.put(h.taxon, countSummary(h.taxon) + 1)
+          lastInWindow = h
         }
       }
     }
 
-    def apply(i: Int): TaxonHit = {
-      hits(i + start)
-    }
+    /** Move the window one step forward. */
+    def advance(): Unit = {
+      //Decrement one taxon
+      val remove = hits.head
 
-    override def length: Int =
-      end - start
+      val updated = countSummary(remove.taxon) - 1
+      if (updated > 0)
+        countSummary.put(remove.taxon, updated)
+      else
+        countSummary.remove(remove.taxon)
 
-    override def iterator: Iterator[TaxonHit] = new Iterator[TaxonHit] {
-      private var pos = start
-      override def hasNext: Boolean =
-        pos < end
+      windowStart += 1
+      windowEnd += 1
 
-      override def next(): TaxonHit = {
-        val r = hits(pos)
-        pos += 1
-        r
+      if (hits.nonEmpty && passedWindow(hits.head)) {
+        hits = hits.tail
       }
+
+      //increment one taxon
+      if (lastInWindow == null ||
+        lastInWindow.ordinal + lastInWindow.count < windowEnd  //no longer touching the boundary
+        ) {
+        lastInWindow = hitsInWindow.last
+      }
+
+      countSummary.put(lastInWindow.taxon, countSummary(lastInWindow.taxon) + 1)
     }
+
+    /** Hits currently in the window. This may sometimes be empty and become populated again,
+     * because of ambiguous regions. */
+    def hitsInWindow: List[TaxonHit] = hits.takeWhile(inWindow)
+
   }
 
   /**
@@ -101,53 +127,68 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
 
     val encodedMinimizers = minimizers.map(m => NTBitArray(m, splitter.priorities.width))
 
-    // this map will contain a subset of the lca index that supports random access
-    val lcaLookup = new Object2IntOpenHashMap[NTBitArray](minimizers.size)
-    for { (min, lca) <- encodedMinimizers.iterator.zip(lcas.iterator) } {
-      lcaLookup.put(min, lca)
-    }
-
     val k = splitter.k
-
     val lca = new LowestCommonAncestor(taxonomy)
     val noWhitespace = nucleotides.replaceAll("\\s+", "")
     val segments = Supermers.splitByAmbiguity(noWhitespace, Supermers.nonAmbiguousRegex(k))
     var pos = 0
 
-    //Adjust the position of each supermer to be across the entire fragment
-    val allHits = segments.flatMap{
-      case (seq, SEQUENCE_FLAG) =>
-        val r = splitter.superkmerPositions(seq, addRC = false).map(x =>
-          //Construct each minimizer hit.
-          //Overloading the second argument (ordinal) to mean the absolute position in the fragment in this case
-          TaxonHit(x._2.data, x._1 + pos, lcaLookup.applyAsInt(x._2), x._3 - (k - 1))
-        )
-        pos += seq.length
-        r
-      case (seq, AMBIGUOUS_FLAG) =>
-        pos += seq.length
-        Iterator.empty
-    }.toArray
+    val allHits = {
+      // this map will contain a subset of the lca to taxon index
+      val lcaLookup = new Object2IntOpenHashMap[NTBitArray](minimizers.size)
+      for { (min, lca) <- encodedMinimizers.iterator.zip(lcas.iterator) } {
+        lcaLookup.put(min, lca)
+      }
 
-    val hitWindow = new FragmentWindow(allHits)
+      segments.toList.flatMap {
+        case (seq, SEQUENCE_FLAG) =>
+          val r = splitter.superkmerPositions(seq, addRC = false).toList.map(x => {
+            //Construct each minimizer hit.
+            //Overloading the second argument (ordinal) to mean the absolute position in the fragment in this case
+            TaxonHit(x._2.data, x._1 + pos, lcaLookup.applyAsInt(x._2), x._3 - (k - 1))
+          })
+          pos += seq.length - (k - 1)
+          r
+        case (seq, AMBIGUOUS_FLAG) =>
+          val r = if (pos == 0) {
+            List(TaxonHit(Array(), pos, Taxonomy.NONE, seq.length))
+          } else {
+            List(TaxonHit(Array(), pos, Taxonomy.NONE, seq.length + (k - 1)))
+          }
+          if (pos == 0) {
+            pos += seq.length
+          } else {
+            //account for ambiguous hits from previous supermer group
+            pos += seq.length + k - 1
+          }
+          r
+      }
+    }
+
+    val kmersInRead = readLen - (k - 1)
+    val hitWindow = new FragmentWindow(allHits, kmersInRead)
 
     //For each window corresponding to a read (start and end),
     //classify the corresponding minimizers.
-    Iterator.range(0, noWhitespace.length - readLen).map(start => { // inclusive
-      val end = start + readLen //non inclusive
-      hitWindow.advanceStart(start)
-      hitWindow.advanceEnd(end, splitter.priorities.width)
+    Iterator.range(0, noWhitespace.length - readLen + 1).map(start => { // inclusive
+      if (start > 0) hitWindow.advance()
 
-      if (hitWindow.nonEmpty) {
-        val dest = classify(lca, hitWindow, hitWindow.countSummary)
+      val inWindow = hitWindow.hitsInWindow
+      if (inWindow.nonEmpty) {
+        val dest = classify(lca, inWindow, hitWindow.countSummary)
         (taxon, dest, 1L)
       } else (taxon, Taxonomy.NONE, 1L)
     })
   }
 
-  /** Classify a single read efficiently */
+  /** Classify a single read efficiently
+   * @param lca LCA calculator
+   * @param sortedHits hits in this read. Used for sufficientHitGroups only. Counts will not be used.
+   * @param summary taxon to k-mer count lookup map for this read
+   */
   def classify(lca: LowestCommonAncestor, sortedHits: Seq[TaxonHit], summary: Int2IntMap): Taxon = {
-    // confidence threshold is irrelevant for this purpose
+    // confidence threshold is irrelevant for this purpose, as when we are self-classifying a library,
+    // all the taxa that we hit should be in the same clade
     val confidenceThreshold = 0.0
     val minHitGroups = 2
     val taxon = lca.resolveTree(summary, confidenceThreshold)
