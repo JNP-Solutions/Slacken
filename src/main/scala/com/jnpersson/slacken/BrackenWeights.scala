@@ -4,7 +4,7 @@ import com.jnpersson.discount.{NTSeq, SeqLocation, SeqTitle}
 import com.jnpersson.discount.spark.{AnyMinSplitter, HDFSUtil}
 import com.jnpersson.discount.util.NTBitArray
 import com.jnpersson.slacken.TaxonomicIndex.{getTaxonLabels, sufficientHitGroups}
-import it.unimi.dsi.fastutil.ints.Int2IntMap
+import it.unimi.dsi.fastutil.ints.{Int2IntArrayMap, Int2IntMap}
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap
 import org.apache.spark.sql.functions.{collect_list, sum, udf}
 import org.apache.spark.sql.{DataFrame, SparkSession}
@@ -136,6 +136,8 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
     val segments = Supermers.splitByAmbiguity(noWhitespace, Supermers.nonAmbiguousRegex(k))
     var pos = 0
 
+    //Construct all super-mers, including quasi-supermers for ambiguous regions
+
     val allHits = {
       // this map will contain a subset of the lca to taxon index
       val lcaLookup = new Object2IntOpenHashMap[NTBitArray](minimizers.size)
@@ -173,15 +175,31 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
 
     //For each window corresponding to a read (start and end),
     //classify the corresponding minimizers.
-    Iterator.range(0, noWhitespace.length - readLen + 1).map(start => { // inclusive
+    val classifications = Iterator.range(0, noWhitespace.length - readLen + 1).map(start => { // inclusive
       if (start > 0) hitWindow.advance()
 
       val inWindow = hitWindow.hitsInWindow
       if (inWindow.nonEmpty) {
         val dest = classify(lca, inWindow, hitWindow.countSummary)
-        (taxon, dest, 1L)
-      } else (taxon, Taxonomy.NONE, 1L)
-    })
+        dest
+      } else Taxonomy.NONE
+    }).buffered
+
+    //Sum up consecutive identical classifications to reduce the amount of data generated
+    new Iterator[(Taxon, Taxon, Long)] {
+      def hasNext: Boolean =
+        classifications.hasNext
+
+      def next: (Taxon, Taxon, Long) = {
+        val x = classifications.next
+        var count = 1L
+        while (classifications.hasNext && classifications.head == x) {
+          classifications.next
+          count += 1
+        }
+        (taxon, x, count)
+      }
+    }
   }
 
   /** Classify a single read efficiently
