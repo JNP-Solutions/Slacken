@@ -44,6 +44,9 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
    * hits are sorted in order ("ordinal" which means absolute position here).
    * Every k-mer in the fragment is accounted for in some hit.
    * NONE hits are inserted to account for ambiguous regions (quasi-supermers with the correct length).
+   *
+   * @param hits hits in the fragment (items in front will be gradually removed, so that the first few items
+   *             are guaranteed to be in the window)
    */
   class FragmentWindow(var hits: List[TaxonHit], kmersPerWindow: Int) {
 
@@ -54,12 +57,12 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
 
     //Map taxon to k-mer count.
     //This mutable maps updates to reflect the current window.
-    val countSummary = new it.unimi.dsi.fastutil.ints.Int2IntArrayMap(100) //specialised, very fast map
+    val countSummary = new it.unimi.dsi.fastutil.ints.Int2IntArrayMap(16) //specialised, very fast map
 
     //Is at least one k-mer from the hit contained in the window?
-    //compare last possible start and first possible end with the bounds.
+    //Compare the final possible k-mer start with the bounds.
     private def inWindow(hit: TaxonHit) =
-      (hit.ordinal + hit.count - 1 >= windowStart) && (hit.ordinal < windowEnd)
+      hit.ordinal < windowEnd
 
     private def inWindow(pos: Int) =
       pos >= windowStart && pos < windowEnd
@@ -92,15 +95,14 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
       windowStart += 1
       windowEnd += 1
 
-      if (hits.nonEmpty && passedWindow(hits.head)) {
+      if (passedWindow(hits.head)) {
         hits = hits.tail
       }
 
       //increment one taxon
-      if (lastInWindow == null ||
-        lastInWindow.ordinal + lastInWindow.count < windowEnd  //no longer touching the boundary
-        ) {
-        lastInWindow = hitsInWindow.last
+      if (lastInWindow.ordinal + lastInWindow.count < windowEnd) {  //no longer touching the boundary
+        val hiw = hitsInWindow
+        while (hiw.hasNext) lastInWindow = hiw.next
       }
 
       countSummary.put(lastInWindow.taxon, countSummary(lastInWindow.taxon) + 1)
@@ -108,7 +110,8 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
 
     /** Hits currently in the window. This may sometimes be empty and become populated again,
      * because of ambiguous regions. */
-    def hitsInWindow: List[TaxonHit] = hits.takeWhile(inWindow)
+    def hitsInWindow: Iterator[TaxonHit] =
+      hits.iterator.takeWhile(inWindow)
 
   }
 
@@ -186,7 +189,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
    * @param sortedHits hits in this read. Used for sufficientHitGroups only. Counts will not be used.
    * @param summary taxon to k-mer count lookup map for this read
    */
-  def classify(lca: LowestCommonAncestor, sortedHits: Seq[TaxonHit], summary: Int2IntMap): Taxon = {
+  def classify(lca: LowestCommonAncestor, sortedHits: Iterator[TaxonHit], summary: Int2IntMap): Taxon = {
     // confidence threshold is irrelevant for this purpose, as when we are self-classifying a library,
     // all the taxa that we hit should be in the same clade
     val confidenceThreshold = 0.0
@@ -194,6 +197,25 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
     val taxon = lca.resolveTree(summary, confidenceThreshold)
     val classified = sufficientHitGroups(sortedHits, minHitGroups)
     if (classified) taxon else Taxonomy.NONE
+  }
+
+  /** For the given set of sorted hits, was there a sufficient number of hit groups wrt the given minimum?
+   * This is a simplified version of [[TaxonomicIndex.sufficientHitGroups()]] for this special use case.
+   */
+  def sufficientHitGroups(sortedHits: Iterator[TaxonHit], minimum: Int): Boolean = {
+    var hitCount = 0
+    var lastMin: Array[Long] = null
+
+    //count separate hit groups (adjacent but with different minimizers) for each sequence, imitating kraken2 classify.cc
+    for { hit <- sortedHits } {
+      if (hit.taxon != Taxonomy.NONE &&
+        (hitCount == 0 || lastMin == null || !java.util.Arrays.equals(hit.minimizer, lastMin))) {
+        hitCount += 1
+        if (hitCount >= minimum) return true
+      }
+      lastMin = hit.minimizer
+    }
+    false
   }
 
 }
