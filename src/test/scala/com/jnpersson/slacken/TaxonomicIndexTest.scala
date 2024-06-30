@@ -158,7 +158,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     val dir = System.getProperty("user.dir")
     val location = s"$dir/testData/slacken/slacken_test_dyn"
     val idx = makeTinyIndex((params, taxonomy) => new KeyValueIndex(params, taxonomy),
-      location)
+      location).asInstanceOf[KeyValueIndex]
     val k = 35
 
     val genomes = new Inputs(List("testData/slacken/slacken_tinydata.fna"), k, 10000000)
@@ -166,11 +166,12 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
 
     val dyn = new Dynamic(idx,
       GenomeLibrary(genomes, "testData/slacken/seqid2taxid.map"),
-      Species, 0.1, 100, cpar, None, None)
+      Species, 0.1, 100, cpar,
+      None, None, false, "")
 
     val reads = simulateReads(200, 1000).toDS()
-    val bkts = dyn.makeBuckets(reads, None)
-    val hits = idx.classify(bkts, reads)
+    val (buckets, taxa) = dyn.makeBuckets(reads, None)
+    val hits = idx.classify(buckets, reads)
   }
 
   test("A known leaf node total k-mer count is correct with respect to the known value") {

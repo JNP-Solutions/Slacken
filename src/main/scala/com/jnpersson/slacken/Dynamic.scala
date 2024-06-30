@@ -5,27 +5,36 @@ import com.jnpersson.discount.spark.Output.formatPerc
 import com.jnpersson.discount.spark.{HDFSUtil, Inputs, Output}
 import com.jnpersson.slacken.Taxonomy.Rank
 import org.apache.spark.sql.functions.{approx_count_distinct, count}
-import org.apache.spark.sql.{Dataset, SparkSession, functions}
+import org.apache.spark.sql.{DataFrame, Dataset, SparkSession, functions}
 
 import scala.collection.mutable
 
 
 /** Two-step classification of reads with dynamically generated indexes,
  * starting from a base index.
+ * First, a set of taxa will be identified from the sample (reads). Then these taxa will be used
+ * to construct a taxonomic index for classifying the reads.
+ * A bracken-style weights file describing the second index will optionally also be generated.
  *
  * @param base Initial index for identifying taxa by minimizer
  * @param genomes genomic library for construction of new indexes on the fly
  * @param reclassifyRank rank for the initial classification. Taxa at this level will be used to construct the second index
  * @param taxonMinFraction minimum distinct minimizers to keep a taxon in the first pass
  * @param cpar parameters for classification
+ * @param dynamicBrackenReadLength read length for generating bracken weights for the second index (if any)
  * @param goldStandardTaxonSet parameters for deciding whether to get stats or classify wrt gold standard
+ * @param reportDynamicIndex whether to generate reports describing the second index
+ * @param outputLocation prefix location for output files
  */
-class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
-                      reclassifyRank: Rank, taxonMinFraction: Double,
-                      taxonMinCount: Long,
-                      cpar: ClassifyParams,
-                      goldStandardTaxonSet: Option[(String,Boolean)],
-                      reportDynamicIndexLocation: Option[String])(implicit spark: SparkSession) {
+class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
+              reclassifyRank: Rank, taxonMinFraction: Double,
+              taxonMinCount: Long,
+              cpar: ClassifyParams,
+              dynamicBrackenReadLength: Option[Int],
+              goldStandardTaxonSet: Option[(String, Boolean)],
+              reportDynamicIndex: Boolean,
+              outputLocation: String)(implicit spark: SparkSession) {
+
   import spark.sqlContext.implicits._
 
   def taxonomy = base.taxonomy
@@ -127,8 +136,8 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
   def findTaxonSet(subjects: Dataset[InputFragment], writeLocation: Option[String]): mutable.BitSet = {
     val finder = new CountFilter(distinctMinimizersPerTaxon(subjects))
 
-    for { loc <- reportDynamicIndexLocation }
-      HDFSUtil.usingWriter(loc + "_support_report.txt", wr => finder.report.print(wr))
+    if (reportDynamicIndex)
+      HDFSUtil.usingWriter(outputLocation + "_support_report.txt", wr => finder.report.print(wr))
 
     val keepTaxa = finder.taxa
 
@@ -184,14 +193,20 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
   def twoStepClassifyAndWrite(inputs: Inputs, outputLocation: String, partitions: Int): Unit = {
     val reads = inputs.getInputFragments(withRC = false, withAmbiguous = true).
       coalesce(partitions)
-    val buckets = makeBuckets(reads, Some(outputLocation + "_taxonSet.txt"))
+    val (buckets, usedTaxa) = makeBuckets(reads, Some(outputLocation + "_taxonSet.txt"))
+    if (reportDynamicIndex || dynamicBrackenReadLength.nonEmpty) {
+      buckets.cache()
+    }
 
     try {
       //Write genome and minimizer reports for the dynamic index
       //Inefficient but simple (could be caching buckets), intended for debugging purposes
-      for {location <- reportDynamicIndexLocation} {
-        buckets.cache()
-        base.report(buckets, None, location)
+      if (reportDynamicIndex)
+        base.report(buckets, None, outputLocation + "_dynamic")
+
+      for { brackenLength <- dynamicBrackenReadLength } {
+        new BrackenWeights(buckets, base, brackenLength).
+          buildWeights(genomes, usedTaxa, outputLocation + s"_dynamic/database${brackenLength}mers.kmer_distrib")
       }
       val hits = base.classify(buckets, reads)
       base.classifyHitsAndWrite(hits, outputLocation, cpar)
@@ -206,7 +221,7 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
    * @param subjects reads for detecting a taxon set
    * @param setWriteLocation location to write the detected taxon set (optionally) for later inspection
    */
-  def makeBuckets(subjects: Dataset[InputFragment], setWriteLocation: Option[String]): Dataset[Record] = {
+  def makeBuckets(subjects: Dataset[InputFragment], setWriteLocation: Option[String]): (DataFrame, mutable.BitSet) = {
 
     val taxonSet = goldStandardTaxonSet match {
       case Some((path, true)) =>
@@ -217,7 +232,7 @@ class Dynamic[Record](base: TaxonomicIndex[Record], genomes: GenomeLibrary,
     }
 
     //Dynamically create a new index containing only the identified taxa
-    base.makeBuckets(genomes, addRC = false, Some(taxonSet))
+    (base.makeBuckets(genomes, addRC = false, Some(taxonSet)), taxonSet)
   }
 
 }
