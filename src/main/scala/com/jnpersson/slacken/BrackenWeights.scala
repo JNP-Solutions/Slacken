@@ -2,7 +2,7 @@ package com.jnpersson.slacken
 
 import com.jnpersson.discount.{NTSeq, SeqLocation, SeqTitle}
 import com.jnpersson.discount.spark.{AnyMinSplitter, HDFSUtil}
-import com.jnpersson.discount.util.NTBitArray
+import com.jnpersson.discount.util.{KmerTable, NTBitArray}
 import com.jnpersson.slacken.TaxonomicIndex.{getTaxonLabels, sufficientHitGroups}
 import it.unimi.dsi.fastutil.ints.{Int2IntArrayMap, Int2IntMap}
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap
@@ -27,13 +27,22 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
    * @param splitter the minimizer scheme
    * @return
    */
-  def distinctMinimizers(splitter: AnyMinSplitter): Iterator[Array[SeqLocation]] = {
+  def distinctMinimizers(splitter: AnyMinSplitter): Iterator[Array[Long]] = {
     val noWhitespace = nucleotides.replaceAll("\\s+", "")
     val segments = Supermers.splitByAmbiguity(noWhitespace, Supermers.nonAmbiguousRegex(splitter.k))
-    segments.flatMap{
-      case (seq, SEQUENCE_FLAG) => splitter.superkmerPositions(seq, addRC = false).map(_._2)
-      case (seq, AMBIGUOUS_FLAG) => Iterator.empty
-    }.toArray.distinct.iterator.map(_.data)
+    val builder = KmerTable.builder(splitter.priorities.width, 10000, 1)
+
+    for { (seq, flag) <- segments } {
+      if (flag == SEQUENCE_FLAG) {
+        for { (_, min, _) <- splitter.superkmerPositions(seq, addRC = false) } {
+          builder.addLongs(min.data)
+          builder.addLong(1) //count
+        }
+      }
+    }
+
+    builder.result(true).countedKmers.map(_._1)
+
   }
 
   /** Sliding window corresponding to a list of hits. Each hit is a super-mer with some number of k-mers.
