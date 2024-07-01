@@ -3,13 +3,12 @@ package com.jnpersson.slacken
 import com.jnpersson.discount.{NTSeq, SeqLocation, SeqTitle}
 import com.jnpersson.discount.spark.{AnyMinSplitter, HDFSUtil}
 import com.jnpersson.discount.util.{KmerTable, NTBitArray}
-import com.jnpersson.slacken.TaxonomicIndex.{getTaxonLabels, sufficientHitGroups}
-import it.unimi.dsi.fastutil.ints.{Int2IntArrayMap, Int2IntMap}
+import com.jnpersson.slacken.TaxonomicIndex.{getTaxonLabels}
+import it.unimi.dsi.fastutil.ints.{Int2IntMap}
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap
 import org.apache.spark.sql.functions.{collect_list, sum, udf}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
-import java.io.PrintWriter
 import scala.collection.{BitSet, mutable}
 
 
@@ -247,6 +246,18 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
 
 }
 
+object BrackenWeights {
+  //Construct a shorter fragment ID by removing redundant information from the pattern.
+  //This saves space during shuffle.
+  //Possible future improvement: generate unique fragment IDs in the input layer
+  val krakenSeqId = "kraken:taxid\\|[0-9]+\\|(.*)".r
+  def fragmentId(seqId: String, location: Long): String =
+    seqId match {
+      case krakenSeqId(shortId) => s"$shortId|$location"
+      case _ => s"$seqId|$location"
+    }
+}
+
 /**
  * Generate bracken-style weights (self-classifying all reads of genomes in a library against the library).
  * This is intended to be fully compatible with Bracken for abundance reestimation.
@@ -274,13 +285,14 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
 
     val idSeqDF = library.inputs.getInputFragments(withRC = false, withAmbiguous = true)
     val presentTaxon = udf((x: Taxon) => taxa.contains(x))
+    val fragmentId = udf((id: SeqTitle, loc: SeqLocation) => BrackenWeights.fragmentId(id, loc))
 
     //Find all fragments of genomes
     val fragments = idSeqDF.join(titlesTaxa, List("header")).
-      select("taxon", "nucleotides", "location", "header").
+      select($"taxon", $"nucleotides", fragmentId($"header", $"location").as("id")).
       where(presentTaxon($"taxon")).
-      as[(Taxon, NTSeq, SeqLocation, SeqTitle)].
-      map(x => TaxonFragment(x._1, x._2, x._4 + x._3)) //x._4 + x._3 becomes a unique ID
+      as[(Taxon, NTSeq, String)].
+      map(x => TaxonFragment(x._1, x._2, x._3))
 
     val bcSplit = keyValueIndex.bcSplit
     val bcTaxonomy = keyValueIndex.bcTaxonomy
@@ -320,20 +332,21 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
         collect_list("source").as("sources"),
         collect_list("count").as("counts"),
         collect_list("totalReads").as("totalReadsList")).
-      select($"dest",brackenSourceLine($"sources",$"counts",$"totalReadsList")).
-      as[(Taxon,String)].collect()
+      select($"dest", brackenSourceLine($"sources",$"counts",$"totalReadsList")).
+      as[(Taxon, String)].collect()
 
     sourceDestCounts.unpersist()
-    HDFSUtil.usingWriter(outputLocation, wr => brackenWeightsReport(wr,byDest))
+    writeReport(outputLocation, byDest)
+  }
 
-    def brackenWeightsReport(output: PrintWriter, brackenOut: Array[(Taxon, String)]): Unit = {
+  def writeReport(outputLocation: String, data: Array[(Taxon, String)]): Unit =
+    HDFSUtil.usingWriter(outputLocation, output => {
       val headers = s"mapped_taxid\tgenome_taxids:kmers_mapped:total_genome_kmers"
       output.println(headers)
 
-      for { (dest, bLine) <- brackenOut } {
+      for {(dest, bLine) <- data} {
         output.println(s"${dest}\t${bLine}")
       }
-    }
-  }
+    })
 }
 
