@@ -67,7 +67,15 @@ function histogram {
 
 function report {
   LIB=$1
-  ./slacken2-aws.sh taxonIndex $DATA/$LIB report -l $K2/seqid2taxid.map -o $DATA/$LIB
+  K=$2
+  #-l $K2/seqid2taxid.map
+  ./slacken2-aws.sh -k $K taxonIndex $DATA/$LIB report -l $K2 -o $DATA/$LIB
+}
+
+function brackenWeights {
+  LIB=$1
+  READ_LENGTH=150
+  ./slacken2-aws.sh taxonIndex $DATA/$LIB brackenWeights -l $K2 -r $READ_LENGTH
 }
 
 #Compare classifications of a single sample against a reference
@@ -118,9 +126,11 @@ classify rs_35_31_s7 rs_gold_35_31_s7
 #classify rs_45_41_s7
 #classify rs_45_41_s12
 
-for ((s = 0; s <= 9; s++))
-do
-  compare $s rs_gold_35_31_s7
-  sleep 10
-done
+#for ((s = 0; s <= 9; s++))
+#do
+#  compare $s rsc_35_31_s7
+#  sleep 10
+#done
+
+brackenWeights rsc_35_31_s7
 
