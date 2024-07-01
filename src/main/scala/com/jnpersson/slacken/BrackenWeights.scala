@@ -123,6 +123,46 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
 
   }
 
+  def taxonHits(minimizers: Array[Array[Long]], lcas: Array[Taxon],
+                splitter: AnyMinSplitter) = {
+    def encodedMinimizers = minimizers.iterator.map(m => NTBitArray(m, splitter.priorities.width))
+
+    // this map will contain a subset of the lca to taxon index
+    val lcaLookup = new Object2IntOpenHashMap[NTBitArray](minimizers.size)
+    for { (min, lca) <- encodedMinimizers.zip(lcas.iterator) } {
+      lcaLookup.put(min, lca)
+    }
+    val k = splitter.k
+    val segments = Supermers.splitByAmbiguity(nucleotides, Supermers.nonAmbiguousRegex(k))
+    var pos = 0
+
+    //Construct all super-mers, including quasi-supermers for ambiguous regions
+
+    segments.toList.flatMap {
+      case (seq, SEQUENCE_FLAG) =>
+        val r = splitter.superkmerPositions(seq, addRC = false).toList.map(x => {
+          //Construct each minimizer hit.
+          //Overloading the second argument (ordinal) to mean the absolute position in the fragment in this case
+          TaxonHit(x._2.data, x._1 + pos, lcaLookup.applyAsInt(x._2), x._3 - (k - 1))
+        })
+        pos += seq.length - (k - 1)
+        r
+      case (seq, AMBIGUOUS_FLAG) =>
+        val r = if (pos == 0) {
+          List(TaxonHit(Array(), pos, Taxonomy.NONE, seq.length))
+        } else {
+          List(TaxonHit(Array(), pos, Taxonomy.NONE, seq.length + (k - 1)))
+        }
+        if (pos == 0) {
+          pos += seq.length
+        } else {
+          //account for ambiguous hits from previous supermer group
+          pos += seq.length + k - 1
+        }
+        r
+    }
+  }
+
   /**
    * Generate reads from the fragment then classify them according to the LCAs.
    *
@@ -136,54 +176,16 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
   def readClassifications(taxonomy: Taxonomy, minimizers: Array[Array[Long]], lcas: Array[Taxon],
                           splitter: AnyMinSplitter, readLen: Int): Iterator[(Taxon, Taxon, Long)] = {
 
-    val encodedMinimizers = minimizers.map(m => NTBitArray(m, splitter.priorities.width))
-
     val k = splitter.k
     val lca = new LowestCommonAncestor(taxonomy)
-    val noWhitespace = nucleotides.replaceAll("\\s+", "")
-    val segments = Supermers.splitByAmbiguity(noWhitespace, Supermers.nonAmbiguousRegex(k))
-    var pos = 0
 
-    //Construct all super-mers, including quasi-supermers for ambiguous regions
-
-    val allHits = {
-      // this map will contain a subset of the lca to taxon index
-      val lcaLookup = new Object2IntOpenHashMap[NTBitArray](minimizers.size)
-      for { (min, lca) <- encodedMinimizers.iterator.zip(lcas.iterator) } {
-        lcaLookup.put(min, lca)
-      }
-
-      segments.toList.flatMap {
-        case (seq, SEQUENCE_FLAG) =>
-          val r = splitter.superkmerPositions(seq, addRC = false).toList.map(x => {
-            //Construct each minimizer hit.
-            //Overloading the second argument (ordinal) to mean the absolute position in the fragment in this case
-            TaxonHit(x._2.data, x._1 + pos, lcaLookup.applyAsInt(x._2), x._3 - (k - 1))
-          })
-          pos += seq.length - (k - 1)
-          r
-        case (seq, AMBIGUOUS_FLAG) =>
-          val r = if (pos == 0) {
-            List(TaxonHit(Array(), pos, Taxonomy.NONE, seq.length))
-          } else {
-            List(TaxonHit(Array(), pos, Taxonomy.NONE, seq.length + (k - 1)))
-          }
-          if (pos == 0) {
-            pos += seq.length
-          } else {
-            //account for ambiguous hits from previous supermer group
-            pos += seq.length + k - 1
-          }
-          r
-      }
-    }
-
+    val allHits = taxonHits(minimizers, lcas, splitter)
     val kmersInRead = readLen - (k - 1)
     val hitWindow = new FragmentWindow(allHits, kmersInRead)
 
     //For each window corresponding to a read (start and end),
     //classify the corresponding minimizers.
-    val classifications = Iterator.range(0, noWhitespace.length - readLen + 1).map(start => { // inclusive
+    val classifications = Iterator.range(0, nucleotides.length - readLen + 1).map(start => { // inclusive
       if (start > 0) hitWindow.advance()
 
       val inWindow = hitWindow.hitsInWindow
@@ -256,6 +258,9 @@ object BrackenWeights {
       case krakenSeqId(shortId) => s"$shortId|$location"
       case _ => s"$seqId|$location"
     }
+
+  def noWhitespace(nucleotides: NTSeq): NTSeq =
+    nucleotides.replaceAll("\\s+", "")
 }
 
 /**
@@ -286,10 +291,12 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
     val idSeqDF = library.inputs.getInputFragments(withRC = false, withAmbiguous = true)
     val presentTaxon = udf((x: Taxon) => taxa.contains(x))
     val fragmentId = udf((id: SeqTitle, loc: SeqLocation) => BrackenWeights.fragmentId(id, loc))
+    val noWhitespace = udf((x: NTSeq) => BrackenWeights.noWhitespace(x))
+
 
     //Find all fragments of genomes
     val fragments = idSeqDF.join(titlesTaxa, List("header")).
-      select($"taxon", $"nucleotides", fragmentId($"header", $"location").as("id")).
+      select($"taxon", noWhitespace($"nucleotides").as("nucleotides"), fragmentId($"header", $"location").as("id")).
       where(presentTaxon($"taxon")).
       as[(Taxon, NTSeq, String)].
       map(x => TaxonFragment(x._1, x._2, x._3))
