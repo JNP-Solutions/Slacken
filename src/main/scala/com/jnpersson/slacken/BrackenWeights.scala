@@ -53,10 +53,9 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
    * Every k-mer in the fragment is accounted for in some hit.
    * NONE hits are inserted to account for ambiguous regions (quasi-supermers with the correct length).
    *
-   * @param hits hits in the fragment (items in front will be gradually removed, so that the first few items
-   *             are guaranteed to be in the window)
+   * @param hits hits in the fragment
    */
-  class FragmentWindow(var hits: List[TaxonHit], kmersPerWindow: Int) {
+  class FragmentWindow(private var hits: Iterator[TaxonHit], kmersPerWindow: Int) {
 
     //Offsets in the fragment
     private var windowStart = 0 //inclusive
@@ -79,20 +78,32 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
     private def passedWindow(hit: TaxonHit) =
       hit.ordinal + (hit.count - 1) < windowStart
 
-    //Populate the initial state
-    for { h <- hitsInWindow } {
-      for {kmerStart <- h.ordinal until h.ordinal + h.count} {
-        if (inWindow(kmerStart)) {
-          countSummary.put(h.taxon, countSummary(h.taxon) + 1)
-          lastInWindow = h
-        }
-      }
+    private var currentWindow: Vector[TaxonHit] = {
+      val (window, rem) = hits.span(inWindow)
+      hits = rem
+      window.toVector
     }
+
+    lastInWindow = currentWindow.last
+
+    /** Hits currently in the window. */
+    def hitsInWindow: Iterator[TaxonHit] =
+      currentWindow.iterator
+
+    //Populate the initial state
+    for {
+      h <- hitsInWindow
+      kmerStart <- h.ordinal until h.ordinal + h.count
+      if inWindow(kmerStart)
+    } {
+      countSummary.put(h.taxon, countSummary(h.taxon) + 1)
+    }
+
 
     /** Move the window one step forward. */
     def advance(): Unit = {
       //Decrement one taxon
-      val remove = hits.head
+      val remove = currentWindow.head
 
       val updated = countSummary(remove.taxon) - 1
       if (updated > 0)
@@ -103,23 +114,20 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
       windowStart += 1
       windowEnd += 1
 
-      if (passedWindow(hits.head)) {
-        hits = hits.tail
+      //Did the first hit pass out of the window?
+      if (passedWindow(currentWindow.head)) {
+        currentWindow = currentWindow.tail
+      }
+
+      //Did a new hit move into the window?
+      if (lastInWindow.ordinal + lastInWindow.count < windowEnd) {  //no longer touching the boundary
+        if (hits.hasNext) currentWindow :+= hits.next
+        lastInWindow = currentWindow.last
       }
 
       //increment one taxon
-      if (lastInWindow.ordinal + lastInWindow.count < windowEnd) {  //no longer touching the boundary
-        val hiw = hitsInWindow
-        while (hiw.hasNext) lastInWindow = hiw.next
-      }
-
       countSummary.put(lastInWindow.taxon, countSummary(lastInWindow.taxon) + 1)
     }
-
-    /** Hits currently in the window. This may sometimes be empty and become populated again,
-     * because of ambiguous regions. */
-    def hitsInWindow: Iterator[TaxonHit] =
-      hits.iterator.takeWhile(inWindow)
 
   }
 
@@ -138,7 +146,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
 
     //Construct all super-mers, including quasi-supermers for ambiguous regions
 
-    segments.toList.flatMap {
+    segments.flatMap {
       case (seq, SEQUENCE_FLAG) =>
         val r = splitter.superkmerPositions(seq, addRC = false).toList.map(x => {
           //Construct each minimizer hit.
