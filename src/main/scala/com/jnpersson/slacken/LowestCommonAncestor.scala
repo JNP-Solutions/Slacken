@@ -135,7 +135,7 @@ final class LowestCommonAncestor(taxonomy: Taxonomy) {
       var score = 0
       //Accumulate score across this path to the root
       while (node != NONE) {
-        score += hitCounts.asInstanceOf[Int2IntFunction].get(node)
+        score += hitCounts.applyAsInt(node)
         node = parents(node)
       }
 
@@ -148,14 +148,14 @@ final class LowestCommonAncestor(taxonomy: Taxonomy) {
     }
 
     //Gradually lift maxTaxon to try to achieve the required score
-    maxScore = hitCounts.asInstanceOf[Int2IntFunction].get(maxTaxon)
+    maxScore = hitCounts.applyAsInt(maxTaxon)
     while (maxTaxon != NONE && maxScore < requiredScore) {
       maxScore = 0
 
       val it = hitCounts.keySet().iterator()
       while (it.hasNext) {
         val taxon = it.nextInt()
-        val score = hitCounts.asInstanceOf[Int2IntFunction].get(taxon)
+        val score = hitCounts.applyAsInt(taxon)
         if (taxonomy.hasAncestor(taxon, maxTaxon)) {
           //Add score if taxon is in max_taxon's clade
           maxScore += score

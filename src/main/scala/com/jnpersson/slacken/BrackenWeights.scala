@@ -3,8 +3,8 @@ package com.jnpersson.slacken
 import com.jnpersson.discount.{NTSeq, SeqLocation, SeqTitle}
 import com.jnpersson.discount.spark.{AnyMinSplitter, HDFSUtil}
 import com.jnpersson.discount.util.{KmerTable, NTBitArray}
-import com.jnpersson.slacken.TaxonomicIndex.{getTaxonLabels}
-import it.unimi.dsi.fastutil.ints.{Int2IntMap}
+import com.jnpersson.slacken.TaxonomicIndex.getTaxonLabels
+import it.unimi.dsi.fastutil.ints.{Int2IntFunction, Int2IntMap}
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap
 import org.apache.spark.sql.functions.{collect_list, sum, udf}
 import org.apache.spark.sql.{DataFrame, SparkSession}
@@ -96,7 +96,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
       kmerStart <- h.ordinal until h.ordinal + h.count
       if inWindow(kmerStart)
     } {
-      countSummary.put(h.taxon, countSummary(h.taxon) + 1)
+      countSummary.put(h.taxon, countSummary.applyAsInt(h.taxon) + 1)
     }
 
 
@@ -105,7 +105,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
       //Decrement one taxon
       val remove = currentWindow.head
 
-      val updated = countSummary(remove.taxon) - 1
+      val updated = countSummary.applyAsInt(remove.taxon) - 1
       if (updated > 0)
         countSummary.put(remove.taxon, updated)
       else
@@ -126,20 +126,23 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
       }
 
       //increment one taxon
-      countSummary.put(lastInWindow.taxon, countSummary(lastInWindow.taxon) + 1)
+      countSummary.put(lastInWindow.taxon, countSummary.applyAsInt(lastInWindow.taxon) + 1)
     }
 
   }
 
   def taxonHits(minimizers: Array[Array[Long]], lcas: Array[Taxon],
                 splitter: AnyMinSplitter) = {
-    def encodedMinimizers = minimizers.iterator.map(m => NTBitArray(m, splitter.priorities.width))
 
     // this map will contain a subset of the lca to taxon index
     val lcaLookup = new Object2IntOpenHashMap[NTBitArray](minimizers.size)
-    for { (min, lca) <- encodedMinimizers.zip(lcas.iterator) } {
-      lcaLookup.put(min, lca)
+    var i = 0
+    while (i < minimizers.length) {
+      val enc = NTBitArray(minimizers(i), splitter.priorities.width)
+      lcaLookup.put(enc, lcas(i))
+      i += 1
     }
+
     val k = splitter.k
     val segments = Supermers.splitByAmbiguity(nucleotides, Supermers.nonAmbiguousRegex(k))
     var pos = 0
