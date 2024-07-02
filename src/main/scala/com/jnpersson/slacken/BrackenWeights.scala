@@ -33,8 +33,9 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
 
     for { (seq, flag) <- segments } {
       if (flag == SEQUENCE_FLAG) {
-        for { (_, min, _) <- splitter.superkmerPositions(seq, addRC = false) } {
-          builder.addLongs(min.data)
+        val it = splitter.superkmerPositions(seq, addRC = false)
+        while (it.hasNext) {
+          builder.addLongs(it.next._2.data)
           builder.addLong(1) //count
         }
       }
@@ -131,6 +132,8 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
 
   }
 
+  /** Generate all TaxonHits from the fragment by combining the LCA taxa with the minimizers,
+   * building super-mers. */
   def taxonHits(minimizers: Array[Array[Long]], lcas: Array[Taxon],
                 splitter: AnyMinSplitter) = {
 
@@ -206,7 +209,14 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
       } else Taxonomy.NONE
     }).buffered
 
-    //Sum up consecutive identical classifications to reduce the amount of data generated
+    /*
+        Sum up consecutive identical classifications to reduce the amount of data generated.
+    This exploits the fact that we know each fragment can only classify to relatively few taxa
+    (must be some taxon in its lineage, which is usually < 30).
+    At the same time this is computationally cheaper than building a full hash map and counting each distinct value
+    (which Spark should do anyway)
+     */
+
     new Iterator[(Taxon, Taxon, Long)] {
       def hasNext: Boolean =
         classifications.hasNext
@@ -223,7 +233,8 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
     }
   }
 
-  /** Classify a single read efficiently
+  /** Classify a single read efficiently.
+   * This is a simplified version of [[TaxonomicIndex.classify()]].
    * @param lca LCA calculator
    * @param sortedHits hits in this read. Used for sufficientHitGroups only. Counts will not be used.
    * @param summary taxon to k-mer count lookup map for this read
@@ -256,22 +267,6 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
     }
     false
   }
-
-}
-
-object BrackenWeights {
-  //Construct a shorter fragment ID by removing redundant information from the pattern.
-  //This saves space during shuffle.
-  //Possible future improvement: generate unique fragment IDs in the input layer
-  val krakenSeqId = "kraken:taxid\\|[0-9]+\\|(.*)".r
-  def fragmentId(seqId: String, location: Long): String =
-    seqId match {
-      case krakenSeqId(shortId) => s"$shortId|$location"
-      case _ => s"$seqId|$location"
-    }
-
-  def noWhitespace(nucleotides: NTSeq): NTSeq =
-    nucleotides.replaceAll("\\s+", "")
 }
 
 /**
@@ -299,11 +294,15 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
 
     val titlesTaxa = getTaxonLabels(library.labelFile).toDF("header", "taxon")
 
+
     val idSeqDF = library.inputs.getInputFragments(withRC = false, withAmbiguous = true)
     val presentTaxon = udf((x: Taxon) => taxa.contains(x))
-    val fragmentId = udf((id: SeqTitle, loc: SeqLocation) => BrackenWeights.fragmentId(id, loc))
-    val noWhitespace = udf((x: NTSeq) => BrackenWeights.noWhitespace(x))
 
+    /** Generate a unique fragment ID. Each seqId is unique by construction. */
+    val fragmentId = udf((id: SeqTitle, loc: SeqLocation) => id + "|" + loc)
+
+    //Prepare the sequence for super-mer splitting and encoding
+    val noWhitespace = udf((x: NTSeq) => x.replaceAll("\\s+", ""))
 
     //Find all fragments of genomes
     val fragments = idSeqDF.join(titlesTaxa, List("header")).
@@ -315,6 +314,7 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
     val bcSplit = keyValueIndex.bcSplit
     val bcTaxonomy = keyValueIndex.bcTaxonomy
 
+    //Join fragment IDs with LCA taxa based on minimizers
     val idMins = fragments.flatMap { x =>
         x.distinctMinimizers(bcSplit.value).map(m => (x.id, m))
       }.toDF("id", "minimizer").
@@ -328,9 +328,7 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
 
     val readLen = this.readLen
 
-    val brackenSourceLine = udf((source: Array[Taxon],counts: Array[Long],readCounts:Array[Long]) =>
-      source.zip(counts).zip(readCounts).map{case ((s,c),r) => s"$s:$c:$r"}.mkString(" "))
-
+    //Re-join with fragments again and classify all possible reads
     val sourceDestCounts = idMins.join(fragments, List("id")).
       select("id", "taxon", "nucleotides", "minimizers", "taxa").
       as[(String, Taxon, NTSeq, Array[Array[Long]], Array[Taxon])].
@@ -343,8 +341,10 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
     val bySource = sourceDestCounts.groupBy("source").
       agg(sum("count").as("totalReads"))
 
-//    bySource.agg(sum("totalReads")).show()
+    val brackenSourceLine = udf((source: Array[Taxon], counts: Array[Long], readCounts: Array[Long]) =>
+      source.zip(counts).zip(readCounts).map { case ((s, c), r) => s"$s:$c:$r" }.mkString(" "))
 
+    //Form bracken output lines for each source taxon
     val byDest = sourceDestCounts.join(bySource, List("source")).
       groupBy("dest").agg(
         collect_list("source").as("sources"),
