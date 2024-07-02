@@ -406,25 +406,6 @@ object TaxonomicIndex {
     def outputLine: String = s"$classifyFlag\t$title\t$taxon\t$lengthString\t$hitDetails"
   }
 
-  /**
-   * Classify a read into a taxon only. Convenience method that does not retain
-   * enough information to produce a kraken report.
-   * @param taxonomy Parent map for taxa
-   * @param sortedHits Taxon hits (minimizers) in order
-   * @param confidenceThreshold Minimum fraction of k-mers/minimizers that must be in the match (KeyValueIndex only)
-   * @param k Length of k-mers
-   * @param cpar Classify parameters
-   * @return The classified taxon, or None if the read could not be classified
-   */
-  def classify(taxonomy: Taxonomy, sortedHits: Array[TaxonHit], confidenceThreshold: Double, k: Int,
-               cpar: ClassifyParams): Option[Taxon] = {
-    val lca = new LowestCommonAncestor(taxonomy)
-    val totalSummary = TaxonCounts.concatenate(sortedHits.map(_.summary))
-    val taxon = lca.resolveTree(totalSummary, confidenceThreshold)
-    val classified = taxon != Taxonomy.NONE && sufficientHitGroups(sortedHits, cpar.minHitGroups)
-    if (classified) Some(taxon) else None
-  }
-
   /** Classify a read.
    * @param taxonomy Parent map for taxa
    * @param title Sequence title/ID
