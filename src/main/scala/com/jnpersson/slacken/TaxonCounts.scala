@@ -5,6 +5,8 @@
 
 package com.jnpersson.slacken
 
+import it.unimi.dsi.fastutil.ints.{Int2IntArrayMap, Int2IntMap}
+
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
@@ -64,18 +66,17 @@ final case class TaxonCounts(ordinal: Int, taxa: mutable.IndexedSeq[Taxon], coun
   /** Convert TaxonCounts to a lookup map that maps each taxon to its
    * total hit count.
    * Will omit special taxa like AMBIGUOUS and MATE_PAIR_BORDER.
+   * Note that the Int2IntMap has a default value of 0 for missing keys.
    */
-  def toMap: mutable.Map[Taxon, Int] = {
-    val r = mutable.Map.empty[Taxon, Int]
-    for {
-      (taxon, count) <- asPairs
-      if taxon != AMBIGUOUS_SPAN && taxon != MATE_PAIR_BORDER
-    } {
-      if (r.contains(taxon)) {
-        r(taxon) = r(taxon) + count
-      } else {
-        r(taxon) = count
+  def toMap: Int2IntMap = {
+    val r = new Int2IntArrayMap(taxa.length)
+    var i = 0
+    while (i < taxa.length) {
+      val taxon = taxa(i)
+      if (taxon != AMBIGUOUS_SPAN && taxon != MATE_PAIR_BORDER) {
+        r.put(taxon, r.applyAsInt(taxon) + counts(i))
       }
+      i += 1
     }
     r
   }

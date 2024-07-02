@@ -73,51 +73,9 @@ final class LowestCommonAncestor(taxonomy: Taxonomy) {
    */
   def resolveTree(hitSummary: TaxonCounts, confidenceThreshold: Double): Taxon = {
     //the number of times each taxon was seen in a read, excluding ambiguous
-    val hitCounts = hitSummary.toMap.withDefaultValue(0)
+    val hitCounts = hitSummary.toMap
     val requiredScore = Math.ceil(confidenceThreshold * hitSummary.totalTaxa)
     resolveTree(hitCounts, requiredScore)
-  }
-
-  def resolveTree(hitCounts: CMap[Taxon, Int], requiredScore: Double): Taxon = {
-    var maxTaxon = 0
-    var maxScore = 0
-
-    for { (taxon, _) <- hitCounts } {
-      var node = taxon
-      var score = 0
-      //Accumulate score across this path to the root
-      while (node != NONE) {
-        score += hitCounts(node)
-        node = parents(node)
-      }
-
-      if (score > maxScore) {
-        maxTaxon = taxon
-        maxScore = score
-      } else if (score == maxScore) {
-        maxTaxon = apply(maxTaxon, taxon)
-      }
-    }
-
-    //Gradually lift maxTaxon to try to achieve the required score
-    maxScore = hitCounts(maxTaxon)
-    while (maxTaxon != NONE && maxScore < requiredScore) {
-      maxScore = 0
-      for {
-        (taxon, score) <- hitCounts
-        if taxonomy.hasAncestor(taxon, maxTaxon)
-      } {
-        //Add score if taxon is in max_taxon's clade
-        maxScore += score
-      }
-      if (maxScore >= requiredScore) {
-        return maxTaxon
-      }
-      //Move up the tree, yielding a higher total score.
-      //Run off the tree (NONE) if the required score is never met
-      maxTaxon = parents(maxTaxon)
-    }
-    maxTaxon
   }
 
   /** Alternative version of resolveTree that operates on an Int2IntMap (fastutil),
