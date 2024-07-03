@@ -19,14 +19,6 @@ class TotalKmerSizeAggregatorProps extends AnyFunSuite with ScalaCheckPropertyCh
     leafNodes.toArray.map(t => (t, scala.util.Random.nextInt(genomeLengthMax).toLong))
   }
 
-  def testDataTaxonomy =
-    Taxonomy.fromNodesAndNames(
-      Array((455631, ROOT, "strain"),
-        (526997, ROOT, "strain")),
-      Iterator((455631, "Clostridioides difficile QCD-66c26"),
-        (526997, "Bacillus mycoides DSM 2048"))
-    )
-
   test("leaf node total k-mer counts are correctly measured") {
     forAll(taxonomies(100)) { tax =>
       val sizes = genomeSizes(tax)

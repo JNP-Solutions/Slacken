@@ -108,19 +108,6 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     randomGenomesTest((params, taxonomy) => new KeyValueIndex(params, taxonomy), 128)
   }
 
-  /**
-   * A hardcoded taxonomy for the tiny test dataset in testData/slacken/slacken_tinydata.fna.
-   * Make both strains direct children of root as a simple way to generate test data.
-   */
-  def testDataTaxonomy =
-    Taxonomy.fromNodesAndNames(
-      Array((455631, ROOT, "strain"),
-        (526997, ROOT, "strain")),
-      Iterator((455631, "Clostridioides difficile QCD-66c26"),
-        (526997, "Bacillus mycoides DSM 2048"))
-    )
-
-
   /* Build a tiny index and write it to disk, then reading it back.
   * At this point there's no correctness check, but the code path is tested.
   */
@@ -132,13 +119,9 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
 
     val splitter = MinSplitter(mp, k)
     val params = IndexParams(spark.sparkContext.broadcast(splitter), 16, location)
-    val idx = makeIdx(params, testDataTaxonomy)
+    val idx = makeIdx(params, TestData.taxonomy)
 
-    val bkts = idx.makeBuckets(
-      GenomeLibrary(
-        new Inputs(List("testData/slacken/slacken_tinydata.fna"), k, 10000000),
-        "testData/slacken/seqid2taxid.map"
-      ), addRC = false)
+    val bkts = idx.makeBuckets(TestData.library(k), addRC = false)
     idx.writeBuckets(bkts, location)
     idx
   }
@@ -148,7 +131,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     val location = s"$dir/testData/slacken/slacken_test_kv"
     makeTinyIndex((params, taxonomy) => new KeyValueIndex(params, taxonomy),
       location)
-    KeyValueIndex.load(location, testDataTaxonomy).
+    KeyValueIndex.load(location, TestData.taxonomy).
       loadBuckets(location).count() should be > 0L
   }
 
@@ -161,11 +144,10 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
       location).asInstanceOf[KeyValueIndex]
     val k = 35
 
-    val genomes = new Inputs(List("testData/slacken/slacken_tinydata.fna"), k, 10000000)
     val cpar = ClassifyParams(2, true)
 
     val dyn = new Dynamic(idx,
-      GenomeLibrary(genomes, "testData/slacken/seqid2taxid.map"),
+      TestData.library(k),
       Species, 0.1, 100, cpar,
       None, None, false, "")
 
@@ -180,11 +162,8 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     val location = s"$dir/testData/slacken/slacken_test_kv"
     val idx = makeTinyIndex((params, taxonomy) => new KeyValueIndex(params, taxonomy),
       location).asInstanceOf[KeyValueIndex]
-    val gl = GenomeLibrary(
-      new Inputs(List("testData/slacken/slacken_tinydata.fna"), idx.k, 10000000),
-      "testData/slacken/seqid2taxid.map")
 
-    val genomeSizes = idx.totalKmerCountReport(idx.loadBuckets(),gl).genomeSizes.toMap
+    val genomeSizes = idx.totalKmerCountReport(idx.loadBuckets(), TestData.library(idx.k)).genomeSizes.toMap
     // The total k-mer counts hardcoded below were independently computed using both KMC3 and Discount
     val realGenomeSizes = Map(526997 -> 2914769, 455631 -> 3594763)
     genomeSizes should equal(realGenomeSizes)

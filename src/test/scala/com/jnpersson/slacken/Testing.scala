@@ -7,7 +7,9 @@ package com.jnpersson.slacken
 
 import com.jnpersson.discount
 import com.jnpersson.discount.hash.{ExtendedTable, MinimizerPriorities}
+import com.jnpersson.discount.spark.Inputs
 import com.jnpersson.slacken.Taxonomy.{NONE, ROOT, Rank, Root}
+import org.apache.spark.sql.SparkSession
 import org.scalacheck.{Gen, Shrink}
 
 object Testing {
@@ -76,5 +78,26 @@ object Testing {
       discount.TestGenerators.minimizerPriorities(m)
     }
   }
+
+}
+
+object TestData {
+  /**
+   * A hardcoded taxonomy for the tiny test dataset in testData/slacken/slacken_tinydata.fna.
+   * Make both strains direct children of root as a simple way to generate test data.
+   */
+  def taxonomy =
+    Taxonomy.fromNodesAndNames(
+      Array((455631, ROOT, "strain"),
+        (526997, ROOT, "strain")),
+      Iterator((455631, "Clostridioides difficile QCD-66c26"),
+        (526997, "Bacillus mycoides DSM 2048"))
+    )
+
+  def inputs(k: Int)(implicit spark: SparkSession) =
+    new Inputs(List("testData/slacken/slacken_tinydata.fna"), k, 10000000)
+
+  def library(k: Int)(implicit spark: SparkSession) =
+    GenomeLibrary(inputs(k), "testData/slacken/seqid2taxid.map")
 
 }
