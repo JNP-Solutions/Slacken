@@ -167,4 +167,13 @@ class NTBitArrayProps extends AnyFunSuite with ScalaCheckPropertyChecks {
     }
   }
 
+  test("equals and hashCode") {
+    forAll(dnaStrings(1, 31)) { x =>
+      val enc = NTBitArray.encode(x)
+      val enc2 = NTBitArray.encode(x)
+      enc should equal(enc2)
+      enc.hashCode() should equal(enc2.hashCode())
+    }
+  }
+
 }
