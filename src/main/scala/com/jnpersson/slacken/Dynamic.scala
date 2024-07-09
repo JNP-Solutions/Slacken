@@ -206,7 +206,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
 
       for { brackenLength <- dynamicBrackenReadLength } {
         new BrackenWeights(buckets, base, brackenLength).
-          buildWeights(genomes, usedTaxa, outputLocation + s"_dynamic/database${brackenLength}mers.kmer_distrib")
+          buildAndWriteWeights(genomes, usedTaxa, outputLocation + s"_dynamic/database${brackenLength}mers.kmer_distrib")
       }
       val hits = base.classify(buckets, reads)
       base.classifyHitsAndWrite(hits, outputLocation, cpar)
