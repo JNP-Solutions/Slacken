@@ -43,7 +43,7 @@ object CAMIToKrakenReport {
       val taxon = spl(2).toInt
       if (!tax.isDefined(taxon)) {
         Console.err.println(s"Warning: undefined taxon $taxon, omitting from output")
-      } else if (minLevel.isEmpty || tax.depth(taxon) >= minLevel.get.depth) {
+      } else if (minLevel.forall(tax.depth(taxon) >= _.depth)) {
         counts(taxon) += 1
       }
     }

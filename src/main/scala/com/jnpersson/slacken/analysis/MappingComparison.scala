@@ -25,7 +25,7 @@ object PerTaxonMetrics {
 }
 
 /** A single line of per-read metrics, corresponding to the classification of one sample and a set of parameters. */
-case class PerReadMetrics(classifiedCount: Long, totalCount: Long, truePos: Long, falsePos: Long, vaguePos: Long,
+final case class PerReadMetrics(classifiedCount: Long, totalCount: Long, truePos: Long, falsePos: Long, vaguePos: Long,
                           falseNeg: Long, ppv: Double, sensitivity: Double, index: Double) {
   def toTSVString: String = s"$classifiedCount\t$totalCount\t$truePos\t$falsePos\t$vaguePos\t$falseNeg\t$ppv\t$sensitivity\t$index"
 }
@@ -231,7 +231,7 @@ object MappingComparison {
 
   /** Ancestor of the expected taxon.
    * @param index Number of steps from the expected taxon to the ancestor the read was classified as */
-  case class VaguePos(index: Int) extends HitCategory("VaguePos") {
+  final case class VaguePos(index: Int) extends HitCategory("VaguePos") {
     def hitIndex: Option[Int] = Some(index)
   }
 

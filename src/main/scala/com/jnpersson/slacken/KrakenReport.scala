@@ -204,9 +204,9 @@ class TotalKmerCountReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], val
     s"${super.dataColumnHeaders}\tTKC1-LeafOnly\tTKC2-FirstChildren\tTKC3-AllChildren"
 
   override def dataColumns(taxid: Taxon): String = {
-    val totMinSizeS1 = math.round(totMinAgg.totKmerAverageS1(taxid)).toLong
-    val totMinSizeS2 = math.round(totMinAgg.totKmerAverageS2(taxid)).toLong
-    val totMinSizeS3 = math.round(totMinAgg.totKmerAverageS3(taxid)).toLong
+    val totMinSizeS1 = math.round(totMinAgg.totKmerAverageS1(taxid))
+    val totMinSizeS2 = math.round(totMinAgg.totKmerAverageS2(taxid))
+    val totMinSizeS3 = math.round(totMinAgg.totKmerAverageS3(taxid))
     s"${super.dataColumns(taxid)}\t$totMinSizeS1\t$totMinSizeS2\t$totMinSizeS3"
 
   }
@@ -240,11 +240,11 @@ object KrakenReport {
       spl = l.split("\t")
 
       frac = spl(0).toDouble
-      if minPercent.isEmpty || frac >= minPercent.get
+      if minPercent.forall(frac >= _)
 
       level = digits.replaceAllIn(spl(3), "")
       numLevel = numRankForCode(level)
-      if cutoff.isEmpty || numLevel <= cutoff.get
+      if cutoff.forall(numLevel <= _)
     } {
       val col = color(numLevel)
       println(col + l + Console.RESET)
