@@ -286,11 +286,12 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
   /**
    * Build Bracken weights for a given library.
    *
-   * @param library        The genomes to simulate reads from
-   * @param taxa           A taxon filter for the genomes (only included taxa will be simulated)
-   * @param outputLocation File to write the results to
+   * @param library The genomes to simulate reads from
+   * @param taxa    A taxon filter for the genomes (only included taxa will be simulated)
+   * @return All classified reads, counted by destination and source pairs. The returned Dataframe will be cached
+   *         and must be unpersisted after use.
    */
-  def buildWeights(library: GenomeLibrary, taxa: BitSet, outputLocation: String) = {
+  def buildWeights(library: GenomeLibrary, taxa: BitSet) = {
 
     val titlesTaxa = getTaxonLabels(library.labelFile).toDF("header", "taxon")
 
@@ -329,7 +330,7 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
     val readLen = this.readLen
 
     //Re-join with fragments again and classify all possible reads
-    val sourceDestCounts = idMins.join(fragments, List("id")).
+    idMins.join(fragments, List("id")).
       select("id", "taxon", "nucleotides", "minimizers", "taxa").
       as[(String, Taxon, NTSeq, Array[Array[Long]], Array[Taxon])].
       flatMap { case (id, taxon, nts, ms, ts) =>
@@ -337,27 +338,48 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
         f.readClassifications(bcTaxonomy.value, ms, ts, bcSplit.value, readLen)
       }.toDF("source","dest","count").groupBy("dest","source").agg(sum("count").as("count")).
       cache()
+  }
 
+  /** Group the counted reads by source as well as destination and sub-count each. */
+  def groupData(sourceDestCounts: DataFrame): DataFrame = {
     val bySource = sourceDestCounts.groupBy("source").
       agg(sum("count").as("totalReads"))
 
-    val brackenSourceLine = udf((source: Array[Taxon], counts: Array[Long], readCounts: Array[Long]) =>
-      source.zip(counts).zip(readCounts).map { case ((s, c), r) => s"$s:$c:$r" }.mkString(" "))
-
-    //Form bracken output lines for each source taxon
-    val byDest = sourceDestCounts.join(bySource, List("source")).
+    //Form triplets for each destination taxon
+    sourceDestCounts.join(bySource, List("source")).
       groupBy("dest").agg(
         collect_list("source").as("sources"),
         collect_list("count").as("counts"),
-        collect_list("totalReads").as("totalReadsList")).
-      select($"dest", brackenSourceLine($"sources",$"counts",$"totalReadsList")).
-      as[(Taxon, String)].collect()
-
-    sourceDestCounts.unpersist()
-    writeReport(outputLocation, byDest)
+        collect_list("totalReads").as("totalReadsList"))
   }
 
-  def writeReport(outputLocation: String, data: Array[(Taxon, String)]): Unit =
+  /**
+   * Build Bracken weights for a given library and write them to a Bracken-compatible file.
+   *
+   * @param library        The genomes to simulate reads from
+   * @param taxa           A taxon filter for the genomes (only included taxa will be simulated)
+   * @param outputLocation File to write the results to
+   */
+  def buildAndWriteWeights(library: GenomeLibrary, taxa: BitSet, outputLocation: String) = {
+    val reads = buildWeights(library, taxa)
+    try {
+      writeReport(groupData(reads), outputLocation)
+    } finally {
+      reads.unpersist()
+    }
+  }
+
+  private val brackenSourceLine = udf((source: Array[Taxon], counts: Array[Long], readCounts: Array[Long]) =>
+    source.zip(counts).zip(readCounts).map { case ((s, c), r) => s"$s:$c:$r" }.mkString(" "))
+
+  /** Write a report from the calculated bracken weights.
+   * Unpersists the data.
+   */
+  private def writeReport(collectedData: DataFrame, outputLocation: String): Unit = {
+    //Form bracken output lines for each source taxon
+    val data = collectedData.select($"dest", brackenSourceLine($"sources",$"counts",$"totalReadsList")).
+      as[(Taxon, String)].collect()
+
     HDFSUtil.usingWriter(outputLocation, output => {
       val headers = s"mapped_taxid\tgenome_taxids:kmers_mapped:total_genome_kmers"
       output.println(headers)
@@ -366,5 +388,6 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
         output.println(s"${dest}\t${bLine}")
       }
     })
+  }
 }
 

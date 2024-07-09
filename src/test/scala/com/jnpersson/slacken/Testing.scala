@@ -94,6 +94,10 @@ object TestData {
         (526997, "Bacillus mycoides DSM 2048"))
     )
 
+  //Number of length 100 reads for each taxon (including masked or invalid regions).
+  //Manually calculated from the .fai files
+  val numberOfLength100Reads = List((455631, 4126265L), (526997, 3070413L))
+
   def inputs(k: Int)(implicit spark: SparkSession) =
     new Inputs(List("testData/slacken/slacken_tinydata.fna"), k, 10000000)
 
