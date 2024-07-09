@@ -6,10 +6,10 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.discount
-import com.jnpersson.discount.hash.{ExtendedTable, MinimizerPriorities}
-import com.jnpersson.discount.spark.Inputs
+import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, ExtendedTable, MinSplitter, MinimizerPriorities, RandomXOR}
+import com.jnpersson.discount.spark.{IndexParams, Inputs}
 import com.jnpersson.slacken.Taxonomy.{NONE, ROOT, Rank, Root}
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.scalacheck.{Gen, Shrink}
 
 object Testing {
@@ -99,5 +99,17 @@ object TestData {
 
   def library(k: Int)(implicit spark: SparkSession) =
     GenomeLibrary(inputs(k), "testData/slacken/seqid2taxid.map")
+
+  def index(k: Int, m: Int, location: Option[String])(implicit spark: SparkSession): KeyValueIndex = {
+      val mp = RandomXOR(m, DEFAULT_TOGGLE_MASK, true)
+
+      val splitter = MinSplitter(mp, k)
+      val params = IndexParams(spark.sparkContext.broadcast(splitter), 16, location.getOrElse(null))
+      new KeyValueIndex(params, TestData.taxonomy)
+  }
+
+  def defaultBuckets(idx: KeyValueIndex, k: Int)(implicit spark: SparkSession): DataFrame =
+    idx.makeBuckets(TestData.library(k), addRC = false)
+
 
 }

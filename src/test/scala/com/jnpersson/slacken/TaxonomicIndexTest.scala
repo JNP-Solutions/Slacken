@@ -108,29 +108,13 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     randomGenomesTest((params, taxonomy) => new KeyValueIndex(params, taxonomy), 128)
   }
 
-  /* Build a tiny index and write it to disk, then reading it back.
-  * At this point there's no correctness check, but the code path is tested.
-  */
-  def makeTinyIndex[R](makeIdx: (IndexParams, Taxonomy) => TaxonomicIndex[R],
-                       location: String): TaxonomicIndex[R] = {
-    val k = 31
-    val m = 10
-    val mp = RandomXOR(m, DEFAULT_TOGGLE_MASK, true)
-
-    val splitter = MinSplitter(mp, k)
-    val params = IndexParams(spark.sparkContext.broadcast(splitter), 16, location)
-    val idx = makeIdx(params, TestData.taxonomy)
-
-    val bkts = idx.makeBuckets(TestData.library(k), addRC = false)
-    idx.writeBuckets(bkts, location)
-    idx
-  }
-
   test("Tiny index, KeyValue method") {
     val dir = System.getProperty("user.dir")
     val location = s"$dir/testData/slacken/slacken_test_kv"
-    makeTinyIndex((params, taxonomy) => new KeyValueIndex(params, taxonomy),
-      location)
+    val k = 35
+    val m = 31
+    val idx = TestData.index(k, m, Some(location))
+    idx.writeBuckets(TestData.defaultBuckets(idx, k), location)
     KeyValueIndex.load(location, TestData.taxonomy).
       loadBuckets(location).count() should be > 0L
   }
@@ -138,16 +122,12 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   //Testing the basic code path for dynamic classification.
   //The results aren't yet checked for correctness.
   test("Dynamic index") {
-    val dir = System.getProperty("user.dir")
-    val location = s"$dir/testData/slacken/slacken_test_dyn"
-    val idx = makeTinyIndex((params, taxonomy) => new KeyValueIndex(params, taxonomy),
-      location).asInstanceOf[KeyValueIndex]
     val k = 35
-
+    val m = 31
+    val idx = TestData.index(k, m, None)
     val cpar = ClassifyParams(2, true)
 
-    val dyn = new Dynamic(idx,
-      TestData.library(k),
+    val dyn = new Dynamic(idx, TestData.library(k),
       Species, 0.1, 100, cpar,
       None, None, false, "")
 
@@ -158,15 +138,14 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
 
   test("A known leaf node total k-mer count is correct with respect to the known value") {
 
-    val dir = System.getProperty("user.dir")
-    val location = s"$dir/testData/slacken/slacken_test_kv"
-    val idx = makeTinyIndex((params, taxonomy) => new KeyValueIndex(params, taxonomy),
-      location).asInstanceOf[KeyValueIndex]
+    val k = 31
+    val m = 10
+    val idx = TestData.index(k, m, None)
+    val buckets = TestData.defaultBuckets(idx, k)
 
-    val genomeSizes = idx.totalKmerCountReport(idx.loadBuckets(), TestData.library(idx.k)).genomeSizes.toMap
+    val genomeSizes = idx.totalKmerCountReport(buckets, TestData.library(idx.k)).genomeSizes.toMap
     // The total k-mer counts hardcoded below were independently computed using both KMC3 and Discount
     val realGenomeSizes = Map(526997 -> 2914769, 455631 -> 3594763)
     genomeSizes should equal(realGenomeSizes)
-
   }
 }
