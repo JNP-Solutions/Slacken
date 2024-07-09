@@ -244,9 +244,9 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
     // all the taxa that we hit should be in the same clade
     val confidenceThreshold = 0.0
     val minHitGroups = 2
-    val taxon = lca.resolveTree(summary, confidenceThreshold)
+    val reportTaxon = lca.resolveTree(summary, confidenceThreshold)
     val classified = sufficientHitGroups(sortedHits, minHitGroups)
-    if (classified) taxon else Taxonomy.NONE
+    if (classified) reportTaxon else Taxonomy.NONE
   }
 
   /** For the given set of sorted hits, was there a sufficient number of hit groups wrt the given minimum?
@@ -254,12 +254,12 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
    */
   def sufficientHitGroups(sortedHits: Iterator[TaxonHit], minimum: Int): Boolean = {
     var hitCount = 0
-    var lastMin: Array[Long] = null
+    var lastMin: Array[Long] = Array()
 
     //count separate hit groups (adjacent but with different minimizers) for each sequence, imitating kraken2 classify.cc
     for { hit <- sortedHits } {
       if (hit.taxon != Taxonomy.NONE &&
-        (hitCount == 0 || lastMin == null || !java.util.Arrays.equals(hit.minimizer, lastMin))) {
+        (hitCount == 0 || !java.util.Arrays.equals(hit.minimizer, lastMin))) {
         hitCount += 1
         if (hitCount >= minimum) return true
       }
@@ -381,7 +381,7 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
       as[(Taxon, String)].collect()
 
     HDFSUtil.usingWriter(outputLocation, output => {
-      val headers = s"mapped_taxid\tgenome_taxids:kmers_mapped:total_genome_kmers"
+      val headers = "mapped_taxid\tgenome_taxids:kmers_mapped:total_genome_kmers"
       output.println(headers)
 
       for {(dest, bLine) <- data} {

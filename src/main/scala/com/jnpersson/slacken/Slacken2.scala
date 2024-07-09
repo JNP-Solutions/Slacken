@@ -170,7 +170,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
               reportDynamicIndex(),
               output())
 
-            dyn.twoStepClassifyAndWrite(inputs, output(), partitions())
+            dyn.twoStepClassifyAndWrite(inputs, partitions())
           case None =>
             i.classifyAndWrite(inputs, output(), cpar)
         }
