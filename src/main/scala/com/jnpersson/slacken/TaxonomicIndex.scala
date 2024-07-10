@@ -5,9 +5,9 @@
 
 package com.jnpersson.slacken
 
-import com.jnpersson.discount.hash.InputFragment
-import com.jnpersson.discount.spark.{AnyMinSplitter, HDFSUtil, IndexParams, Inputs}
-import com.jnpersson.discount.{NTSeq, SeqTitle}
+import com.jnpersson.kmers.minimizer._
+import com.jnpersson.kmers._
+
 import com.jnpersson.slacken.TaxonomicIndex.{ClassifiedRead, getTaxonLabels, rankStrUdf}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.functions.{count, countDistinct, desc, udf}
@@ -136,6 +136,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
   def classify(buckets: Dataset[Record], subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])]
 
   def classifySpans(buckets: Dataset[Record], subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit])]
+
 
   /** Classify subject sequences using the given index, optionally for multiple samples,
    * writing the results to a designated output location

@@ -4,7 +4,7 @@
 
 package com.jnpersson.slacken.analysis
 
-import com.jnpersson.discount.spark.HDFSUtil
+import com.jnpersson.kmers.HDFSUtil
 import com.jnpersson.slacken.Taxonomy.ROOT
 import com.jnpersson.slacken.{KeyValueIndex, KrakenReport, Taxon}
 import org.apache.spark.sql.functions.{count, lit}
