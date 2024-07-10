@@ -4,7 +4,7 @@
 
 package com.jnpersson.slacken
 
-import com.jnpersson.discount.spark.SparkSessionTestWrapper
+import com.jnpersson.kmers.SparkSessionTestWrapper
 import org.apache.spark.sql.functions.sum
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
