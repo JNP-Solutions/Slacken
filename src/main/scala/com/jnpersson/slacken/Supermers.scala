@@ -5,10 +5,9 @@
 
 package com.jnpersson.slacken
 
-import com.jnpersson.discount.NTSeq
-import com.jnpersson.discount.hash.{BucketId, InputFragment}
-import com.jnpersson.discount.spark.AnyMinSplitter
-import com.jnpersson.discount.util.NTBitArray
+import com.jnpersson.kmers._
+import com.jnpersson.kmers.minimizer._
+import com.jnpersson.kmers.util.NTBitArray
 
 import scala.util.Random
 import scala.util.matching.Regex

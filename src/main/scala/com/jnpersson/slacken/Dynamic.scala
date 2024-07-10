@@ -1,8 +1,8 @@
 package com.jnpersson.slacken
 
-import com.jnpersson.discount.hash.InputFragment
-import com.jnpersson.discount.spark.Output.formatPerc
-import com.jnpersson.discount.spark.{HDFSUtil, Inputs, Output}
+import com.jnpersson.kmers.minimizer._
+import com.jnpersson.kmers.Output.formatPerc
+import com.jnpersson.kmers.{HDFSUtil, Inputs, Output}
 import com.jnpersson.slacken.Taxonomy.Rank
 import org.apache.spark.sql.functions.{approx_count_distinct, count}
 import org.apache.spark.sql.{DataFrame, Dataset, SparkSession, functions}

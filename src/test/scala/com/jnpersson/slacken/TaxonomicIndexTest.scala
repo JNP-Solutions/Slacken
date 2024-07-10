@@ -5,12 +5,14 @@
 
 package com.jnpersson.slacken
 
-import com.jnpersson.discount.TestGenerators._
-import com.jnpersson.discount.hash.{DEFAULT_TOGGLE_MASK, InputFragment, MinSplitter, RandomXOR}
-import com.jnpersson.discount.spark.{IndexParams, Inputs, SparkSessionTestWrapper}
-import com.jnpersson.discount.{NTSeq, Testing => DTesting}
+import com.jnpersson.kmers.TestGenerators._
+
+import com.jnpersson.kmers.minimizer._
+import com.jnpersson.discount.spark.SparkSessionTestWrapper
+
+import com.jnpersson.kmers.{NTSeq, Testing => DTesting}
+import com.jnpersson.kmers.IndexParams
 import com.jnpersson.slacken.Taxonomy.{ROOT, Species}
-import org.apache.spark.sql.functions
 import org.scalacheck.Gen
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers

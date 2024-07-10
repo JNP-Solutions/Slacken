@@ -4,8 +4,8 @@
 
 package com.jnpersson.slacken
 
-import com.jnpersson.discount.TestGenerators._
-import com.jnpersson.discount.hash.MinSplitter
+import com.jnpersson.kmers.TestGenerators._
+import com.jnpersson.kmers.minimizer._
 import org.scalacheck.Gen
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
@@ -13,8 +13,8 @@ import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 
 class SupermersProps extends AnyFunSuite with ScalaCheckPropertyChecks with Matchers {
   import Testing._
-  import com.jnpersson.discount.TestGenerators.shrinkNTSeq
-  import com.jnpersson.discount.TestGenerators.shrinkMAndK
+  import com.jnpersson.kmers.TestGenerators.shrinkNTSeq
+  import com.jnpersson.kmers.TestGenerators.shrinkMAndK
 
   val nonDnaRnaChars = (('A' to 'Z') ++ ('a' to 'z')).
     filter(x => !dnaRnaCharsArrayMixedCase.contains(x)).toArray

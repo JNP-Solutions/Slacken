@@ -19,7 +19,7 @@ object Taxonomy {
     def compare(that: Rank): Int =
       depth - that.depth
   }
-  
+
   case object Unclassified extends Rank("unclassified", "U", -1)
   case object Root extends Rank("root", "R", 0)
   case object Superkingdom extends Rank("superkingdom", "D", 1)

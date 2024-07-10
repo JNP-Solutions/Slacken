@@ -1,8 +1,7 @@
 package com.jnpersson.slacken
 
-import com.jnpersson.discount.{NTSeq, SeqLocation, SeqTitle}
-import com.jnpersson.discount.spark.{AnyMinSplitter, HDFSUtil}
-import com.jnpersson.discount.util.{KmerTable, NTBitArray}
+import com.jnpersson.kmers._
+import com.jnpersson.kmers.util.{KmerTable, NTBitArray}
 import com.jnpersson.slacken.TaxonomicIndex.getTaxonLabels
 import it.unimi.dsi.fastutil.ints.{Int2IntFunction, Int2IntMap}
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap

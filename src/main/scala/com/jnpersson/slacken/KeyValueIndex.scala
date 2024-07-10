@@ -4,12 +4,12 @@
 
 package com.jnpersson.slacken
 
-import com.jnpersson.discount.hash.{InputFragment, MinSplitter, SpacedSeed}
-import com.jnpersson.discount.spark.Helpers.randomTableName
-import com.jnpersson.discount.spark.Output.formatPerc
-import com.jnpersson.discount.spark.{AnyMinSplitter, HDFSUtil, IndexParams, Inputs, KmerKeyedIndex, SparkTool}
-import com.jnpersson.discount.util.NTBitArray
-import com.jnpersson.discount.{NTSeq, SeqTitle}
+import com.jnpersson.kmers._
+import com.jnpersson.kmers.minimizer._
+import com.jnpersson.kmers.Helpers.randomTableName
+import com.jnpersson.kmers.Output.formatPerc
+
+import com.jnpersson.kmers.util.NTBitArray
 import com.jnpersson.slacken.TaxonomicIndex.getTaxonLabels
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.expressions.Aggregator
