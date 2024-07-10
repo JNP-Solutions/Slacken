@@ -4,8 +4,6 @@
 
 package com.jnpersson.slacken
 
-import com.jnpersson.slacken.Taxonomy.ROOT
-import org.apache.spark.sql.functions
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
