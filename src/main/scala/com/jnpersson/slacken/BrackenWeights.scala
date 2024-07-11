@@ -19,6 +19,25 @@ import scala.collection.BitSet
  */
 final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
 
+  /** Split this fragment into multiple subfragments of a bounded maximum length.
+   * The value of k will be respected, so that no k-mers will be lost. Consecutive
+   * splits will overlap by k-1 letters.
+   */
+  def splitToMaxLength(max: Int, k: Int): Iterator[TaxonFragment] = {
+    if (nucleotides.length <= max)
+      Iterator(this)
+    else {
+      def safeEnd(end: Int) =
+        if (end > nucleotides.length) nucleotides.length else end
+
+      //Each subfragment will contain (max - k) k-mers and (k-1) bps overlapping with the following subfragment
+      for {
+        start <- Iterator.range(0, nucleotides.length - k + 1, max - (k - 1)) //starting positions of k-mers
+        f = TaxonFragment(taxon, nucleotides.substring(start, safeEnd(start + max)), s"$id|$start")
+      } yield f
+    }
+  }
+
   /**
    * Returns all distinct minimizers in the nucleotide sequence
    *
@@ -286,6 +305,9 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
 
   import spark.sqlContext.implicits._
 
+  //Split into subfragments of maximum this length for performance reasons
+  final val FRAGMENT_MAX = 1024 * 1024
+
   /**
    * Build Bracken weights for a given library.
    *
@@ -306,13 +328,15 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
 
     //Prepare the sequence for super-mer splitting and encoding
     val noWhitespace = udf((x: NTSeq) => x.replaceAll("\\s+", ""))
+    val readLen = this.readLen
 
     //Find all fragments of genomes
     val fragments = idSeqDF.join(titlesTaxa, List("header")).
       select($"taxon", noWhitespace($"nucleotides").as("nucleotides"), fragmentId($"header", $"location").as("id")).
       where(presentTaxon($"taxon")).
       as[(Taxon, NTSeq, String)].
-      map(x => TaxonFragment(x._1, x._2, x._3))
+      flatMap(x => TaxonFragment(x._1, x._2, x._3).splitToMaxLength(FRAGMENT_MAX, readLen))
+//      map(x => TaxonFragment(x._1, x._2, x._3))
 
     val bcSplit = keyValueIndex.bcSplit
     val bcTaxonomy = keyValueIndex.bcTaxonomy
