@@ -8,7 +8,7 @@ import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap
 import org.apache.spark.sql.functions.{collect_list, sum, udf}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
-import scala.collection.BitSet
+import scala.collection.{BitSet, mutable}
 
 
 /**
@@ -100,10 +100,10 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
     private def passedWindow(hit: TaxonHit) =
       hit.ordinal + (hit.count - 1) < windowStart
 
-    private var currentWindow: Vector[TaxonHit] = {
+    private val currentWindow: mutable.Buffer[TaxonHit] = {
       val (window, rem) = hits.span(inWindow)
       hits = rem
-      window.toVector
+      window.toBuffer
     }
 
     lastInWindow = currentWindow.last
@@ -138,12 +138,12 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
 
       //Did the first hit pass out of the window?
       if (passedWindow(currentWindow.head)) {
-        currentWindow = currentWindow.tail
+        currentWindow.remove(0)
       }
 
       //Did a new hit move into the window?
       if (lastInWindow.ordinal + lastInWindow.count < windowEnd) {  //no longer touching the boundary
-        if (hits.hasNext) currentWindow :+= hits.next
+        if (hits.hasNext) currentWindow += hits.next
         lastInWindow = currentWindow.last
       }
 
@@ -276,10 +276,11 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
    */
   def sufficientHitGroups(sortedHits: Iterator[TaxonHit], minimum: Int): Boolean = {
     var hitCount = 0
-    var lastMin: Array[Long] = Array()
+    var lastMin: Array[Long] = Array.empty
 
-    //count separate hit groups (adjacent but with different minimizers) for each sequence, imitating kraken2 classify.cc
-    for { hit <- sortedHits } {
+    while (sortedHits.hasNext) {
+      //count separate hit groups (adjacent but with different minimizers) for each sequence, imitating kraken2 classify.cc
+      val hit = sortedHits.next
       if (hit.taxon != Taxonomy.NONE &&
         (hitCount == 0 || !java.util.Arrays.equals(hit.minimizer, lastMin))) {
         hitCount += 1
