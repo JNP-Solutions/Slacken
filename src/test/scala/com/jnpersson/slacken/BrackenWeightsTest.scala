@@ -15,7 +15,7 @@ class BrackenWeightsTest extends AnyFunSuite with SparkSessionTestWrapper with M
   implicit val sp = spark
   import spark.sqlContext.implicits._
 
-  test("All reads from the underlying genomes are counted") {
+  test("Read counts from the underlying genomes are correct") {
     val k = 35
     val m = 31
     val readLen = 100
