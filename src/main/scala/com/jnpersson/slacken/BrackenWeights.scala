@@ -3,12 +3,12 @@ package com.jnpersson.slacken
 import com.jnpersson.kmers._
 import com.jnpersson.kmers.util.{KmerTable, NTBitArray}
 import com.jnpersson.slacken.TaxonomicIndex.getTaxonLabels
-import it.unimi.dsi.fastutil.ints.{Int2IntFunction, Int2IntMap}
+import it.unimi.dsi.fastutil.ints.Int2IntMap
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap
 import org.apache.spark.sql.functions.{collect_list, sum, udf}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
-import scala.collection.{BitSet, mutable}
+import scala.collection.BitSet
 
 
 /**
@@ -25,7 +25,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
    * @param splitter the minimizer scheme
    * @return
    */
-  def distinctMinimizers(splitter: AnyMinSplitter): Iterator[Array[Long]] = {
+  def distinctMinimizers(splitter: AnyMinSplitter, defaultValue: Array[Long]): Iterator[Array[Long]] = {
     val noWhitespace = nucleotides.replaceAll("\\s+", "")
     val segments = Supermers.splitByAmbiguity(noWhitespace, Supermers.nonAmbiguousRegex(splitter.k))
     val builder = KmerTable.builder(splitter.priorities.width, 10000, 1)
@@ -40,8 +40,11 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
       }
     }
 
-    builder.result(true).countedKmers.map(_._1)
-
+    val r = builder.result(true).countedKmers.map(_._1)
+    if (r.isEmpty) {
+      //no valid minimizers in the segment
+      Iterator(defaultValue)
+    } else r
   }
 
   /** Sliding window corresponding to a list of hits. Each hit is a super-mer with some number of k-mers.
@@ -141,7 +144,8 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
     var i = 0
     while (i < minimizers.length) {
       val enc = NTBitArray(minimizers(i), splitter.priorities.width)
-      lcaLookup.put(enc, lcas(i))
+      if (lcas.length > 0)
+        lcaLookup.put(enc, lcas(i)) //lcas can be empty for the default (empty) minimizer
       i += 1
     }
 
@@ -212,7 +216,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
         Sum up consecutive identical classifications to reduce the amount of data generated.
     This exploits the fact that we know each fragment can only classify to relatively few taxa
     (must be some taxon in its lineage, which is usually < 30).
-    At the same time this is computationally cheaper than building a full hash map and counting each distinct value
+    At the same time this is cheaper than building a full hash map and counting each distinct value
     (which Spark should do anyway)
      */
 
@@ -294,7 +298,6 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
 
     val titlesTaxa = getTaxonLabels(library.labelFile).toDF("header", "taxon")
 
-
     val idSeqDF = library.inputs.getInputFragments(withRC = false, withAmbiguous = true)
     val presentTaxon = udf((x: Taxon) => taxa.contains(x))
 
@@ -313,20 +316,20 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
 
     val bcSplit = keyValueIndex.bcSplit
     val bcTaxonomy = keyValueIndex.bcTaxonomy
+    val emptyMinimizer = Array.fill(keyValueIndex.numIdColumns)(0L)
 
     //Join fragment IDs with LCA taxa based on minimizers
     val idMins = fragments.flatMap { x =>
-        x.distinctMinimizers(bcSplit.value).map(m => (x.id, m))
+        x.distinctMinimizers(bcSplit.value, emptyMinimizer).map(m => (x.id, m))
       }.toDF("id", "minimizer").
       select(keyValueIndex.idColumnsFromMinimizer :+ $"id" :_*).
-      join(buckets, keyValueIndex.idColumnNames).
+      join(buckets, keyValueIndex.idColumnNames, "left"). //left join to preserve fragments with the empty minimizer (all invalid reads)
       groupBy("id").agg(
         collect_list(keyValueIndex.minimizerColumnFromIdColumns),
         collect_list("taxon")
       ).
       toDF("id", "minimizers", "taxa")
 
-    val readLen = this.readLen
 
     //Re-join with fragments again and classify all possible reads
     idMins.join(fragments, List("id")).
