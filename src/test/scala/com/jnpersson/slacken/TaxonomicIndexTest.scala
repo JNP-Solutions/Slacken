@@ -138,15 +138,14 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   }
 
   test("A known leaf node total k-mer count is correct with respect to the known value") {
-
     val k = 31
     val m = 10
     val idx = TestData.index(k, m, None)
     val buckets = TestData.defaultBuckets(idx, k)
 
     val genomeSizes = idx.totalKmerCountReport(buckets, TestData.library(idx.k)).genomeSizes.toMap
-    // The total k-mer counts hardcoded below were independently computed using both KMC3 and Discount
-    val realGenomeSizes = Map(526997 -> 2914769, 455631 -> 3594763)
+
+    val realGenomeSizes = TestData.numberOf31Mers
     genomeSizes should equal(realGenomeSizes)
   }
 }
