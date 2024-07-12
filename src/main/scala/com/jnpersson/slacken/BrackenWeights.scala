@@ -6,7 +6,7 @@ import com.jnpersson.slacken.TaxonomicIndex.getTaxonLabels
 import it.unimi.dsi.fastutil.ints.Int2IntMap
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap
 import org.apache.spark.sql.functions.{collect_list, sum, udf}
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 
 import scala.collection.{BitSet, mutable}
 
@@ -310,14 +310,13 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
   final val FRAGMENT_MAX = 1024 * 1024
 
   /**
-   * Build Bracken weights for a given library.
+   * For a set of taxa, generate all reads from their genomes and classify them against the library.
    *
    * @param library The genomes to simulate reads from
    * @param taxa    A taxon filter for the genomes (only included taxa will be simulated)
-   * @return All classified reads, counted by destination and source pairs. The returned Dataframe will be cached
-   *         and must be unpersisted after use.
+   * @return All classified reads, counted by destination and source pairs.
    */
-  def buildWeights(library: GenomeLibrary, taxa: BitSet) = {
+  def buildWeights(library: GenomeLibrary, taxa: BitSet): DataFrame = {
 
     val titlesTaxa = getTaxonLabels(library.labelFile).toDF("header", "taxon")
 
@@ -337,7 +336,6 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
       where(presentTaxon($"taxon")).
       as[(Taxon, NTSeq, String)].
       flatMap(x => TaxonFragment(x._1, x._2, x._3).splitToMaxLength(FRAGMENT_MAX, readLen))
-//      map(x => TaxonFragment(x._1, x._2, x._3))
 
     val bcSplit = keyValueIndex.bcSplit
     val bcTaxonomy = keyValueIndex.bcTaxonomy
@@ -363,8 +361,26 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
       flatMap { case (id, taxon, nts, ms, ts) =>
         val f = TaxonFragment(taxon, nts, id)
         f.readClassifications(bcTaxonomy.value, ms, ts, bcSplit.value, readLen)
-      }.toDF("source","dest","count").groupBy("dest","source").agg(sum("count").as("count")).
-      cache()
+      }.toDF("source","dest","count").groupBy("dest","source").agg(sum("count").as("count"))
+  }
+
+  /** For a set of taxa, gradually classify all reads from all genomes (to reduce the impact of node interruption),
+   * writing the results to a temporary parquet table.
+   * @param library source of genomes
+   * @param taxa taxa to include
+   * @param tempLocation location to write the temporary table
+   * @return the resulting table
+   */
+  def buildWeightsGradually(library: GenomeLibrary, taxa: BitSet, tempLocation: String): DataFrame = {
+    //Break the genomes up into chunks and gradually append to the table,
+    //in order to reduce the impact of interrupted spark nodes
+    for {group <- taxa.grouped(taxa.size / 10)} {
+      val weights = buildWeights(library, group)
+      weights.
+        write.mode(SaveMode.Append).
+        parquet(tempLocation)
+    }
+    spark.read.parquet(tempLocation)
   }
 
   /** Group the counted reads by source as well as destination and sub-count each. */
@@ -388,11 +404,13 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
    * @param outputLocation File to write the results to
    */
   def buildAndWriteWeights(library: GenomeLibrary, taxa: BitSet, outputLocation: String) = {
-    val reads = buildWeights(library, taxa)
+    val tempLocation = outputLocation + "_tmp"
+    val reads = buildWeightsGradually(library, taxa, tempLocation)
     try {
       writeReport(groupData(reads), outputLocation)
     } finally {
       reads.unpersist()
+      HDFSUtil.deleteRecursive(tempLocation)
     }
   }
 
