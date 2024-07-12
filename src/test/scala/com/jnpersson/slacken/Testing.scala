@@ -89,14 +89,23 @@ object TestData {
   def taxonomy =
     Taxonomy.fromNodesAndNames(
       Array((455631, ROOT, "strain"),
-        (526997, ROOT, "strain")),
+        (526997, ROOT, "strain"),
+        (9606, ROOT, "species")),
       Iterator((455631, "Clostridioides difficile QCD-66c26"),
-        (526997, "Bacillus mycoides DSM 2048"))
+        (526997, "Bacillus mycoides DSM 2048"),
+        (9606, "Homo sapiens"))
     )
 
   //Number of length 100 reads for each taxon (including masked or invalid regions).
   //Manually calculated from the .fai files
-  val numberOfLength100Reads = List((455631, 4126265L), (526997, 3070413L))
+  val numberOfLength100Reads = List(
+    (455631, 4126265L),
+    (526997, 3070413L),
+    (9606, 799821)
+  )
+
+  // The total k-mer counts hardcoded below were independently computed using both KMC3 and Discount
+  val numberOf31Mers = Map(526997 -> 2914769, 455631 -> 3594763, 9606 -> 639800)
 
   def inputs(k: Int)(implicit spark: SparkSession) =
     new Inputs(List("testData/slacken/slacken_tinydata.fna"), k, 10000000)
