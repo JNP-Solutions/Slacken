@@ -8,6 +8,7 @@ import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap
 import org.apache.spark.sql.functions.{collect_list, sum, udf}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 
+import scala.collection.mutable.ArrayBuffer
 import scala.collection.{BitSet, mutable}
 
 
@@ -100,21 +101,17 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
     private def passedWindow(hit: TaxonHit) =
       hit.ordinal + (hit.count - 1) < windowStart
 
-    private val currentWindow: mutable.Buffer[TaxonHit] = {
+    val currentWindow: mutable.ArrayBuffer[TaxonHit] = {
       val (window, rem) = hits.span(inWindow)
       hits = rem
-      window.toBuffer
+      window.to[ArrayBuffer]
     }
 
     lastInWindow = currentWindow.last
 
-    /** Hits currently in the window. */
-    def hitsInWindow: Iterator[TaxonHit] =
-      currentWindow.iterator
-
     //Populate the initial state
     for {
-      h <- hitsInWindow
+      h <- currentWindow
       kmerStart <- h.ordinal until h.ordinal + h.count
       if inWindow(kmerStart)
     } {
@@ -224,7 +221,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
     val classifications = Iterator.range(0, nucleotides.length - readLen + 1).map(start => { // inclusive
       if (start > 0) hitWindow.advance()
 
-      val inWindow = hitWindow.hitsInWindow
+      val inWindow = hitWindow.currentWindow
       if (inWindow.nonEmpty) {
         val dest = classify(lca, inWindow, hitWindow.countSummary)
         dest
@@ -261,7 +258,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
    * @param sortedHits hits in this read. Used for sufficientHitGroups only. Counts will not be used.
    * @param summary taxon to k-mer count lookup map for this read
    */
-  def classify(lca: LowestCommonAncestor, sortedHits: Iterator[TaxonHit], summary: Int2IntMap): Taxon = {
+  def classify(lca: LowestCommonAncestor, sortedHits: IndexedSeq[TaxonHit], summary: Int2IntMap): Taxon = {
     // confidence threshold is irrelevant for this purpose, as when we are self-classifying a library,
     // all the taxa that we hit should be in the same clade
     val confidenceThreshold = 0.0
@@ -274,19 +271,21 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
   /** For the given set of sorted hits, was there a sufficient number of hit groups wrt the given minimum?
    * This is a simplified version of [[TaxonomicIndex.sufficientHitGroups()]] for this special use case.
    */
-  def sufficientHitGroups(sortedHits: Iterator[TaxonHit], minimum: Int): Boolean = {
+  def sufficientHitGroups(sortedHits: IndexedSeq[TaxonHit], minimum: Int): Boolean = {
     var hitCount = 0
     var lastMin: Array[Long] = Array.empty
 
-    while (sortedHits.hasNext) {
+    var i = 0
+    while (i < sortedHits.length) {
       //count separate hit groups (adjacent but with different minimizers) for each sequence, imitating kraken2 classify.cc
-      val hit = sortedHits.next
+      val hit = sortedHits(i)
       if (hit.taxon != Taxonomy.NONE &&
         (hitCount == 0 || !java.util.Arrays.equals(hit.minimizer, lastMin))) {
         hitCount += 1
         if (hitCount >= minimum) return true
       }
       lastMin = hit.minimizer
+      i += 1
     }
     false
   }
