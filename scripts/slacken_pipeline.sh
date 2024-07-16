@@ -8,7 +8,8 @@
 #Regional buckets. jnp-bio is Japan.
 #ROOT=s3://jnp-bio
 #ROOT=s3://jnp-bio-us
-ROOT=s3://jnp-bio-eu
+#ROOT=s3://jnp-bio-us
+ROOT=s3://onr-emr
 
 #data directory where objects are deleted after a few days
 #DATA=$ROOT/scratch
@@ -16,16 +17,19 @@ ROOT=s3://jnp-bio-eu
 DATA=$ROOT/keep
 
 #Standard library
-K2=$ROOT/kraken2
+#K2=$ROOT/kraken2
+#K2=$ROOT/standard-224c
 #NT library
 #K2=$ROOT/k2-nt
 #Refseq
 #K2=$ROOT/refseq-223
+K2=$ROOT/refseq-224c
 
-#TAXONOMY=$K2/taxonomy
-TAXONOMY=$ROOT/k2-nt/taxonomy
-#slacken2-aws.sh always picks the jar from this (JP) region bucket
-BUCKET=s3://jnp-bio/discount
+TAXONOMY=$K2/taxonomy
+#TAXONOMY=$ROOT/k2-nt/taxonomy
+
+#slacken2-aws.sh always picks the jar from this (US) region bucket
+BUCKET=s3://onr-emr/slacken
 DISCOUNT_HOME=/home/johan/ws/jnps/Hypercut-git
 
 aws s3 cp $DISCOUNT_HOME/target/scala-2.12/Slacken-assembly-0.1.0.jar $BUCKET/
@@ -33,6 +37,10 @@ aws s3 cp $DISCOUNT_HOME/target/scala-2.12/Slacken-assembly-0.1.0.jar $BUCKET/
 function classify {
   LIB=$1
   LNAME=$2
+  #--classify-with-gold-standard
+  #--report-dynamic-index
+  #-d $K2
+  #-p 3000
   CLASS_OUT=$ROOT/scratch/classified/$FAMILY/$LNAME
   ./slacken2-aws.sh -p 3000 taxonIndex $DATA/$LIB classify --classify-with-gold-standard -g $SPATH/${LABEL}_gold.txt \
     --dynamic-min-fraction 1e-5 -d $K2 --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" -o $CLASS_OUT \
@@ -119,10 +127,17 @@ do
 done
 
 #build s2_2023 45 41 7 2000
+
+#histogram std_35_31_s7
 #report s2-nt_35_31_s7
+#report s2_2023_i_35_31_s7
+#report rsc_35_31_s7 35
+#report std_35_31_s7
+
 #classify s2_2023_i_35_31_s7 s2_2023_gold_35_31_s7
-#classify rs_35_31_s7 rs_dyn3_35_31_s7
-classify rs_35_31_s7 rs_gold_35_31_s7
+#classify rsc_35_31_s7 rsc_35_31_s7
+#classify rsc_35_31_s7 rsc_gold_35_31_s7
+#classify std_35_31_s7 std_35_31_s7
 #classify rs_45_41_s7
 #classify rs_45_41_s12
 
