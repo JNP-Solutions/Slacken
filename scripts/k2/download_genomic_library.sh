@@ -61,10 +61,11 @@ case $library_name in
       grep "Genome Reference Consortium" assembly_summary.txt > x
       mv x assembly_summary.txt
     fi
+    scala $KRAKEN2_DIR/select_assemblies.scala $KRAKEN2_FILTER_LEVEL assembly_summary.txt > assembly_summary.filter.txt || exit 1
 
     #This line commented out so that we can resume incomplete library downloads by running the script again.
     #rm -rf all/ library.f* manifest.txt rsync.err
-    rsync_from_ncbi.pl assembly_summary.txt
+    rsync_from_ncbi.pl assembly_summary.filter.txt
     grep ">" $library_file | scan_fasta_file.pl >> prelim_map.txt
     ;;
   "plasmid")
