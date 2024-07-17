@@ -401,10 +401,13 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
    * @param library        The genomes to simulate reads from
    * @param taxa           A taxon filter for the genomes (only included taxa will be simulated)
    * @param outputLocation File to write the results to
+   * @param gradual        If true, weights will be computed gradually and appended to a temporary table,
+   *                       making the job more resilient to interrupted nodes
    */
-  def buildAndWriteWeights(library: GenomeLibrary, taxa: BitSet, outputLocation: String) = {
+  def buildAndWriteWeights(library: GenomeLibrary, taxa: BitSet, outputLocation: String, gradual: Boolean = false) = {
     val tempLocation = outputLocation + "_tmp"
-    val reads = buildWeightsGradually(library, taxa, tempLocation)
+    val reads =
+      if (gradual) buildWeightsGradually(library, taxa, tempLocation) else buildWeights(library, taxa)
     try {
       writeReport(groupData(reads), outputLocation)
     } finally {
