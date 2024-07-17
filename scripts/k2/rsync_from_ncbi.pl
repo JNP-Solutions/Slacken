@@ -24,7 +24,6 @@ my $qm_server = quotemeta $SERVER;
 my $qm_server_path = quotemeta $SERVER_PATH;
 
 my $is_protein = $ENV{"KRAKEN2_PROTEIN_DB"};
-my $with_incomplete = $ENV{"KRAKEN2_INCOMPLETE"};
 
 my $suffix = $is_protein ? "_protein.faa.gz" : "_genomic.fna.gz";
 
@@ -35,8 +34,6 @@ while (<>) {
   chomp;
   my @fields = split /\t/;
   my ($taxid, $asm_level, $ftp_path) = @fields[5, 11, 19];
-  # Possible TODO - make the list here configurable by user-supplied flags
-  next unless ($with_incomplete || grep {$asm_level eq $_} ("Complete Genome", "Chromosome"));
   next if $ftp_path eq "na";  # Skip if no provided path
 
   my $full_path = $ftp_path . "/" . basename($ftp_path) . $suffix;

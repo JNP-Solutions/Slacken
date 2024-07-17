@@ -14,10 +14,12 @@ download incomplete as well as complete genomes (default is only complete and ch
 library.
 
 Example environment:
-KRAKEN2_DB_NAME= (wherever the database is)
-KRAKEN2_DIR= (wherever these scripts are located)
-KRAKEN2_INCOMPLETE=
-KRAKEN2_PROTEIN_DB=
-KRAKEN2_SKIP_MAPS=
-KRAKEN2_USE_FTP=
-KRAKEN2_MASK_LC=true
+
+export KRAKEN2_DB_NAME= (wherever the database is)
+export KRAKEN2_DIR=(wherever these scripts are located)
+export KRAKEN2_PROTEIN_DB=
+export KRAKEN2_SKIP_MAPS=
+export KRAKEN2_USE_FTP=
+export KRAKEN2_MASK_LC=true
+#Choices are: complete, incomplete, prefer_complete, all
+export KRAKEN2_FILTER_LEVEL=prefer_complete
