@@ -48,19 +48,18 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
   def distinctMinimizers(splitter: AnyMinSplitter, defaultValue: Array[Long]): Iterator[Array[Long]] = {
     val noWhitespace = nucleotides.replaceAll("\\s+", "")
     val segments = Supermers.splitByAmbiguity(noWhitespace, Supermers.nonAmbiguousRegex(splitter.k))
-    val builder = KmerTable.builder(splitter.priorities.width, 10000, 1)
+    val builder = KmerTable.builder(splitter.priorities.width, 10000)
 
     for { (seq, flag) <- segments } {
       if (flag == SEQUENCE_FLAG) {
         val it = splitter.superkmerPositions(seq, addRC = false)
         while (it.hasNext) {
           builder.addLongs(it.next._2.data)
-          builder.addLong(1) //count
         }
       }
     }
 
-    val r = builder.result(true).countedKmers.map(_._1)
+    val r = builder.result(true).distinctKmers
     if (r.isEmpty) {
       //no valid minimizers in the segment
       Iterator(defaultValue)

@@ -278,6 +278,24 @@ abstract class KmerTable(val kmers: Array[Array[Long]], val width: Int, val tagW
     }
   }
 
+  /** An iterator of distinct k-mers. Requires that the KmerTable was sorted at construction time. */
+  def distinctKmers: Iterator[Array[Long]] = new Iterator[Array[Long]] {
+    private var i = 0
+    private val len = KmerTable.this.size
+
+    def hasNext: Boolean = i < len
+
+    def next: Array[Long] = {
+      val lastKmer = apply(i)
+      i += 1
+      while (i < len && equalKmers(i, lastKmer)) {
+        i += 1
+      }
+
+      lastKmer
+    }
+  }
+
   /** Visit counted k-mers. Requires that the KmerTable was sorted at construction time.
    * Counts are expected in the first tag column. */
   def visitCountedKmers(v: KmerVisitor): Unit = {
