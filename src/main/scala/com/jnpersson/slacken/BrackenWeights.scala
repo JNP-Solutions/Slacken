@@ -50,7 +50,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
     val segments = Supermers.splitByAmbiguity(noWhitespace, Supermers.nonAmbiguousRegex(splitter.k))
     val builder = KmerTable.builder(splitter.priorities.width, 10000)
 
-    for { (seq, flag) <- segments } {
+    for { (seq, flag, _) <- segments } {
       if (flag == SEQUENCE_FLAG) {
         val it = splitter.superkmerPositions(seq, addRC = false)
         while (it.hasNext) {
@@ -166,32 +166,24 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
 
     val k = splitter.k
     val segments = Supermers.splitByAmbiguity(nucleotides, Supermers.nonAmbiguousRegex(k))
-    var pos = 0
 
-    //Construct all super-mers, including quasi-supermers for ambiguous regions
-
+    //Construct all super-mers, including quasi-supermers (NONE) for ambiguous regions
+    val empty = Array[Long]()
     segments.flatMap {
-      case (seq, SEQUENCE_FLAG) =>
-        val r = splitter.superkmerPositions(seq, addRC = false).toList.map(x => {
+      case (seq, SEQUENCE_FLAG, pos) =>
+        splitter.superkmerPositions(seq, addRC = false).map(x => {
           //Construct each minimizer hit.
           //Overloading the second argument (ordinal) to mean the absolute position in the fragment in this case
+
           TaxonHit(x._2.data, x._1 + pos, lcaLookup.applyAsInt(x._2), x._3 - (k - 1))
-        })
-        pos += seq.length - (k - 1)
-        r
-      case (seq, AMBIGUOUS_FLAG) =>
-        val r = if (pos == 0) {
-          List(TaxonHit(Array(), pos, Taxonomy.NONE, seq.length))
-        } else {
-          List(TaxonHit(Array(), pos, Taxonomy.NONE, seq.length + (k - 1)))
-        }
-        if (pos == 0) {
-          pos += seq.length
-        } else {
-          //account for ambiguous hits from previous supermer group
-          pos += seq.length + k - 1
-        }
-        r
+        }) ++
+          //additional invalid k-mers that go into the next ambiguous segment, or past the end
+          Iterator(TaxonHit(empty, seq.length - (k - 1), Taxonomy.NONE, k - 1))
+
+      case (seq, AMBIGUOUS_FLAG, pos) =>
+        Iterator(
+          TaxonHit(empty, pos, Taxonomy.NONE, seq.length)
+        )
     }
   }
 
