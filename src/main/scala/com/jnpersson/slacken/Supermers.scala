@@ -74,7 +74,7 @@ final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializab
    */
   def splitFragment(sequence: NTSeq): Iterator[(Supermer, SegmentFlag)] =
     for {
-      (ntseq, flag) <- splitByAmbiguity(sequence)
+      (ntseq, flag, _) <- splitByAmbiguity(sequence)
       if ntseq.length >= k
       sm <- flag match {
         case AMBIGUOUS_FLAG =>
@@ -92,11 +92,11 @@ final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializab
    * Split a sequence into maximally long segments that are either unambiguous or ambiguous.
    *
    * @param sequence the sequence to split.
-   * @return Tuples of fragments and the sequence flag
+   * @return Tuples of fragments, their sequence flag, and their position
    *         ([[AMBIGUOUS_FLAG]] if the fragment contains ambiguous nucleotides or is shorter than k,
    *         otherwise [[SEQUENCE_FLAG]]). The fragments will be returned in order.
    */
-  def splitByAmbiguity(sequence: NTSeq): Iterator[(NTSeq, SegmentFlag)] =
+  def splitByAmbiguity(sequence: NTSeq): Iterator[(NTSeq, SegmentFlag, Int)] =
     Supermers.splitByAmbiguity(sequence, nonAmbiguousRegex)
 
 }
@@ -104,26 +104,26 @@ final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializab
 object Supermers {
   def nonAmbiguousRegex(k: Int) = s"[actguACTGU]{$k,}".r
 
-  def splitByAmbiguity(sequence: NTSeq, regex: Regex): Iterator[(NTSeq, SegmentFlag)] = {
+  def splitByAmbiguity(sequence: NTSeq, regex: Regex): Iterator[(NTSeq, SegmentFlag, Int)] = {
 
-    new Iterator[(NTSeq, SegmentFlag)]  {
+    new Iterator[(NTSeq, SegmentFlag, Int)]  {
       private val matches = regex.findAllMatchIn(sequence).buffered
       private var at = 0
       def hasNext: Boolean =
         at < sequence.length
 
-      def next: (NTSeq, SegmentFlag) = {
+      def next: (NTSeq, SegmentFlag, Int) = {
         if (matches.hasNext && matches.head.start == at) {
           val m = matches.next()
           at = m.end
-          (m.toString(), SEQUENCE_FLAG)
+          (m.toString(), SEQUENCE_FLAG, m.start)
         } else if (matches.hasNext) {
           val m = matches.head
-          val r = (sequence.substring(at, m.start), AMBIGUOUS_FLAG)
+          val r = (sequence.substring(at, m.start), AMBIGUOUS_FLAG, at)
           at = m.start
           r
         } else {
-          val r = (sequence.substring(at, sequence.length), AMBIGUOUS_FLAG)
+          val r = (sequence.substring(at, sequence.length), AMBIGUOUS_FLAG, at)
           at = sequence.length
           r
         }
