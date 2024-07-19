@@ -228,26 +228,15 @@ final case class NTBitArray(data: Array[Long], size: Int) extends Ordered[NTBitA
     val r = new Array[Long](l)
     val shiftAmt = (size % 32) * 2
 
-    var i = 0
+    r(0) = BitRepresentation.reverseComplementLeftAligned(data(l - 1), -1L)
+    var i = 1
     while (i < l) {
-      r(l - i - 1) = BitRepresentation.reverseComplementLeftAligned(data(i), -1L)
-      if (i == l - 1) {
-        //zero out bits that aren't part of the data
-        r(0) = r(0) & (-1L >>> (64 - shiftAmt))
-      }
+      r(i) = BitRepresentation.reverseComplementLeftAligned(data(l - 1 - i), -1L)
+      r(i - 1) = r(i - 1) << (64 - shiftAmt) | (r(i) >>> shiftAmt)
       i += 1
     }
+    r(l - 1) = r(l - 1) << (64 - shiftAmt)
 
-    //The longs are now in the right order, but must be shifted around to ensure the result is
-    //continuous and left-aligned
-    i = 0
-    if (shiftAmt != 0) { //if shiftAmt == 0, this algorithm isn't needed (and would zero out the data)
-      while (i < l - 1) {
-        r(i) = r(i) << (64 - shiftAmt) | (r(i + 1) >>> shiftAmt)
-        i += 1
-      }
-      r(i) = r(i) << (64 - shiftAmt)
-    }
     NTBitArray(r, size)
   }
 
