@@ -18,7 +18,7 @@ class TaxonFragmentProps extends AnyFunSuite with ScalaCheckPropertyChecks with 
   test("splits preserve all reads") {
     forAll(ks, fragments, splitSize) { (k, f, ss) =>
       whenever(f.length >= k && k >= 2 && k <= ss) {
-        val tf = TaxonFragment(0, f, "")
+        val tf = TaxonFragment(0, f, "", 0)
         val split = tf.splitToMaxLength(ss, k)
         val sfs = split.map(_.nucleotides).toArray
         for { pair <- sfs.sliding(2)

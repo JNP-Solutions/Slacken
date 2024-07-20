@@ -16,9 +16,10 @@ import scala.collection.{BitSet, mutable}
  * A fragment of a genome.
  * @param taxon The taxon that this fragment came from
  * @param nucleotides The nucleotide sequence
- * @param id Unique ID of this fragment (for grouping)
+ * @param header ID of the sequence this fragment came from
+ * @param location Position in the sequence this fragment came from
  */
-final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
+final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String, location: SeqLocation) {
 
   /** Split this fragment into multiple subfragments of a bounded maximum length.
    * The value of k will be respected, so that no k-mers will be lost. Consecutive
@@ -34,7 +35,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, id: String) {
       //Each subfragment will contain (max - k) k-mers and (k-1) bps overlapping with the following subfragment
       for {
         start <- Iterator.range(0, nucleotides.length - k + 1, max - (k - 1)) //starting positions of k-mers
-        f = TaxonFragment(taxon, nucleotides.substring(start, safeEnd(start + max)), s"$id|$start")
+        f = TaxonFragment(taxon, nucleotides.substring(start, safeEnd(start + max)), header, location + start)
       } yield f
     }
   }
@@ -313,19 +314,16 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
     val idSeqDF = library.inputs.getInputFragments(withRC = false, withAmbiguous = true)
     val presentTaxon = udf((x: Taxon) => taxa.contains(x))
 
-    /** Generate a unique fragment ID. Each seqId is unique by construction. */
-    val fragmentId = udf((id: SeqTitle, loc: SeqLocation) => id + "|" + loc)
-
     //Prepare the sequence for super-mer splitting and encoding
     val noWhitespace = udf((x: NTSeq) => x.replaceAll("\\s+", ""))
     val readLen = this.readLen
 
     //Find all fragments of genomes
     val fragments = idSeqDF.join(titlesTaxa, List("header")).
-      select($"taxon", noWhitespace($"nucleotides").as("nucleotides"), fragmentId($"header", $"location").as("id")).
+      select($"taxon", noWhitespace($"nucleotides").as("nucleotides"), $"header", $"location").
       where(presentTaxon($"taxon")).
-      as[(Taxon, NTSeq, String)].
-      flatMap(x => TaxonFragment(x._1, x._2, x._3).splitToMaxLength(FRAGMENT_MAX, readLen))
+      as[(Taxon, NTSeq, String, SeqLocation)].
+      flatMap(x => TaxonFragment(x._1, x._2, x._3, x._4).splitToMaxLength(FRAGMENT_MAX, readLen))
 
     val bcSplit = keyValueIndex.bcSplit
     val bcTaxonomy = keyValueIndex.bcTaxonomy
@@ -333,23 +331,23 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
 
     //Join fragment IDs with LCA taxa based on minimizers
     val idMins = fragments.flatMap { x =>
-        x.distinctMinimizers(bcSplit.value, emptyMinimizer).map(m => (x.id, m))
-      }.toDF("id", "minimizer").
-      select(keyValueIndex.idColumnsFromMinimizer :+ $"id" :_*).
+        x.distinctMinimizers(bcSplit.value, emptyMinimizer).map(m => (x.header, x.location, m))
+      }.toDF("header", "location", "minimizer").
+      select(keyValueIndex.idColumnsFromMinimizer ++ Seq($"header", $"location") :_*).
       join(buckets, keyValueIndex.idColumnNames, "left"). //left join to preserve fragments with the empty minimizer (all invalid reads)
-      groupBy("id").agg(
+      groupBy("header", "location").agg(
         collect_list(keyValueIndex.minimizerColumnFromIdColumns),
         collect_list("taxon")
       ).
-      toDF("id", "minimizers", "taxa")
+      toDF("header", "location", "minimizers", "taxa")
 
 
     //Re-join with fragments again and classify all possible reads
-    idMins.join(fragments, List("id")).
-      select("id", "taxon", "nucleotides", "minimizers", "taxa").
-      as[(String, Taxon, NTSeq, Array[Array[Long]], Array[Taxon])].
-      flatMap { case (id, taxon, nts, ms, ts) =>
-        val f = TaxonFragment(taxon, nts, id)
+    idMins.join(fragments, List("header", "location")).
+      select("header", "location", "taxon", "nucleotides", "minimizers", "taxa").
+      as[(String, SeqLocation, Taxon, NTSeq, Array[Array[Long]], Array[Taxon])].
+      flatMap { case (header, location, taxon, nts, ms, ts) =>
+        val f = TaxonFragment(taxon, nts, header, location)
         f.readClassifications(bcTaxonomy.value, ms, ts, bcSplit.value, readLen)
       }.toDF("source","dest","count").groupBy("dest","source").agg(sum("count").as("count"))
   }
