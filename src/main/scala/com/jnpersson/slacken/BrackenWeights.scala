@@ -362,7 +362,7 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
   def buildWeightsGradually(library: GenomeLibrary, taxa: BitSet, tempLocation: String): DataFrame = {
     //Break the genomes up into chunks and gradually append to the table,
     //in order to reduce the impact of interrupted spark nodes
-    for {group <- taxa.grouped(taxa.size / 10)} {
+    for {group <- taxa.grouped(taxa.size / 5)} {
       val weights = buildWeights(library, group)
       weights.
         write.mode(SaveMode.Append).
