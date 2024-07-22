@@ -104,6 +104,15 @@ object TestData {
     (9606, 799821)
   )
 
+  //Reference bracken weights
+  val brackenWeightsLength100 = List[(Int, Int, Long)](
+    (526997, 526997, 3040666),
+    (1, 455631, 23),
+    (0, 455631, 201425), (0, 526997, 29747), (0, 9606, 159860),
+    (455631, 455631, 3924817),
+    (9606, 9606, 639961)
+  )
+
   // The total k-mer counts hardcoded below were independently computed using both KMC3 and Discount
   val numberOf31Mers = Map(526997 -> 2914769, 455631 -> 3594763, 9606 -> 639800)
 
