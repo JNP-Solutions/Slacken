@@ -4,7 +4,8 @@ import com.jnpersson.kmers._
 import com.jnpersson.kmers.util.{KmerTable, NTBitArray}
 import com.jnpersson.slacken.TaxonomicIndex.getTaxonLabels
 import it.unimi.dsi.fastutil.ints.Int2IntMap
-import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap
+import it.unimi.dsi.fastutil.objects.{Object2IntOpenCustomHashMap, Object2IntOpenHashMap}
+import it.unimi.dsi.fastutil.longs.LongArrays.HASH_STRATEGY
 import org.apache.spark.sql.functions.{collect_list, sum, udf}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 
@@ -156,12 +157,11 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
                 splitter: AnyMinSplitter) = {
 
     // this map will contain a subset of the lca to taxon index
-    val lcaLookup = new Object2IntOpenHashMap[NTBitArray](minimizers.size)
+    val lcaLookup = new Object2IntOpenCustomHashMap[Array[Long]](minimizers.length, HASH_STRATEGY)
     var i = 0
     while (i < minimizers.length) {
-      val enc = NTBitArray(minimizers(i), splitter.priorities.width)
       if (lcas.length > 0)
-        lcaLookup.put(enc, lcas(i)) //lcas can be empty for the default (empty) minimizer
+        lcaLookup.put(minimizers(i), lcas(i)) //lcas can be empty for the default (empty) minimizer
       i += 1
     }
 
@@ -176,7 +176,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
           //Construct each minimizer hit.
           //Overloading the second argument (ordinal) to mean the absolute position in the fragment in this case
 
-          TaxonHit(x._2.data, x._1 + pos, lcaLookup.applyAsInt(x._2), x._3 - (k - 1))
+          TaxonHit(x._2.data, x._1 + pos, lcaLookup.applyAsInt(x._2.data), x._3 - (k - 1))
         }) ++
           //additional invalid k-mers that go into the next ambiguous segment, or past the end
           Iterator(TaxonHit(empty, seq.length - (k - 1), Taxonomy.NONE, k - 1))
