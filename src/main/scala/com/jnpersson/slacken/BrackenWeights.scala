@@ -11,7 +11,7 @@ import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.{BitSet, mutable}
-
+import scala.math
 
 /**
  * A fragment of a genome.
@@ -157,7 +157,14 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
                 splitter: AnyMinSplitter) = {
 
     // this map will contain a subset of the lca to taxon index
-    val lcaLookup = new Object2IntOpenCustomHashMap[Array[Long]](minimizers.length, HASH_STRATEGY)
+    val kmerHashStrategy = math.ceil(splitter.priorities.width/32.0).toInt match {
+      case 1 => new KmerStrategy1()
+      case 2 => new KmerStrategy2()
+      case 3 => new KmerStrategy3()
+      case 4 => new KmerStrategy4()
+      case 5 => HASH_STRATEGY
+    }
+    val lcaLookup = new Object2IntOpenCustomHashMap[Array[Long]](minimizers.length, kmerHashStrategy)
     var i = 0
     while (i < minimizers.length) {
       if (lcas.length > 0)
