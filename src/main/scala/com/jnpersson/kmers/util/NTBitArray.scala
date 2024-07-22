@@ -232,7 +232,8 @@ final case class NTBitArray(data: Array[Long], size: Int) extends Ordered[NTBitA
     var i = 1
     while (i < l) {
       r(i) = BitRepresentation.reverseComplementLeftAligned(data(l - 1 - i), -1L)
-      r(i - 1) = r(i - 1) << (64 - shiftAmt) | (r(i) >>> shiftAmt)
+      if (shiftAmt > 0)
+        r(i - 1) = r(i - 1) << (64 - shiftAmt) | (r(i) >>> shiftAmt)
       i += 1
     }
     r(l - 1) = r(l - 1) << (64 - shiftAmt)
@@ -240,7 +241,7 @@ final case class NTBitArray(data: Array[Long], size: Int) extends Ordered[NTBitA
     NTBitArray(r, size)
   }
 
-  /** Return a new object that is either this array or its reverse complement, and that has
+  /** Return a new object that is either equal to this array or to its reverse complement, and that has
    * forward orientation. */
   def canonical: NTBitArray = {
     if (sliceIsForwardOrientation(0, size)) this.clone() else reverseComplement
