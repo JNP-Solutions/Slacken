@@ -25,10 +25,7 @@ class BrackenWeightsTest extends AnyFunSuite with SparkSessionTestWrapper with M
     val bw = new BrackenWeights(buckets, idx, readLen)
     val sourceDestCounts = bw.buildWeights(TestData.library(readLen), mutable.BitSet.empty ++ TestData.taxonomy.taxa)
     try {
-      val bySource = sourceDestCounts.groupBy("source").
-        agg(sum("count").as("totalReads")).as[(Taxon, Long)].collect().toList
-
-      bySource should contain theSameElementsAs TestData.numberOfLength100Reads
+      sourceDestCounts.as[(Int, Int, Long)].collect() should contain theSameElementsAs(TestData.brackenWeightsLength100)
     } finally {
       sourceDestCounts.unpersist()
     }
