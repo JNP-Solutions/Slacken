@@ -165,8 +165,9 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   lazy val taxonSetInLibrary = genomes.taxonSet(taxonomy)
 
   def readGoldSet(path: String): mutable.BitSet = {
+    val bcTax = base.bcTaxonomy
     val goldSet = mutable.BitSet.empty ++
-      spark.read.csv(path).map(x => x.getString(0).toInt).collect()
+      spark.read.csv(path).map(x => bcTax.value.primary(x.getString(0).toInt)).collect()
 
     println(s"Gold set contained ${goldSet.size} taxa")
     val notFound = goldSet -- taxonSetInLibrary

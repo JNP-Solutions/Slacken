@@ -195,18 +195,20 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
   }
 
   def readKrakenFormat(location: String): Dataset[(SeqTitle, Taxon)] = {
+    val bcTax = this.tax
     spark.read.option("sep", "\t").csv(location).
       filter(x => x.getString(0) == "C"). //keep only classified reads
-      map(x => (x.getString(1), x.getString(2).toInt))
+      map(x => (x.getString(1), bcTax.value.primary(x.getString(2).toInt)))
   }
 
   def readCustomFormat(location: String, idCol: Int, taxonCol: Int):
     Dataset[(SeqTitle, Taxon)] = {
+    val bcTax = this.tax
     spark.read.option("sep", "\t").option("header", skipHeader.toString).csv(location).
       filter(x => !x.getString(idCol -1).contains("/2")). //paired end
       map(x => (
         x.getString(idCol - 1).replaceAll("/1", ""),  //remove /1 in paired end reads
-        x.getString(taxonCol - 1).toInt)
+        bcTax.value.primary(x.getString(taxonCol - 1).toInt))
       )
   }
 }

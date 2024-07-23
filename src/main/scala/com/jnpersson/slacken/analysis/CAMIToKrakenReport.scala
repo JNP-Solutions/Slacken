@@ -7,7 +7,7 @@ package com.jnpersson.slacken.analysis
 import com.jnpersson.slacken.{KrakenReport, Taxon, TaxonomicIndex, Taxonomy, TreeAggregator}
 import org.apache.spark.sql.SparkSession
 
-import java.io.PrintWriter
+import java.io.{FileWriter, PrintWriter}
 import scala.collection.mutable
 import scala.io.Source
 
@@ -40,7 +40,7 @@ object CAMIToKrakenReport {
     val counts = mutable.Map[Taxon, Long]().withDefaultValue(0)
     for { line <- input } {
       val spl = line.split("\t")
-      val taxon = spl(2).toInt
+      val taxon = tax.primary(spl(2).toInt)
       if (!tax.isDefined(taxon)) {
         Console.err.println(s"Warning: undefined taxon $taxon, omitting from output")
       } else if (minLevel.forall(tax.depth(taxon) >= _.depth)) {

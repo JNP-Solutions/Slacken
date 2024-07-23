@@ -21,7 +21,7 @@ class MappingComparisonTest extends AnyFunSuite with Matchers {
     )
     val names = nodes.map(x => (x._1, s"Node ${x._1}"))
 
-    Taxonomy.fromNodesAndNames(nodes, names.iterator)
+    Taxonomy.fromNodesAndNames(nodes, names.iterator, Seq.empty)
   }
 
   test("hit categories for mapping comparison") {
