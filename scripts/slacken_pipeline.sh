@@ -34,18 +34,43 @@ DISCOUNT_HOME=/home/johan/ws/jnps/Hypercut-git
 
 aws s3 cp $DISCOUNT_HOME/target/scala-2.12/Slacken-assembly-0.1.0.jar $BUCKET/
 
+#Regular 1-step classify
 function classify {
+  LIB=$1
+  LNAME=$2
+  CLASS_OUT=$ROOT/scratch/classified/$FAMILY/$LNAME
+  ./slacken2-aws.sh taxonIndex $DATA/$LIB classify \
+    --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" -o $CLASS_OUT \
+  "${SAMPLES[@]}"
+}
+
+#Classify with "gold set" dynamic library.
+#Enabled by -d
+function classifyGS {
+  LIB=$1
+  LNAME=$2
+  #--report-dynamic-index
+  #-p 3000
+  CLASS_OUT=$ROOT/scratch/classified/$FAMILY/$LNAME
+  ./slacken2-aws.sh -p 3000 taxonIndex $DATA/$LIB classify --classify-with-gold-standard -g $SPATH/${LABEL}_gold.txt \
+     -d $K2 --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" -o $CLASS_OUT \
+  "${SAMPLES[@]}"
+}
+
+#2-step classify with dynamic library.
+#Enabled by -d
+function classifyDynamic {
   LIB=$1
   LNAME=$2
   #--classify-with-gold-standard
   #--report-dynamic-index
-  #-d $K2
-  #-p 3000
+
   CLASS_OUT=$ROOT/scratch/classified/$FAMILY/$LNAME
-  ./slacken2-aws.sh -p 3000 taxonIndex $DATA/$LIB classify --classify-with-gold-standard -g $SPATH/${LABEL}_gold.txt \
+  ./slacken2-aws.sh -p 3000 taxonIndex $DATA/$LIB classify -g $SPATH/${LABEL}_gold.txt \
     --dynamic-min-fraction 1e-5 -d $K2 --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" -o $CLASS_OUT \
   "${SAMPLES[@]}"
 }
+
 
 function build {
   PREFIX=$1
@@ -104,7 +129,6 @@ function compare {
 
 #build s2_2023 35 31 7 2000
 #build nt 35 31 7 20000
-#build s2-nt 35 31 7 2000 "--negative $ROOT/k2-nt"
 
 #build rs 35 31 7 30000
 #build rs 45 41 7 30000
@@ -134,9 +158,9 @@ done
 #report rsc_35_31_s7 35
 #report std_35_31_s7
 
-#classify s2_2023_i_35_31_s7 s2_2023_gold_35_31_s7
+#classifyGS s2_2023_i_35_31_s7 s2_2023_gold_35_31_s7
 #classify rsc_35_31_s7 rsc_35_31_s7
-#classify rsc_35_31_s7 rsc_gold_35_31_s7
+#classifyGS rsc_35_31_s7 rsc_gold_35_31_s7
 #classify std_35_31_s7 std_35_31_s7
 #classify rs_45_41_s7
 #classify rs_45_41_s12
