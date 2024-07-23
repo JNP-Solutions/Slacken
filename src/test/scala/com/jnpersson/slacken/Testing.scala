@@ -23,7 +23,7 @@ object Testing {
     for { c <- tax.children(n) } {
       parents(c) = ROOT
     }
-    Taxonomy(parents, tax.ranks, tax.scientificNames)
+    Taxonomy(parents, tax.ranks, tax.scientificNames, tax.primary)
   }
 
   implicit def shrinkTaxonomy: Shrink[Taxonomy] = Shrink {
@@ -59,7 +59,7 @@ object Testing {
     levelGenerators.map(nodes => {
 //      println(nodes)
       val all = (rootNode +: nodes).toArray
-      Taxonomy.fromNodesAndNames(all, all.iterator.map(n => (n._1, s"Taxon ${n._1}")))
+      Taxonomy.fromNodesAndNames(all, all.iterator.map(n => (n._1, s"Taxon ${n._1}")), Seq.empty)
     })
   }
 
@@ -93,7 +93,8 @@ object TestData {
         (9606, ROOT, "species")),
       Iterator((455631, "Clostridioides difficile QCD-66c26"),
         (526997, "Bacillus mycoides DSM 2048"),
-        (9606, "Homo sapiens"))
+        (9606, "Homo sapiens")),
+      Seq.empty
     )
 
   //Number of length 100 reads for each taxon (including masked or invalid regions).

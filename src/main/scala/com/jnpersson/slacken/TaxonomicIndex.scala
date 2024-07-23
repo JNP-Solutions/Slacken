@@ -379,7 +379,13 @@ object TaxonomicIndex {
         } else None
       })
 
-    Taxonomy.fromNodesAndNames(nodes.toArray[(Taxon, Taxon, String)], names)
+    val merged = if (HDFSUtil.fileExists(s"$dir/merged.dmp")) {
+      HDFSUtil.getSource(s"$dir/merged.dmp").
+        getLines().map(_.split("\\|")).
+        map(x => (x(0).trim.toInt, x(1).trim.toInt))
+    } else Iterator.empty
+
+    Taxonomy.fromNodesAndNames(nodes.toArray[(Taxon, Taxon, String)], names, merged.toArray[(Taxon, Taxon)])
   }
 
   //Copy a taxonomy to a new location (the files needed for classification and index access only.)
@@ -387,6 +393,7 @@ object TaxonomicIndex {
   def copyTaxonomy(fromDir: String, toDir: String)(implicit spark: SparkSession): Unit = {
     HDFSUtil.copyFile(s"$fromDir/nodes.dmp", s"$toDir/nodes.dmp")
     HDFSUtil.copyFile(s"$fromDir/names.dmp", s"$toDir/names.dmp")
+    HDFSUtil.copyFile(s"$fromDir/merged.dmp", s"$toDir/merged.dmp")
   }
 
   /** A classified read.

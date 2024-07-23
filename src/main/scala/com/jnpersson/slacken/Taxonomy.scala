@@ -55,9 +55,14 @@ object Taxonomy {
    * Construct a Taxonomy from parsed NCBI style input data.
    * @param nodes triples of (taxid, parent taxid, rank (long name))
    * @param names tuples of (taxid, scientific name)
+   * @parma merged tuples of (secondary ID, primary ID)
    */
-  def fromNodesAndNames(nodes: Iterable[(Taxon, Taxon, String)], names: Iterator[(Taxon, String)]): Taxonomy = {
-    val numEntries = nodes.iterator.map(_._1).max + 1
+  def fromNodesAndNames(nodes: Iterable[(Taxon, Taxon, String)], names: Iterator[(Taxon, String)],
+                        merged: Iterable[(Taxon, Taxon)]): Taxonomy = {
+    val max1 = if (nodes.isEmpty) 0 else nodes.iterator.map(_._1).max + 1
+    val max2 = if (merged.isEmpty) 0 else merged.iterator.map(_._1).max + 1
+    val numEntries = if (max1 > max2) max1 else max2
+
     val scientificNames = new Array[String](numEntries)
     for { (taxon, name) <- names } {
       scientificNames(taxon) = name
@@ -71,10 +76,15 @@ object Taxonomy {
       ranks(taxon) = rank(rankTitle).orNull
     }
 
+    val primary = Array.tabulate[Taxon](numEntries)(i => i)
+    for { (secId, primId) <- merged} {
+      primary(secId) = primId
+    }
+
     parents(ROOT) = Taxonomy.NONE
     ranks(NONE) = Unclassified
     ranks(ROOT) = Root
-    new Taxonomy(parents, ranks, scientificNames)
+    new Taxonomy(parents, ranks, scientificNames, primary)
   }
 }
 
@@ -86,8 +96,9 @@ object Taxonomy {
  * @param parents Lookup array mapping taxon ID (offset) to parent taxon ID
  * @param ranks Lookup array mapping taxon ID to rank. May be null.
  * @param scientificNames Lookup array mapping taxon ID to scientific names. May be null.
+ * @param primary Lookup array mapping taxon ID (offset) to standard taxon ID. Reflects NCBI merged.dmp .
  */
-final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificNames: Array[String]) {
+final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificNames: Array[String], primary: Array[Taxon]) {
   import Taxonomy._
 
   //Size of the range of this taxonomy, including unused taxa.
