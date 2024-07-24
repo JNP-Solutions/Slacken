@@ -152,7 +152,9 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
   }
 
   def perReadComparison(cmpData: DataFrame, rank: Option[Rank]): PerReadMetrics = {
-    val joint = referenceData.join(cmpData, referenceData("id") === cmpData("id"), "outer").
+    //Right join, because we disregard reads that were present in the reference but not in the sample classified.
+    //The reference is treated as a potential superset.
+    val joint = referenceData.join(cmpData, referenceData("id") === cmpData("id"), "right").
       select("refTaxon", "testTaxon").as[(Option[Taxon], Option[Taxon])]
 
     val totalReads = referenceData.count()
