@@ -71,7 +71,6 @@ function classifyDynamic {
   "${SAMPLES[@]}"
 }
 
-
 function build {
   PREFIX=$1
   K=$2
@@ -147,7 +146,7 @@ SAMPLES=()
 
 for ((i = 0; i <= 9; i++))
 do
-  SAMPLES+=($SPATH/sample$i/anonymous_reads.part_001.fq $SPATH/sample$i/anonymous_reads.part_002.fq)
+  SAMPLES+=($SPATH/sample$i/anonymous_reads.part_001.f.fq $SPATH/sample$i/anonymous_reads.part_002.f.fq)
 done
 
 #build s2_2023 45 41 7 2000
