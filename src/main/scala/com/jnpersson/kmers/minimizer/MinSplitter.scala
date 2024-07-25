@@ -105,7 +105,7 @@ final case class MinSplitter[+P <: MinimizerPriorities](priorities: P, k: Int) {
 
   /** Split a read into super-mers, returning only the position and length of each.
    * @return an iterator of (position in sequence, minimizer rank, length of superkmer) */
-  def superkmerPositions(read: NTSeq, addRC: Boolean): Iterator[(Int, NTBitArray, Int)] = {
+  def superkmerPositions(read: NTSeq, addRC: Boolean): Iterator[(Int, Array[Long], Int)] = {
     val enc = scanner.allMatches(read)
     val part1 = superkmerPositions(enc._1, enc._2)
     if (addRC) {
@@ -117,7 +117,7 @@ final case class MinSplitter[+P <: MinimizerPriorities](priorities: P, k: Int) {
 
   /** Split an encoded read into super-mers, returning only the position and length of each.
    * @return an iterator of (position in sequence, minimizer rank, length of superkmer) */
-  def superkmerPositions(encoded: NTBitArray, reverseComplement: Boolean): Iterator[(Int, NTBitArray, Int)] = {
+  def superkmerPositions(encoded: NTBitArray, reverseComplement: Boolean): Iterator[(Int, Array[Long], Int)] = {
     val enc = scanner.allMatches(encoded, reverseComplement)
     superkmerPositions(enc._1, enc._2)
   }
@@ -175,14 +175,14 @@ final case class MinSplitter[+P <: MinimizerPriorities](priorities: P, k: Int) {
    * @param matches discovered motif ranks in the superkmer
    * @return an iterator of (location in sequence, rank (hash/minimizer ID), length of supermer)
    */
-  def superkmerPositions(encoded: NTBitArray, matches: MinimizerPositions): Iterator[(Int, NTBitArray, Int)] = {
+  def superkmerPositions(encoded: NTBitArray, matches: MinimizerPositions): Iterator[(Int, Array[Long], Int)] = {
     val window = new PosRankWindow(priorities.width, k, matches)
 
     var regionStart = 0
-    new Iterator[(Int, NTBitArray, Int)] {
+    new Iterator[(Int, Array[Long], Int)] {
       def hasNext: Boolean = window.hasNext
 
-      def next: (Int, NTBitArray, Int) = {
+      def next: (Int, Array[Long], Int) = {
         val p = window.next
 
         if (!matches.isValid(p)) {
@@ -192,7 +192,7 @@ final case class MinSplitter[+P <: MinimizerPriorities](priorities: P, k: Int) {
                 |Matches found: (TODO fill in this message)
                 |""".stripMargin)
         }
-        val rank = matches(p)
+        val rank = matches.data(p)
 
         var consumed = 1
         while (window.hasNext && window.head == p) {

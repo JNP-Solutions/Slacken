@@ -62,25 +62,25 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       case 1 =>
         seqTaxa.flatMap(r => {
           bcSplit.value.superkmerPositions(r._2, addRC = false).map { case (_, rank, _) =>
-            (rank.data(0), r._1)
+            (rank(0), r._1)
           }
         }).toDF(recordColumnNames: _*)
       case 2 =>
         seqTaxa.flatMap(r => {
           bcSplit.value.superkmerPositions(r._2, addRC = false).map { case (_, rank, _) =>
-            (rank.data(0), rank.data(1), r._1)
+            (rank(0), rank(1), r._1)
           }
         }).toDF(recordColumnNames: _*)
       case 3 =>
         seqTaxa.flatMap(r => {
           bcSplit.value.superkmerPositions(r._2, addRC = false).map { case (_, rank, _) =>
-            (rank.data(0), rank.data(1), rank.data(2), r._1)
+            (rank(0), rank(1), rank(2), r._1)
           }
         }).toDF(recordColumnNames: _*)
       case 4 =>
         seqTaxa.flatMap(r => {
           bcSplit.value.superkmerPositions(r._2, addRC = false).map { case (_, rank, _) =>
-            (rank.data(0), rank.data(1), rank.data(2), rank.data(3), r._1)
+            (rank(0), rank(1), rank(2), rank(3), r._1)
           }
         }).toDF(recordColumnNames: _*)
       case _ =>

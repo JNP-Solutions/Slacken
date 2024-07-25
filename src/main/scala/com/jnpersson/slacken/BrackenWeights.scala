@@ -56,7 +56,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
       if (flag == SEQUENCE_FLAG) {
         val it = splitter.superkmerPositions(seq, addRC = false)
         while (it.hasNext) {
-          builder.addLongs(it.next._2.data)
+          builder.addLongs(it.next._2)
         }
       }
     }
@@ -176,7 +176,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
           //Construct each minimizer hit.
           //Overloading the second argument (ordinal) to mean the absolute position in the fragment in this case
 
-          TaxonHit(x._2.data, x._1 + pos, lcaLookup.applyAsInt(x._2.data), x._3 - (k - 1))
+          TaxonHit(x._2, x._1 + pos, lcaLookup.applyAsInt(x._2), x._3 - (k - 1))
         }) ++
           //additional invalid k-mers that go into the next ambiguous segment, or past the end
           Iterator(TaxonHit(empty, seq.length - (k - 1), Taxonomy.NONE, k - 1))

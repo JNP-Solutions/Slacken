@@ -27,7 +27,7 @@ import com.jnpersson.kmers.util.{KmerTable, NTBitArray}
  * @param data The minimizer data
  * @param width the length of each minimizer
  */
-final class MinimizerPositions(data: KmerTable, width: Int) extends IndexedSeq[NTBitArray] {
+final class MinimizerPositions(val data: KmerTable, width: Int) extends IndexedSeq[NTBitArray] {
   private val longsPerRecord = data.kmerWidth
   private val validTag = data.kmerWidth
 
