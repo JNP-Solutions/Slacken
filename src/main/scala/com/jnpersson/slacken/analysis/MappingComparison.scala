@@ -6,7 +6,6 @@
 package com.jnpersson.slacken.analysis
 
 import com.jnpersson.kmers._
-import com.jnpersson.kmers.minimizer._
 import com.jnpersson.kmers.Output.formatPerc
 import com.jnpersson.slacken.Taxonomy.{Genus, Rank, Species}
 import com.jnpersson.slacken.{Taxon, Taxonomy}
@@ -116,7 +115,8 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     val tax = this.tax
     val ancestorAtLevel = udf((x: Taxon) =>
       rank.flatMap(r => tax.value.standardAncestorAtLevel(x, r)).getOrElse(x))
-    val cmpData = cmpDataRaw.withColumn("taxon", ancestorAtLevel($"testTaxon"))
+    val cmpData = cmpDataRaw.withColumn("taxon", ancestorAtLevel($"testTaxon")).
+      where($"taxon" =!= Taxonomy.NONE)
 
     val refClass = referenceData.
       withColumn("taxon", ancestorAtLevel($"refTaxon"))
@@ -152,13 +152,15 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
   }
 
   def perReadComparison(cmpData: DataFrame, rank: Option[Rank]): PerReadMetrics = {
-    //Right join, because we disregard reads that were present in the reference but not in the sample classified.
+    //Inner join (effectively an intersection here), reasoning:
+    //1) disregard reads that were present in the reference but not in the sample classified.
     //The reference is treated as a potential superset.
-    val joint = referenceData.join(cmpData, referenceData("id") === cmpData("id"), "right").
-      select("refTaxon", "testTaxon").as[(Option[Taxon], Option[Taxon])]
+    //2) disregard reads that have no mapping in the reference, as they can't be meaningfully checked.
+    val joint = referenceData.join(cmpData, referenceData("id") === cmpData("id")).
+      select("refTaxon", "testTaxon").as[(Taxon, Taxon)]
 
-    val totalReads = referenceData.count()
-    val classified = joint.filter("testTaxon is not null").count()
+    val totalReads = joint.count()
+    val classified = joint.filter($"testTaxon" =!= Taxonomy.NONE).count()
 
     println(s"Total reads $totalReads")
     println(s"Classified $classified ${formatPerc(classified.toDouble/totalReads)}")
@@ -167,7 +169,7 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
   }
 
   /** Per read comparison at a specific taxonomic level */
-  def perReadComparison(refCmp: Dataset[(Option[Taxon], Option[Taxon])], rank: Option[Rank], classified: Long,
+  def perReadComparison(refCmp: Dataset[(Taxon, Taxon)], rank: Option[Rank], classified: Long,
                         totalReads: Long): PerReadMetrics = {
     println(s"*** Per-read comparison at level $rank")
     val bctax = this.tax
@@ -199,7 +201,6 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
   def readKrakenFormat(location: String): Dataset[(SeqTitle, Taxon)] = {
     val bcTax = this.tax
     spark.read.option("sep", "\t").csv(location).
-      filter(x => x.getString(0) == "C"). //keep only classified reads
       map(x => (x.getString(1), bcTax.value.primary(x.getString(2).toInt)))
   }
 
@@ -251,9 +252,10 @@ object MappingComparison {
     def hitIndex: Option[Int] = Some(9)
   }
 
-  def hitCategory(tax: Taxonomy, refTaxon: Option[Taxon], testTaxon: Option[Taxon], level: Option[Rank]): HitCategory = {
+  def hitCategory(tax: Taxonomy, refTaxon: Taxon, testTaxon: Taxon, level: Option[Rank]): HitCategory = {
     (refTaxon, testTaxon) match {
-      case (Some(ref), Some(test)) =>
+      case (rt, Taxonomy.NONE) => FalseNeg
+      case (ref, test) =>
         val refAncestor =
           level.flatMap(l => tax.standardAncestorAtLevel(ref, l)).getOrElse(ref)
         if (ref == test) TruePos
@@ -267,10 +269,6 @@ object MappingComparison {
           VaguePos(tax.standardStepsToAncestor(ref, test))
         }
         else FalsePos
-      case (Some(_), None) => FalseNeg
-      case (None, Some(_)) =>
-        throw new Exception("Found a read that has no corresponding taxon in the reference. Is the reference complete?")
-      case (None, None) => ???
     }
   }
 }

@@ -25,21 +25,21 @@ class MappingComparisonTest extends AnyFunSuite with Matchers {
   }
 
   test("hit categories for mapping comparison") {
-    hitCategory(tax, Some(2), Some(2), Some(Species)) should equal(TruePos)
+    hitCategory(tax, 2, 2, Some(Species)) should equal(TruePos)
 
-    hitCategory(tax, Some(3), Some(2), Some(Species)) should equal(VaguePos(1))
-    hitCategory(tax, Some(4), Some(2), Some(Species)) should equal(VaguePos(1))
-    hitCategory(tax, Some(3), Some(1), Some(Species)) should equal(VaguePos(8)) //Root level - species level
+    hitCategory(tax, 3, 2, Some(Species)) should equal(VaguePos(1))
+    hitCategory(tax, 4, 2, Some(Species)) should equal(VaguePos(1))
+    hitCategory(tax, 3, 1, Some(Species)) should equal(VaguePos(8)) //Root level - species level
 
-    hitCategory(tax, Some(3), Some(6), Some(Species)) should equal(FalsePos)
+    hitCategory(tax, 3, 6, Some(Species)) should equal(FalsePos)
 
     //Reference is more specific than test but both are on the same standardised species level,
     //so this should not be a vague pos
-    hitCategory(tax, Some(4), Some(3), Some(Species)) should equal(TruePos)
+    hitCategory(tax, 4, 3, Some(Species)) should equal(TruePos)
 
-    hitCategory(tax, Some(3), None, Some(Species)) should equal(FalseNeg)
+    hitCategory(tax, 3, Taxonomy.NONE, Some(Species)) should equal(FalseNeg)
 
     //Test is more specific than reference. Considered to be a special case of true positive.
-    hitCategory(tax, Some(3), Some(5), Some(Species)) should equal(TruePos)
+    hitCategory(tax, 3, 5, Some(Species)) should equal(TruePos)
   }
 }
