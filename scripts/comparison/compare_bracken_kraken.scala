@@ -58,11 +58,20 @@ for { k <- allKeys } {
   val recall = tp.toDouble / ref.size
   val precision = tp.toDouble / test.size
 
-  println("%s\t%.3g\t%.3g\t%.3g\t%.3g\t%d\t%d\t%d\t%.2f\t%.2f".format(file, lse, lseLog, l1, l1Log, tp, fp, fn, precision, recall))
+  //Extract some variables from expected filename patterns
+  val pattern = """(.*)/(.+)_(\d+)_(\d+)_s(\d+)_c([\d.]+)_classified/S(\d+)_bracken""".r
+  file match {
+    case pattern(group, library, k, m, s, c, sample) =>
+      println("%s\t%s\t%s\t%s\t%.3g\t%.3g\t%.3g\t%.3g\t%d\t%d\t%d\t%.2f\t%.2f".
+        format(group, library, c, sample, lse, lseLog, l1, l1Log, tp, fp, fn, precision, recall))
+    case _ =>
+      throw new Exception(s"Unexpected file name: $file")
+  }
+
 }
 
 //headers
-println(s"File\tLSE\tLSE(log10)\tL1\tL1(log10)\tTP\tFP\tFN\tPrecision\tRecall")
+println(s"Group\tLibrary\tc\tSample\tLSE\tLSE(log10)\tL1\tL1(log10)\tTP\tFP\tFN\tPrecision\tRecall")
 for { file <- sampleFiles }
   compareBrackenSample(file)
 
