@@ -58,6 +58,17 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
       as[(Taxon, Long)].collect()
   }
 
+  /** Counting method that counts the fraction of distinct minimizers per taxon seen in the sample,
+   * to aid taxon set filtering. */
+  def minimizerFractionPerTaxon(subjects: Dataset[InputFragment]): Array[(Taxon, Double)] = {
+    val inSample = distinctMinimizersPerTaxon(subjects).
+      toMap
+    val inBuckets = base.distinctMinimizersPerTaxon(base.loadBuckets(), inSample.map(_._1).toSeq).
+      toMap
+
+    inSample.keys.toArray.map(t => (t, inSample(t).toDouble / inBuckets(t).toDouble))
+  }
+
   /** Counting method that counts the number of k-mers per taxon in the sample, to aid taxon set filtering */
   def kmersPerTaxon(subjects: Dataset[InputFragment]): Array[(Taxon, Long)] = {
     val hits = base.findHits(base.loadBuckets(), subjects)
