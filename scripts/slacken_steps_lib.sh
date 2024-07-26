@@ -53,6 +53,9 @@ function classifyDynamic {
   LNAME=$2
   #--classify-with-gold-standard
   #--report-dynamic-index
+  #--dynamic-min-count
+  #--dynamic-min-fraction
+  #--report-dynamic-index
 
   CLASS_OUT=$ROOT/scratch/classified/$FAMILY/$LNAME
   ./slacken2-aws.sh -p 3000 taxonIndex $DATA/$LIB classify -g $SPATH/${LABEL}_gold.txt \
