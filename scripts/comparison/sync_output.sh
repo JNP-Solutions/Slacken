@@ -8,7 +8,8 @@ shift
 CS="0.00 0.05 0.10 0.15"
 DEST=${FAMILY}_v2
 
-ROOT=s3://onr-emr/scratch/classified/cami2
+BUCKET=s3://onr-emr
+ROOT=$BUCKET/scratch/classified/cami2
 SAMPLES=10
 
 aws --profile sbi s3 sync --exclude "*" --include "*kreport.txt" --include "*metrics.tsv" $ROOT/$FAMILY/$LNAME $DEST/$LNAME
@@ -24,6 +25,9 @@ do
     bracken -d $LNAME -i $DEST/$DIR/S${i}_kreport.txt -r 150 -o $DEST/$DIR/S${i}_bracken > /dev/null
   done
 done
+
+#Sync reference kreport
+aws --profile sbi s3 sync $BUCKET/cami2/$FAMILY/mapping $FAMILY/mapping
 
 #Compare bracken against reference for each sample
 for ((i = 0; i < $SAMPLES; i++))
