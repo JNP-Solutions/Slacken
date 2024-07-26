@@ -15,7 +15,7 @@ import scala.io.Source
  * for easy comparison.
  * Needs to be run inside Spark for now (in order to read the Taxonomy)
  *
- * Example report lines:
+ * Example input mapping lines:
  *
  * #anonymous_read_id      genome_id       tax_id  read_id
  * S0R0/1  SP160_S41       1313    NODE_16_length_48984_cov_20.837321-595/1
@@ -30,7 +30,7 @@ object CAMIToKrakenReport {
   /** Reads stdin. Writes the Kraken report to stdout.
    * Argument 0: taxonomy location (directory)
    * Argument 1: highest taxonomic level to keep (e.g. species) (if any). Higher levels will be discarded and
-   *   the total rescaled accordingly.
+   *   the total (as fractions) rescaled accordingly. Read counts will not be rescaled.
    */
   def main(args: Array[String]): Unit = {
     val input = Source.stdin.getLines.drop(1)
