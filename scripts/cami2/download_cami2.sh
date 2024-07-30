@@ -58,6 +58,7 @@ function getSamples {
     #unpack inner files.
     seqkit split2 -p 2 -O sample$s $DIR/*sample_$s/reads/anonymous_reads.fq
     mv $DIR/*sample_$s/reads/reads_mapping.tsv sample$s
+    cat sample$s/reads_mapping.tsv | grep -v tax_id | cut -f3 | sort | uniq > gold_set_$s.txt
     aws s3 sync sample$s $BUCKET/$GROUP/sample$s || exit 1
     rm -r $SAMPLE $DIR/*sample_$s sample$s
   done
