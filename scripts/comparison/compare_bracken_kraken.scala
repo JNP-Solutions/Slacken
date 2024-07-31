@@ -6,9 +6,10 @@ import scala.io.Source
 
 
 //kraken report format file (reference)
-val refFile = Source.fromFile(args(0)).getLines.drop(1)
+def refFile = Source.fromFile(args(0)).getLines.drop(1)
 val refVector = kvector(refFile)
 val sampleFiles = args.drop(1)
+val totalReads = refFile.next.split("\t")(1).toLong
 
 def vector(lines: Iterator[String]) = lines.map(x => x.split("\t")).
   map(xs => ((xs(1).toInt, xs(6).toDouble))).toMap.withDefaultValue(0.0)
@@ -27,8 +28,10 @@ def logRef(x: Int) = safeLog(refVector(x))
 
 /** Compare a single sample (bracken format) against the reference */
 def compareBrackenSample(file: String): Unit = {
-  val lines = Source.fromFile(file).getLines.drop(1)
+  def lines = Source.fromFile(file).getLines.drop(1)
   val sampleVector = vector(lines)
+  val addedReads = lines.map(l => l.split("\t")(4).toLong).sum
+  val addedFraction = addedReads.toDouble / totalReads
   def logSample(x: Int) = safeLog(sampleVector(x))
 
   val allKeys = sampleVector.keySet ++ refVector.keySet
@@ -62,8 +65,8 @@ for { k <- allKeys } {
   val pattern = """(.*)/(.+)_(\d+)_(\d+)_s(\d+)_c([\d.]+)_classified/S(\d+)_bracken""".r
   file match {
     case pattern(group, library, k, m, s, c, sample) =>
-      println("%s\t%s\t%s\t%s\t%.3g\t%.3g\t%.3g\t%.3g\t%d\t%d\t%d\t%.2f\t%.2f".
-        format(group, library, c, sample, lse, lseLog, l1, l1Log, tp, fp, fn, precision, recall))
+      println("%s\t%s\t%s\t%s\t%.3g\t%.3g\t%.3g\t%.3g\t%d\t%d\t%d\t%.2f\t%.2f\t%.2f".
+        format(group, library, c, sample, lse, lseLog, l1, l1Log, tp, fp, fn, precision, recall, addedFraction))
     case _ =>
       throw new Exception(s"Unexpected file name: $file")
   }
@@ -71,7 +74,7 @@ for { k <- allKeys } {
 }
 
 //headers
-println(s"Group\tLibrary\tc\tSample\tLSE\tLSE(log10)\tL1\tL1(log10)\tTP\tFP\tFN\tPrecision\tRecall")
+println(s"Group\tLibrary\tc\tSample\tLSE\tLSE(log10)\tL1\tL1(log10)\tTP\tFP\tFN\tPrecision\tRecall\tAdded reads")
 for { file <- sampleFiles }
   compareBrackenSample(file)
 
