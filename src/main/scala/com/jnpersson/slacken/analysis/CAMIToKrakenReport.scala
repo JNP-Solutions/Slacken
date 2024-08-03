@@ -6,6 +6,7 @@ package com.jnpersson.slacken.analysis
 
 import com.jnpersson.slacken.Taxonomy.Rank
 import com.jnpersson.slacken.{KrakenReport, Taxon, TaxonomicIndex, Taxonomy}
+import org.apache.spark.sql
 import org.apache.spark.sql.SparkSession
 
 import java.io.{FileWriter, PrintWriter}
@@ -40,7 +41,7 @@ object CAMIToKrakenReport {
     val taxonomyDir = args(0)
     val minLevel = if (args.length > 1) Taxonomy.rank(args(1).toLowerCase()) else None
     val tax = TaxonomicIndex.getTaxonomy(taxonomyDir)
-    val location = args(2)
+    val location = args(3)
 
     val c2r = new CAMIToKrakenReport(args(2), tax, minLevel)
     c2r.writeFilteredReport(s"$location.kreport.txt")
@@ -52,14 +53,17 @@ class CAMIToKrakenReport(mappingLocation: String, tax: Taxonomy, minRank: Option
   import spark.sqlContext.implicits._
   val bcTax = spark.sparkContext.broadcast(tax)
 
-  val minDepth = minRank.map(_.depth)
-
   /** Mappings for only reads at or below the taxonomic cutoff level */
-  val filteredMapping = spark.read.option("sep", "\t").option("header", "true").csv(mappingLocation).
-    filter(read => {
-      val tax = bcTax.value.primary(read.getString(2).toInt)
-    minDepth.forall(d => bcTax.value.depth(tax) >= d)
-  })
+  val filteredMapping = {
+    val bcTax = this.bcTax
+    val minDepth = minRank.map(_.depth)
+
+    spark.read.option("sep", "\t").option("header", "true").csv(mappingLocation).
+      filter(read => {
+        val tax = bcTax.value.primary(read.getString(2).toInt)
+        minDepth.forall(d => bcTax.value.depth(tax) >= d)
+      })
+  }
 
   def filteredIDs =
     filteredMapping.map(_.getString(0))
@@ -77,21 +81,11 @@ class CAMIToKrakenReport(mappingLocation: String, tax: Taxonomy, minRank: Option
 
   /** Write a filtered kraken report to a local file */
   def writeFilteredReport(location: String): Unit = {
-    val counts = mutable.Map[Taxon, Long]().withDefaultValue(0)
-    for {line <- filteredMapping} {
-      val taxon = tax.primary(line.getString(2).toInt)
-      if (!tax.isDefined(taxon)) {
-        Console.err.println(s"Warning: undefined taxon $taxon, omitting from output")
-      }
-      counts(taxon) += 1
-    }
+    //count by taxon and divide by 2 to adjust from single reads to mate-pair counts
+    val counts = filteredMapping.map(line => line.getString(2).toInt).toDF("taxon").
+      groupBy("taxon").agg(sql.functions.count("*") / 2).as[(Taxon, Long)].collect
 
-    //adjust from single reads to mate-pair counts
-    for {(k, v) <- counts} {
-      counts(k) = v / 2
-    }
-
-    val pairs = counts.toArray
+    val pairs = counts
     val report = new KrakenReport(tax, pairs)
     val writer = new PrintWriter(new FileWriter(location))
     try {
