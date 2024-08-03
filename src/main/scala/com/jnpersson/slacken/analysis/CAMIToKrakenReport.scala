@@ -81,9 +81,13 @@ class CAMIToKrakenReport(mappingLocation: String, tax: Taxonomy, minRank: Option
 
   /** Write a filtered kraken report to a local file */
   def writeFilteredReport(location: String): Unit = {
-    //count by taxon and divide by 2 to adjust from single reads to mate-pair counts
+    //count by taxon and divide by 2 to adjust from single reads to paired end counts
     val counts = filteredMapping.map(line => line.getString(2).toInt).toDF("taxon").
-      groupBy("taxon").agg(sql.functions.count("*") / 2).as[(Taxon, Long)].collect
+      groupBy("taxon").agg(
+      sql.functions.floor(
+        sql.functions.count("*") / 2
+      )
+    ).as[(Taxon, Long)].collect
 
     val pairs = counts
     val report = new KrakenReport(tax, pairs)
