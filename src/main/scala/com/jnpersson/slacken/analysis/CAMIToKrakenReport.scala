@@ -10,7 +10,6 @@ import org.apache.spark.sql
 import org.apache.spark.sql.SparkSession
 
 import java.io.{FileWriter, PrintWriter}
-import scala.collection.mutable
 
 /** Tool to convert a CAMI2 read mapping into a Kraken-style report
  * for easy comparison. Filters by taxonomic level. Writes report
@@ -29,12 +28,12 @@ object CAMIToKrakenReport {
     getOrCreate()
 
   /** Reads stdin. Writes the Kraken report to stdout.
-   * Argument 0: taxonomy location (directory)
+   * Argument 0: taxonomy location (directory) (HDFS)
    * Argument 1: highest taxonomic level to keep (e.g. species). Higher levels will be discarded and
    *   the total (as fractions) rescaled accordingly. Read counts will not be rescaled.
    *   Use Root for no filtering.
-   * Argument 2: location of CAMISIM mapping
-   * Argument 3: output location (prefix name)
+   * Argument 2: location of CAMISIM mapping (HDFS)
+   * Argument 3: output location (prefix name) (local path)
    *
    */
   def main(args: Array[String]): Unit = {
@@ -73,7 +72,9 @@ class CAMIToKrakenReport(mappingLocation: String, tax: Taxonomy, minRank: Option
     val writer = new PrintWriter(new FileWriter(location))
     try {
       val ids = filteredIDs.collect()
-      writer.println(ids.mkString("\n"))
+      for { line <- ids } {
+        writer.println(line)
+      }
     } finally {
       writer.close()
     }
