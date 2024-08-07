@@ -16,15 +16,15 @@ import scala.collection.mutable
  * to construct a taxonomic index for classifying the reads.
  * A bracken-style weights file describing the second index will optionally also be generated.
  *
- * @param base Initial index for identifying taxa by minimizer
- * @param genomes genomic library for construction of new indexes on the fly
- * @param reclassifyRank rank for the initial classification. Taxa at this level will be used to construct the second index
- * @param taxonMinFraction minimum distinct minimizers to keep a taxon in the first pass
- * @param cpar parameters for classification
+ * @param base                     Initial index for identifying taxa by minimizer
+ * @param genomes                  genomic library for construction of new indexes on the fly
+ * @param reclassifyRank           rank for the initial classification. Taxa at this level will be used to construct the second index
+ * @param taxonMinFraction         minimum distinct minimizers to keep a taxon in the first pass
+ * @param cpar                     parameters for classification
  * @param dynamicBrackenReadLength read length for generating bracken weights for the second index (if any)
- * @param goldStandardTaxonSet parameters for deciding whether to get stats or classify wrt gold standard
- * @param reportDynamicIndex whether to generate reports describing the second index
- * @param outputLocation prefix location for output files
+ * @param goldStandardTaxonSet     parameters for deciding whether to get stats or classify wrt gold standard
+ * @param reportDynamicIndex       whether to generate reports describing the second index
+ * @param outputLocation           prefix location for output files
  */
 class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
               reclassifyRank: Rank, taxonMinFraction: Double,
@@ -48,9 +48,9 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     val rank = reclassifyRank
 
     val grouped = hits.flatMap(h =>
-      for { t <- h.trueTaxon
-        if bcTax.value.depth(t) >= rank.depth
-        } yield (t, h.minimizer)
+        for {t <- h.trueTaxon
+             if bcTax.value.depth(t) >= rank.depth
+             } yield (t, h.minimizer)
       ).
       toDF("taxon", "minimizer").groupBy("taxon")
 
@@ -77,9 +77,9 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     val rank = reclassifyRank
 
     val grouped = hits.flatMap(h =>
-        for { t <- h.trueTaxon
-              if bcTax.value.depth(t) >= rank.depth
-              } yield (t, h.count)
+        for {t <- h.trueTaxon
+             if bcTax.value.depth(t) >= rank.depth
+             } yield (t, h.count)
       ).
       toDF("taxon", "count").groupBy("taxon")
 
@@ -114,6 +114,34 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
       collect()
   }
 
+  def multiStatsPerTaxon(subjects: Dataset[InputFragment])
+  : Dataset[(Taxon, Long, Long, Long, Long, Array[Int], Array[Long], String)] = {
+    val initThreshold = 0.0
+    val coveragePerTaxon = base.showTaxonFullCoverageStats(base.loadBuckets(), genomes)
+
+    val foundHits = base.findHits(base.loadBuckets(), subjects).cache()
+    val hits = base.classify(base.loadBuckets(), subjects)
+    val classified = base.classifyHits(hits, cpar, initThreshold)
+    classified.where($"classified" === true)
+      .select("taxon")
+      .groupBy("taxon").agg(count("*")).alias("classifiedReadCount").as[(Taxon, Long)]
+    val bcTax = base.bcTaxonomy
+    val rank = reclassifyRank
+
+    val grouped = foundHits.flatMap(h =>
+        for {t <- h.trueTaxon
+             if bcTax.value.depth(t) >= rank.depth
+             } yield (t, h.count, h.minimizer, 1L)
+      )
+      .toDF("taxon", "kmerCount", "distinctMinimizer", "minimizerCount").groupBy("taxon")
+
+    grouped.agg(functions.sum($"kmerCount").as("totalKmerCount")
+        , functions.countDistinct($"distinctMinimizer").as("distinctMinimizerCount")
+        , functions.sum($"minimizerCount").as("minimizerCount"))
+      .join(classified, "taxon").join(coveragePerTaxon, "taxon")
+      .as[(Taxon, Long, Long, Long, Long, Array[Int], Array[Long], String)]
+  }
+
   /** A method for identifying a taxon set in a set of reads. */
   trait TaxonSetFinder {
 
@@ -146,13 +174,27 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
    */
   def findTaxonSet(subjects: Dataset[InputFragment], writeLocation: Option[String]): mutable.BitSet = {
     val finder = new CountFilter(distinctMinimizersPerTaxon(subjects))
+    val statCollection = multiStatsPerTaxon(subjects)
+    val totalKmerCounter = new CountFilter(statCollection
+      .select("$taxon","$totalKmerCount").as[(Taxon,Long)].collect())
+    val distinctMinimizerCounter = new CountFilter(statCollection
+      .select("$taxon","$distinctMinimizerCount").as[(Taxon,Long)].collect())
+//    totalMinimizerCount
+//    classifiedReadCount
+//    lcaDepths
+//    minimizerCountAtDepth
+//    minimizerCoverage
 
-    if (reportDynamicIndex)
-      HDFSUtil.usingWriter(outputLocation + "_support_report.txt", wr => finder.report.print(wr))
+    if (reportDynamicIndex) {
+      HDFSUtil.usingWriter(outputLocation + "_support_report_totalKmerCount.txt",
+        wr => totalKmerCounter.report.print(wr))
+      HDFSUtil.usingWriter(outputLocation + "_support_report_distinctMinimizerCount.txt",
+        wr => distinctMinimizerCounter.report.print(wr))
+    }
 
     val keepTaxa = finder.taxa
 
-    for { loc <- writeLocation }
+    for {loc <- writeLocation}
       HDFSUtil.writeTextLines(loc, keepTaxa.iterator.map(_.toString))
 
     goldStandardTaxonSet match {
@@ -161,8 +203,8 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
         val tp = keepTaxa.intersect(goldSet).size
         val fp = (keepTaxa -- keepTaxa.intersect(goldSet)).size
         val fn = (goldSet -- keepTaxa.intersect(goldSet)).size
-        val precision = tp.toDouble/(tp+fp)
-        val recall = tp.toDouble/goldSet.size
+        val precision = tp.toDouble / (tp + fp)
+        val recall = tp.toDouble / goldSet.size
         println(s"True Positives: $tp, False Positives: $fp, False Negatives: $fn, " +
           s"Precision: ${formatPerc(precision)}, Recall: ${formatPerc(recall)}")
       case _ =>
@@ -198,9 +240,10 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   }
 
   /** Perform two-step classification, writing the final results to a location.
-   * @param inputs Subjects to classify (reads)
+   *
+   * @param inputs         Subjects to classify (reads)
    * @param outputLocation Directory to write reports and classifications in
-   * @param partitions Number of partitions for the dynamically generated index in step 2
+   * @param partitions     Number of partitions for the dynamically generated index in step 2
    */
   def twoStepClassifyAndWrite(inputs: Inputs, partitions: Int): Unit = {
     val reads = inputs.getInputFragments(withRC = false, withAmbiguous = true).
@@ -216,7 +259,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
       if (reportDynamicIndex)
         base.report(buckets, None, outputLocation + "_dynamic")
 
-      for { brackenLength <- dynamicBrackenReadLength } {
+      for {brackenLength <- dynamicBrackenReadLength} {
         new BrackenWeights(buckets, base, brackenLength).
           buildAndWriteWeights(genomes, usedTaxa, outputLocation + s"/database${brackenLength}mers.kmer_distrib")
       }
@@ -230,7 +273,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   /** Build a dynamic index from a taxon set, which can be either supplied (a gold standard set)
    * or detected using a heuristic.
    *
-   * @param subjects reads for detecting a taxon set
+   * @param subjects         reads for detecting a taxon set
    * @param setWriteLocation location to write the detected taxon set (optionally) for later inspection
    */
   def makeBuckets(subjects: Dataset[InputFragment], setWriteLocation: Option[String]): (DataFrame, mutable.BitSet) = {
