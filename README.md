@@ -9,7 +9,7 @@ Copyright (c) Johan Nystrom-Persson 2019-2024.
 
 Prerequisites:
 
-* Java 8 or later (if using Java 8, `build.sbt` may need to be edited if tests won't run)
+* Java 17 or later
 * The [sbt](https://www.scala-sbt.org/) build tool.
 
 To build the jar file: `sbt assembly`. The output will be in `target/scala-2.12/Slacken-assembly-0.1.0.jar`.
@@ -26,7 +26,7 @@ recommended (but any decent Scala IDE should do).
 ## Running
 
 Prerequisites: 
-* [Spark](https://spark.apache.org/downloads.html) 3.3.0 or later (pre-built, for Scala 2.12 (i.e. not the Scala 2.13 version).) 
+* [Spark](https://spark.apache.org/downloads.html) 3.5.0 or later (pre-built, for Scala 2.12 (i.e. not the Scala 2.13 version).) 
 * 16 GB or more of RAM (32 GB or more recommended).
 * A fast SSD drive is very helpful if running locally. The amount of space required depends on the size of the libraries.
 
