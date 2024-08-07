@@ -305,8 +305,8 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
    * @param genomes
    * @return
    */
-  private def showTaxonFullCoverageStats(indexBuckets: DataFrame, genomes: GenomeLibrary):
-  Array[(Taxon, Array[Int], Array[Long])] = {
+  def showTaxonFullCoverageStats(indexBuckets: DataFrame, genomes: GenomeLibrary):
+  Dataset[(Taxon, Array[Int], Array[Long], String)] = {
     val inputSequences = joinSequencesAndLabels(genomes, addRC = false)
     val mins = findMinimizers(inputSequences)
 
@@ -314,17 +314,18 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     val minCounts = mins.groupBy(idColumns :+ $"taxon": _*).agg(count("*").as("countAll"))
 
     val bcTaxonomy = this.bcTaxonomy
-    val taxonDepth = udf((taxon:Taxon) => bcTaxonomy.value.depth(taxon))
-    val depthCountConcat = udf((depths: Array[Int],counts: Array[Long]) =>
-      depths.zip(counts).map(x => x._1+":"+x._2).mkString("|"))
+    val taxonDepth = udf((taxon: Taxon) => bcTaxonomy.value.depth(taxon))
+    val depthCountConcat = udf((depths: Array[Int], counts: Array[Long]) =>
+      depths.zip(counts).map(x => x._1 + ":" + x._2).mkString("|"))
 
     //2. Join with buckets, find the fraction that is assigned to the same (leaf) taxon
     minCounts.join(indexBuckets.withColumnRenamed("taxon", "idxTaxon"),
         idColumnNames). //[ taxon, LCA(idxtaxon) , Minimizer(idColumns), countAll ]
       withColumn("idxTaxDepth", taxonDepth($"idxtaxon")).
-      groupBy("taxon","idxTaxDepth").agg(sum($"countAll").as("countFull"))
-      .groupBy("taxon").agg(collect_list($"idxTaxDepth").as("lcaDepths"),collect_list("countFull").as("counts"))
-      .select("taxon","lcaDepths","counts").as[(Taxon,Array[Int],Array[Long])].collect()
+      groupBy("taxon", "idxTaxDepth").agg(sum($"countAll").as("countFull"))
+      .groupBy("taxon").agg(collect_list($"idxTaxDepth").as("lcaDepths"), collect_list("countFull").as("counts"))
+      .select("taxon", "lcaDepths", "counts").withColumn("minimizerCoverage", depthCountConcat($"lcaDepths", $"counts")).withColumnRenamed("counts", "lcaCounts")
+      .as[(Taxon, Array[Int], Array[Long], String)]
   }
 
   /**
