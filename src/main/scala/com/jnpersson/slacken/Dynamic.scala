@@ -4,7 +4,7 @@ import com.jnpersson.kmers.minimizer._
 import com.jnpersson.kmers.Output.formatPerc
 import com.jnpersson.kmers.{HDFSUtil, Inputs, Output}
 import com.jnpersson.slacken.Taxonomy.Rank
-import org.apache.spark.sql.functions.{approx_count_distinct, count}
+import org.apache.spark.sql.functions.{approx_count_distinct, concat_ws, count}
 import org.apache.spark.sql.{DataFrame, Dataset, SparkSession, functions}
 
 import scala.collection.mutable
@@ -115,16 +115,17 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   }
 
   def multiStatsPerTaxon(subjects: Dataset[InputFragment])
-  : Dataset[(Taxon, Long, Long, Long, Long, Array[Int], Array[Long], String)] = {
+  : (Dataset[(Taxon, Long, Long, Long)],Dataset[(Taxon, Long)], Dataset[(Taxon, Array[Int], Array[Long], String)]) = {
     val initThreshold = 0.0
     val coveragePerTaxon = base.showTaxonFullCoverageStats(base.loadBuckets(), genomes)
 
     val foundHits = base.findHits(base.loadBuckets(), subjects).cache()
     val hits = base.classify(base.loadBuckets(), subjects)
     val classified = base.classifyHits(hits, cpar, initThreshold)
-    classified.where($"classified" === true)
+      .where($"classified" === true)
       .select("taxon")
-      .groupBy("taxon").agg(count("*")).alias("classifiedReadCount").as[(Taxon, Long)]
+      .groupBy("taxon").agg(count("*").as("classifiedReadCount")).as[(Taxon, Long)]
+
     val bcTax = base.bcTaxonomy
     val rank = reclassifyRank
 
@@ -135,11 +136,11 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
       )
       .toDF("taxon", "kmerCount", "distinctMinimizer", "minimizerCount").groupBy("taxon")
 
-    grouped.agg(functions.sum($"kmerCount").as("totalKmerCount")
-        , functions.countDistinct($"distinctMinimizer").as("distinctMinimizerCount")
-        , functions.sum($"minimizerCount").as("minimizerCount"))
-      .join(classified, "taxon").join(coveragePerTaxon, "taxon")
-      .as[(Taxon, Long, Long, Long, Long, Array[Int], Array[Long], String)]
+    (grouped.agg(functions.sum($"kmerCount").as("totalKmerCount")
+      , functions.countDistinct($"distinctMinimizer").as("distinctMinimizerCount")
+      , functions.sum($"minimizerCount").as("totalMinimizerCount"))
+      .select("taxon","totalKmerCount", "distinctMinimizerCount", "totalMinimizerCount")
+      .as[(Taxon, Long, Long, Long)], classified, coveragePerTaxon)
   }
 
   /** A method for identifying a taxon set in a set of reads. */
@@ -175,12 +176,17 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   def findTaxonSet(subjects: Dataset[InputFragment], writeLocation: Option[String]): mutable.BitSet = {
     val finder = new CountFilter(distinctMinimizersPerTaxon(subjects))
     val statCollection = multiStatsPerTaxon(subjects)
-    val totalKmerCounter = new CountFilter(statCollection
-      .select("$taxon","$totalKmerCount").as[(Taxon,Long)].collect())
-    val distinctMinimizerCounter = new CountFilter(statCollection
-      .select("$taxon","$distinctMinimizerCount").as[(Taxon,Long)].collect())
-//    totalMinimizerCount
-//    classifiedReadCount
+    val totalKmerCounter = new CountFilter(statCollection._1
+      .select("taxon","totalKmerCount").as[(Taxon,Long)].collect())
+    val distinctMinimizerCounter = new CountFilter(statCollection._1
+      .select("taxon","distinctMinimizerCount").as[(Taxon,Long)].collect())
+    val totalMinimizerCounter = new CountFilter(statCollection._1
+      .select("taxon","totalMinimizerCount").as[(Taxon,Long)].collect())
+    val classifiedReadCounter = new CountFilter(statCollection._2
+      .select("taxon","classifiedReadCount").as[(Taxon,Long)].collect())
+    val minimizerCoverage = statCollection._3
+      .select("taxon","minimizerCoverage").as[(Taxon,String)]
+
 //    lcaDepths
 //    minimizerCountAtDepth
 //    minimizerCoverage
@@ -190,6 +196,17 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
         wr => totalKmerCounter.report.print(wr))
       HDFSUtil.usingWriter(outputLocation + "_support_report_distinctMinimizerCount.txt",
         wr => distinctMinimizerCounter.report.print(wr))
+      HDFSUtil.usingWriter(outputLocation + "_support_report_totaltMinimizerCount.txt",
+        wr => totalMinimizerCounter.report.print(wr))
+      HDFSUtil.usingWriter(outputLocation + "_support_report_classifiedReadCount.txt",
+        wr => classifiedReadCounter.report.print(wr))
+
+      minimizerCoverage.withColumn("taxonStr", $"taxon".cast("string"))
+        .withColumn("taxonCoverage", concat_ws("  ", $"taxonStr", $"minimizerCoverage"))
+        .select("taxonCoverage").write.format("text")
+        .save(outputLocation + "_support_report_minimizerCoverage")
+
+
     }
 
     val keepTaxa = finder.taxa
