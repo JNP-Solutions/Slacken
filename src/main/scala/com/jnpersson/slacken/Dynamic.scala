@@ -120,7 +120,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     val initThreshold = 0.0
     val coveragePerTaxon = base.showTaxonFullCoverageStats(base.loadBuckets(), genomes)
 
-    val foundHits = base.findHits(base.loadBuckets(), subjects).cache()
+    val foundHits = base.findHits(base.loadBuckets(), subjects)
     val hits = base.classify(base.loadBuckets(), subjects)
     val classified = base.classifyHits(hits, cpar, initThreshold)
       .where($"classified" === true)
@@ -204,15 +204,15 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
       HDFSUtil.usingWriter(outputLocation + "_support_report_classifiedReadCount.txt",
         wr => classifiedReadCounter.report.print(wr))
 
-      minimizerCoverage.withColumn("taxonStr", $"taxon".cast("string"))
-        .withColumn("taxonCoverage", concat_ws("  ", $"taxonStr", $"minimizerCoverage"))
-        .select("taxonCoverage").write.format("text")
-        .save(outputLocation + "_support_report_minimizerCoverage")
-
-      minimizerDistinctCoverage.withColumn("taxonStr", $"taxon".cast("string"))
-        .withColumn("taxonCoverage", concat_ws("  ", $"taxonStr", $"minimizerCoverage"))
-        .select("taxonCoverage").write.format("text")
-        .save(outputLocation + "_support_report_minimizerDistinctCoverage")
+//      minimizerCoverage.withColumn("taxonStr", $"taxon".cast("string"))
+//        .withColumn("taxonCoverage", concat_ws("  ", $"taxonStr", $"minimizerCoverage"))
+//        .select("taxonCoverage").write.format("text")
+//        .save(outputLocation + "_support_report_minimizerCoverage")
+//
+//      minimizerDistinctCoverage.withColumn("taxonStr", $"taxon".cast("string"))
+//        .withColumn("taxonCoverage", concat_ws("  ", $"taxonStr", $"minimizerCoverage"))
+//        .select("taxonCoverage").write.format("text")
+//        .save(outputLocation + "_support_report_minimizerDistinctCoverage")
 
 
     }
