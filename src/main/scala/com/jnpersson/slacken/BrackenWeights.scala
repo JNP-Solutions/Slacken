@@ -3,10 +3,11 @@ package com.jnpersson.slacken
 import com.jnpersson.kmers._
 import com.jnpersson.kmers.util.{KmerTable, NTBitArray}
 import com.jnpersson.slacken.TaxonomicIndex.getTaxonLabels
+import com.jnpersson.slacken.Taxonomy.NONE
 import it.unimi.dsi.fastutil.ints.Int2IntMap
 import it.unimi.dsi.fastutil.objects.{Object2IntOpenCustomHashMap, Object2IntOpenHashMap}
 import it.unimi.dsi.fastutil.longs.LongArrays.HASH_STRATEGY
-import org.apache.spark.sql.functions.{collect_list, sum, udf}
+import org.apache.spark.sql.functions.{collect_list, ifnull, lit, sum, udf}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 
 import scala.collection.mutable.ArrayBuffer
@@ -337,7 +338,7 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
       join(buckets, keyValueIndex.idColumnNames, "left"). //left join to preserve fragments with the empty minimizer (all invalid reads)
       groupBy("header", "location").agg(
         collect_list(keyValueIndex.minimizerColumnFromIdColumns),
-        collect_list("taxon")
+        collect_list(ifnull($"taxon", lit(NONE)))
       ).
       toDF("header", "location", "minimizers", "taxa")
 
