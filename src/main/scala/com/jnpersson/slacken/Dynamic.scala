@@ -115,7 +115,8 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   }
 
   def multiStatsPerTaxon(subjects: Dataset[InputFragment])
-  : (Dataset[(Taxon, Long, Long, Long)],Dataset[(Taxon, Long)], Dataset[(Taxon, Array[Int], Array[Long], String)]) = {
+  : (Dataset[(Taxon, Long, Long, Long)],Dataset[(Taxon, Long)], Dataset[(Taxon, Array[Int], Array[Long], String)],
+    Dataset[(Taxon, Array[Int], Array[Long], String)]) = {
     val initThreshold = 0.0
     val coveragePerTaxon = base.showTaxonFullCoverageStats(base.loadBuckets(), genomes)
 
@@ -140,7 +141,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
       , functions.countDistinct($"distinctMinimizer").as("distinctMinimizerCount")
       , functions.sum($"minimizerCount").as("totalMinimizerCount"))
       .select("taxon","totalKmerCount", "distinctMinimizerCount", "totalMinimizerCount")
-      .as[(Taxon, Long, Long, Long)], classified, coveragePerTaxon)
+      .as[(Taxon, Long, Long, Long)].cache(), classified, coveragePerTaxon._1, coveragePerTaxon._2)
   }
 
   /** A method for identifying a taxon set in a set of reads. */
@@ -186,6 +187,8 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
       .select("taxon","classifiedReadCount").as[(Taxon,Long)].collect())
     val minimizerCoverage = statCollection._3
       .select("taxon","minimizerCoverage").as[(Taxon,String)]
+    val minimizerDistinctCoverage = statCollection._4
+      .select("taxon","minimizerCoverage").as[(Taxon,String)]
 
 //    lcaDepths
 //    minimizerCountAtDepth
@@ -205,6 +208,11 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
         .withColumn("taxonCoverage", concat_ws("  ", $"taxonStr", $"minimizerCoverage"))
         .select("taxonCoverage").write.format("text")
         .save(outputLocation + "_support_report_minimizerCoverage")
+
+      minimizerDistinctCoverage.withColumn("taxonStr", $"taxon".cast("string"))
+        .withColumn("taxonCoverage", concat_ws("  ", $"taxonStr", $"minimizerCoverage"))
+        .select("taxonCoverage").write.format("text")
+        .save(outputLocation + "_support_report_minimizerDistinctCoverage")
 
 
     }
