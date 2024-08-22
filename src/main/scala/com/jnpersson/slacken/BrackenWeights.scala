@@ -3,11 +3,10 @@ package com.jnpersson.slacken
 import com.jnpersson.kmers._
 import com.jnpersson.kmers.util.{KmerTable, NTBitArray}
 import com.jnpersson.slacken.TaxonomicIndex.getTaxonLabels
-import com.jnpersson.slacken.Taxonomy.NONE
 import it.unimi.dsi.fastutil.ints.Int2IntMap
 import it.unimi.dsi.fastutil.objects.{Object2IntOpenCustomHashMap, Object2IntOpenHashMap}
 import it.unimi.dsi.fastutil.longs.LongArrays.HASH_STRATEGY
-import org.apache.spark.sql.functions.{collect_list, ifnull, lit, sum, udf}
+import org.apache.spark.sql.functions.{collect_list, sum, udf}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 
 import scala.collection.mutable.ArrayBuffer
@@ -156,6 +155,11 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
    * building super-mers. */
   def taxonHits(minimizers: Array[Array[Long]], lcas: Array[Taxon],
                 splitter: AnyMinSplitter) = {
+
+    if (minimizers.length != lcas.length && lcas.length > 0) {
+      throw new Exception("Minimizers and lcas lengths do not match. The most likely cause is unknown minimizers in the genomes." +
+        " This is potentially a mismatch between the genomes and the built LCA index.")
+    }
 
     // this map will contain a subset of the lca to taxon index
     val lcaLookup = new Object2IntOpenCustomHashMap[Array[Long]](minimizers.length, HASH_STRATEGY)
@@ -338,7 +342,7 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
       join(buckets, keyValueIndex.idColumnNames, "left"). //left join to preserve fragments with the empty minimizer (all invalid reads)
       groupBy("header", "location").agg(
         collect_list(keyValueIndex.minimizerColumnFromIdColumns),
-        collect_list(ifnull($"taxon", lit(NONE)))
+        collect_list("taxon")
       ).
       toDF("header", "location", "minimizers", "taxa")
 
