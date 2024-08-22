@@ -303,7 +303,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
    *
    * @return
    */
-  def computeTaxonCoverage(indexBuckets: DataFrame, minimizerCounts: DataFrame):Dataset[(Taxon, Array[Int], Array[Long], String)] = {
+  def computeTaxonCoverage(indexBuckets: DataFrame, minimizerCounts: DataFrame):Dataset[(Taxon, String)] = {
     val bcTaxonomy = this.bcTaxonomy
     val taxonDepth = udf((taxon: Taxon) => bcTaxonomy.value.depth(taxon))
     val depthCountConcat = udf((depths: Array[Int], counts: Array[Long]) =>
@@ -316,8 +316,8 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       groupBy("taxon", "idxTaxDepth").agg(sum($"countAll").as("countFull"))
       .groupBy("taxon").agg(collect_list($"idxTaxDepth").as("lcaDepths"), collect_list("countFull").as("counts"))
       .select("taxon", "lcaDepths", "counts").withColumn("minimizerCoverage", depthCountConcat($"lcaDepths", $"counts"))
-      .withColumnRenamed("counts", "lcaCounts")
-      .as[(Taxon, Array[Int], Array[Long], String)]
+      .withColumnRenamed("counts", "lcaCounts").select("taxon","minimizerCoverage")
+      .as[(Taxon, String)]
   }
 
   /**
@@ -327,7 +327,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
    * @return
    */
   def showTaxonFullCoverageStats(indexBuckets: DataFrame, genomes: GenomeLibrary):
-  (Dataset[(Taxon, Array[Int], Array[Long], String)], Dataset[(Taxon, Array[Int], Array[Long], String)]) = {
+  (Dataset[(Taxon, String)], Dataset[(Taxon, String)]) = {
     val inputSequences = joinSequencesAndLabels(genomes, addRC = false)
     val mins = findMinimizers(inputSequences).cache()
 
