@@ -300,42 +300,36 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   }
 
   /**
-   *
+   * 
+   * @param indexBuckets
+   * @param genomes
    * @return
    */
-  def computeTaxonCoverage(indexBuckets: DataFrame, minimizerCounts: DataFrame):Dataset[(Taxon, String)] = {
+  def showTaxonFullCoverageStats(indexBuckets: DataFrame, genomes: GenomeLibrary): Dataset[(Taxon, String, String)] = {
+    val inputSequences = joinSequencesAndLabels(genomes, addRC = false)
+    val mins = findMinimizers(inputSequences)
+
+    //1. Count how many times per input taxon each minimizer occurs
+    val minCounts = mins.groupBy(idColumns :+ $"taxon": _*).agg(count("*").as("countAll"), lit(1L).as("countDistinct"))
+
     val bcTaxonomy = this.bcTaxonomy
     val taxonDepth = udf((taxon: Taxon) => bcTaxonomy.value.depth(taxon))
     val depthCountConcat = udf((depths: Array[Int], counts: Array[Long]) =>
       depths.zip(counts).map(x => x._1 + ":" + x._2).mkString("|"))
 
     //2. Join with buckets, find the fraction that is assigned to the same (leaf) taxon
-    minimizerCounts.join(indexBuckets.withColumnRenamed("taxon", "idxTaxon"),
+    minCounts.join(indexBuckets.withColumnRenamed("taxon", "idxTaxon"),
         idColumnNames). //[ taxon, LCA(idxtaxon) , Minimizer(idColumns), countAll ]
       withColumn("idxTaxDepth", taxonDepth($"idxtaxon")).
-      groupBy("taxon", "idxTaxDepth").agg(sum($"countAll").as("countFull"))
-      .groupBy("taxon").agg(collect_list($"idxTaxDepth").as("lcaDepths"), collect_list("countFull").as("counts"))
-      .select("taxon", "lcaDepths", "counts").withColumn("minimizerCoverage", depthCountConcat($"lcaDepths", $"counts"))
-      .withColumnRenamed("counts", "lcaCounts").select("taxon","minimizerCoverage")
-      .as[(Taxon, String)]
-  }
-
-  /**
-   * 
-   * @param indexBuckets
-   * @param genomes
-   * @return
-   */
-  def showTaxonFullCoverageStats(indexBuckets: DataFrame, genomes: GenomeLibrary):
-  (Dataset[(Taxon, String)], Dataset[(Taxon, String)]) = {
-    val inputSequences = joinSequencesAndLabels(genomes, addRC = false)
-    val mins = findMinimizers(inputSequences).cache()
-
-    //1. Count how many times per input taxon each minimizer occurs
-    val minCounts = mins.groupBy(idColumns :+ $"taxon": _*).agg(count("*").as("countAll"))
-    val minDistinctCounts = mins.distinct.withColumn("countAll",lit(1L))
-
-    (computeTaxonCoverage(indexBuckets, minCounts),computeTaxonCoverage(indexBuckets,minDistinctCounts))
+      groupBy("taxon", "idxTaxDepth").agg(sum($"countAll").as("sumAll"), sum($"countDistinct").as("sumDistinct"))
+      .groupBy("taxon").agg(
+        collect_list("idxTaxDepth").as("lcaDepths"),
+        collect_list("sumAll").as("counts"),
+        collect_list("sumDistinct").as("distinctCounts"))
+      .select($"taxon",
+        depthCountConcat($"lcaDepths", $"counts").as("minimizerCoverage"),
+        depthCountConcat($"lcaDepths", $"distinctCounts").as("distinctMinimizerCoverage"))
+      .as[(Taxon, String, String)]
   }
 
   /**
