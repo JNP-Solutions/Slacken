@@ -6,12 +6,12 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.kmers.TestGenerators._
-
 import com.jnpersson.kmers.minimizer._
-
 import com.jnpersson.kmers.{NTSeq, SparkSessionTestWrapper, Testing => DTesting}
 import com.jnpersson.kmers.IndexParams
-import com.jnpersson.slacken.Taxonomy.{Species}
+import com.jnpersson.slacken.Taxonomy.{NONE, Species}
+import org.apache.spark.sql.functions
+import org.apache.spark.sql.functions.count
 import org.scalacheck.Gen
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
@@ -118,6 +118,16 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     idx.writeBuckets(TestData.defaultBuckets(idx, k), location)
     KeyValueIndex.load(location, TestData.taxonomy).
       loadBuckets(location).count() should be > 0L
+    val recordCount = KeyValueIndex.load(location, TestData.taxonomy).
+      loadBuckets(location).filter($"taxon" =!= NONE).count()
+
+    val bcSplit = spark.sparkContext.broadcast(TestData.splitter(k, m))
+    val distinctMinimizers = TestData.inputs(k).getInputFragments(false).flatMap(f =>
+      bcSplit.value.superkmerPositions(f.nucleotides, false).map(_._2)
+    ).distinct().count()
+
+    recordCount should equal(distinctMinimizers)
+  }
   }
 
   //Testing the basic code path for dynamic classification.
