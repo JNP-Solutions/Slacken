@@ -116,6 +116,7 @@ object TestData {
 
   // The total k-mer counts hardcoded below were independently computed using both KMC3 and Discount
   val numberOf31Mers = Map(526997 -> 2914769, 455631 -> 3594763, 9606 -> 639800)
+  val numberOf35Mers = Map(526997 -> 2902850, 455631 -> 3565872, 9606 -> 639784)
 
   def inputs(k: Int)(implicit spark: SparkSession) =
     new Inputs(List("testData/slacken/slacken_tinydata.fna"), k, 10000000)
