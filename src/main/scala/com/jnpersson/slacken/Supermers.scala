@@ -75,7 +75,6 @@ final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializab
         case AMBIGUOUS_FLAG =>
           Iterator((Supermer(randomMinimizer, NTBitArray(Array(), ntseq.length)), AMBIGUOUS_FLAG))
         case SEQUENCE_FLAG =>
-          val shift = 64 - splitter.priorities.width
           for {
             (_, hash, segment, _) <- splitter.splitEncode(ntseq)
           } yield (Supermer(padMinimizer(hash), segment), SEQUENCE_FLAG)

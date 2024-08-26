@@ -175,6 +175,8 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     spark.sql(s"SELECT $idColumnsString, taxon FROM kv_taxidx")
   }
 
+  /** Split fragments into ordinals, which are either super-mers with a minimizer, or invalid spans.
+   * Whitespace (e.g. newlines) must have been removed prior to using this function. */
   def getSpans(subjects: Dataset[InputFragment], withTitle: Boolean): Dataset[OrdinalSpan] = {
     val bcSplit = this.bcSplit
     val k = this.k

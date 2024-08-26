@@ -15,6 +15,7 @@ import org.apache.spark.sql.functions.count
 import org.scalacheck.Gen
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
+import org.scalatest.matchers.should.Matchers.theSameElementsAs
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 
 import scala.annotation.tailrec
@@ -116,8 +117,6 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     val m = 31
     val idx = TestData.index(k, m, Some(location))
     idx.writeBuckets(TestData.defaultBuckets(idx, k), location)
-    KeyValueIndex.load(location, TestData.taxonomy).
-      loadBuckets(location).count() should be > 0L
     val recordCount = KeyValueIndex.load(location, TestData.taxonomy).
       loadBuckets(location).filter($"taxon" =!= NONE).count()
 
@@ -128,6 +127,22 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
 
     recordCount should equal(distinctMinimizers)
   }
+
+  test("Get spans") {
+    val k = 35
+    val m = 31
+
+    val idx = TestData.index(k, m, None)
+    val fragments = TestData.inputs(k).getInputFragments(withRC = false, withAmbiguous = true).
+      map(f => f.copy(nucleotides = f.nucleotides.replaceAll("\\s+", "")))
+
+    val spans = idx.getSpans(fragments, withTitle = true)
+    val kmers = spans.map(x => (x.seqTitle.split("\\|")(1).toInt, x.kmers, x.flag)).toDF("title", "kmers", "flag").
+      filter($"flag" === SEQUENCE_FLAG).
+      groupBy("title").agg(functions.sum("kmers")).
+      as[(Taxon, Long)].collect()
+
+    kmers should contain theSameElementsAs(TestData.numberOf35Mers)
   }
 
   //Testing the basic code path for dynamic classification.
