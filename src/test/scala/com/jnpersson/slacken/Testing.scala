@@ -120,19 +120,18 @@ object TestData {
   def inputs(k: Int)(implicit spark: SparkSession) =
     new Inputs(List("testData/slacken/slacken_tinydata.fna"), k, 10000000)
 
-  def library(k: Int)(implicit spark: SparkSession) =
+  def library(k: Int)(implicit spark: SparkSession): GenomeLibrary =
     GenomeLibrary(inputs(k), "testData/slacken/seqid2taxid.map")
 
-  def index(k: Int, m: Int, location: Option[String])(implicit spark: SparkSession): KeyValueIndex = {
-      val mp = RandomXOR(m, DEFAULT_TOGGLE_MASK, true)
+  def minPriorities(m: Int): RandomXOR = RandomXOR(m, DEFAULT_TOGGLE_MASK, true)
+  def splitter(k: Int, m: Int): MinSplitter[RandomXOR] = MinSplitter(minPriorities(m), k)
 
-      val splitter = MinSplitter(mp, k)
-      val params = IndexParams(spark.sparkContext.broadcast(splitter), 16, location.getOrElse(null))
+  def index(k: Int, m: Int, location: Option[String])(implicit spark: SparkSession): KeyValueIndex = {
+      val params = IndexParams(spark.sparkContext.broadcast(splitter(k, m)), 16, location.orNull)
       new KeyValueIndex(params, TestData.taxonomy)
   }
 
   def defaultBuckets(idx: KeyValueIndex, k: Int)(implicit spark: SparkSession): DataFrame =
     idx.makeBuckets(TestData.library(k), addRC = false)
-
 
 }
