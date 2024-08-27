@@ -106,11 +106,11 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     }
   }
 
-  test("Random genomes, KeyValue method") {
+  test("Classify with random genomes, KeyValue method") {
     randomGenomesTest((params, taxonomy) => new KeyValueIndex(params, taxonomy), 128)
   }
 
-  test("Tiny index, KeyValue method") {
+  test("Insert testData genomes, write to disk, and check index contents") {
     val dir = System.getProperty("user.dir")
     val location = s"$dir/testData/slacken/slacken_test_kv"
     val k = 35
@@ -126,6 +126,22 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     ).distinct().count()
 
     recordCount should equal(distinctMinimizers)
+  }
+
+  test("Insert random genomes and check index contents") {
+    forAll(mAndKPairs) { case (m, k) =>
+      forAll(dnaStrings(k, 1000)) { x =>
+        whenever(k <= x.length) {
+          val idx = TestData.index(k, m, None)
+          val taxaSequence = List((1, x)).toDS
+          val bkts = idx.makeBuckets(taxaSequence)
+          val recordCount = bkts.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect()
+
+          val minCount = idx.split.superkmerPositions(x, false).map(_._2).toSeq.toDS.distinct().count()
+          List((1, minCount)) should equal(recordCount)
+        }
+      }
+    }
   }
 
   test("Get spans") {
