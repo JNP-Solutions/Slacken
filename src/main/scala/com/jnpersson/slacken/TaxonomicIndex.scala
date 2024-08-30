@@ -284,7 +284,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
     kmerDepthHistogram().
       write.mode(SaveMode.Overwrite).option("sep", "\t").csv(s"${output}_taxonDepths")
 
-  /** Print statistics for this index.
+  /** Print basic statistics for this index.
    * Optionally, input sequences and a label file can be specified, and they will then be checked against
    * the database.
    */
@@ -293,25 +293,24 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
 
   def showIndexStats(indexBuckets: Dataset[Record], genomes: Option[GenomeLibrary]): Unit
 
-  /**
-   * Produce Kraken-style quasi reports detailing:
-   * 1) contents of the index in minimizers (_min_report)
-   * 2) contents of the index in genomes (_genome_report)
-   * 3) missing genomes that are not uniquely identifiable by the index (_missing)
-   *
-   * @param checkLabelFile sequence label file used to build the index
-   * @param output         output filename prefix
-   */
   def report(checkLabelFile: Option[String], output: String, genomeLib: Option[GenomeLibrary]): Unit =
     report(loadBuckets(), checkLabelFile, output, genomeLib)
 
   /**
-   * If the genomelib input is given then the function creates a modified kraken 1/2 report with
-   * average total kmer counts for each taxon. Else, the function creates the legacy kraken 1/2 style report
-   * @param indexBuckets
-   * @param checkLabelFile
-   * @param output
-   * @param genomelib
+   * Produce reports describing the index.
+   *
+   * If genomeLib is not given, we produce Kraken-style quasi reports detailing:
+   * 1) contents of the index in minimizers (_min_report)
+   * 2) contents of the index in genomes (_genome_report)
+   * 3) missing genomes that are not uniquely identifiable by the index (_missing)
+   *
+   * If genomeLib is given, we produce a new report format that describes the average total k-mer count and genome
+   * sizes for each taxon.
+   *
+   * @param indexBuckets  LCA buckets to include in the report
+   * @param checkLabelFile sequence label file used to build the index
+   * @param output        output filename prefix
+   * @param genomelib     If supplied, produce new-style k-mer count reports, otherwise produce traditional reports
    */
   def report(indexBuckets: Dataset[Record], checkLabelFile: Option[String],
              output: String, genomelib: Option[GenomeLibrary] = None): Unit
