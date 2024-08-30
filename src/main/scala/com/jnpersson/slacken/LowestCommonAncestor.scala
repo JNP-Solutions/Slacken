@@ -5,9 +5,9 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.slacken.Taxonomy.NONE
-import it.unimi.dsi.fastutil.ints.{Int2IntFunction, Int2IntMap}
+import com.jnpersson.slacken.Taxonomy.ROOT
+import it.unimi.dsi.fastutil.ints.{Int2IntMap}
 
-import scala.collection.{Map => CMap}
 
 /**
  * Lowest common ancestor algorithm. The calculation needs a data buffer,
@@ -57,7 +57,7 @@ final class LowestCommonAncestor(taxonomy: Taxonomy) {
       }
       b = parents(b)
     }
-    NONE
+    ROOT
   }
 
   /**

@@ -76,7 +76,10 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
         joinSequencesAndLabels(library, addRC)
     }
 
-    makeBuckets(input)
+    val bcTax = this.bcTaxonomy
+    val isValid = udf((t: Taxon) => bcTax.value.isDefined(t))
+    val filtered = input.filter(isValid($"taxon"))
+    makeBuckets(filtered)
   }
 
   def joinSequencesAndLabels(library: GenomeLibrary, addRC: Boolean): Dataset[(Taxon, NTSeq)] = {
@@ -340,9 +343,10 @@ object TaxonomicIndex {
     val labelledNodes = getTaxonLabels(labelFile).select("_2").distinct().as[Taxon].collect()
     val invalidLabelledNodes = labelledNodes.filter(x => !tax.isDefined(x))
     if (invalidLabelledNodes.nonEmpty) {
-      println(s"${invalidLabelledNodes.length} unknown genomes in $labelFile (missing from taxonomy):")
+      println(s"${invalidLabelledNodes.length} unknown genomes in $labelFile were not indexed (missing from the taxonomy):")
       println(invalidLabelledNodes.toList)
     }
+
     val nonLeafLabelled = labelledNodes.filter(x => !tax.isLeafNode(x))
     if (nonLeafLabelled.nonEmpty) {
       println(s"${nonLeafLabelled.length} non-leaf genomes in $labelFile")
