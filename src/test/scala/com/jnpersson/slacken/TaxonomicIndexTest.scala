@@ -15,7 +15,6 @@ import org.apache.spark.sql.functions.count
 import org.scalacheck.Gen
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.matchers.should.Matchers.theSameElementsAs
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 
 import scala.annotation.tailrec
@@ -183,8 +182,9 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     val m = 10
     val idx = TestData.index(k, m, None)
     val buckets = TestData.defaultBuckets(idx, k)
+    val irs = new IndexStatistics(idx)
 
-    val genomeSizes = idx.totalKmerCountReport(buckets, TestData.library(idx.k)).genomeSizes.toMap
+    val genomeSizes = irs.totalKmerCountReport(buckets, TestData.library(idx.k)).genomeSizes.toMap
 
     val realGenomeSizes = TestData.numberOf31Mers
     genomeSizes should equal(realGenomeSizes)
