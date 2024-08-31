@@ -57,6 +57,9 @@ final class MinimizerPositions(val data: KmerTable, width: Int) extends IndexedS
     0
   }
 
+  def equal(pos1: Int, pos2: Int): Boolean =
+    compare(pos1, pos2) == 0
+
   /** Lexicographic comparison of minimizers at two positions */
   def isBefore(pos1: Int, pos2: Int): Boolean =
     compare(pos1, pos2) < 0

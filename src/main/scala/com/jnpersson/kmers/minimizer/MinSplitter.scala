@@ -147,7 +147,8 @@ final case class MinSplitter[+P <: MinimizerPriorities](priorities: P, k: Int) {
         val rank = matches.data(p)
 
         var consumed = 1
-        while (window.hasNext && window.head == p) {
+        while (window.hasNext &&
+          (window.head == p || window.motifRanks.equal(window.head, p))) {
           window.next
           consumed += 1
         }
@@ -192,7 +193,8 @@ final case class MinSplitter[+P <: MinimizerPriorities](priorities: P, k: Int) {
         val rank = matches.data(p)
 
         var consumed = 1
-        while (window.hasNext && window.head == p) {
+        while (window.hasNext &&
+          (window.head == p || window.motifRanks.equal(window.head, p))) {
           window.next
           consumed += 1
         }
