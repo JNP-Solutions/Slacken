@@ -27,8 +27,8 @@ class ShiftScannerProps extends AnyFunSuite with ScalaCheckPropertyChecks {
   import com.jnpersson.kmers.TestGenerators._
 
   test("Find all m-mers") {
-    forAll(mAndKPairsMaxM(10)) { case (m, k) =>
-      forAll(dnaStringsMixedCase(k, k)) { x =>
+    forAll(ms(10)) { m =>
+      forAll(dnaStringsMixedCase(m, 200)) { x =>
         whenever(m <= x.size) {
 
           //These minTable minimizers permit every m-mer to be a minimizer
