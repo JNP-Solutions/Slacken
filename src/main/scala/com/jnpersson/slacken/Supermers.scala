@@ -76,7 +76,7 @@ final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializab
           Iterator((Supermer(randomMinimizer, NTBitArray(Array(), ntseq.length)), AMBIGUOUS_FLAG))
         case SEQUENCE_FLAG =>
           for {
-            (_, hash, segment, _) <- splitter.splitEncode(ntseq)
+            (hash, segment, _) <- splitter.splitEncode(ntseq)
           } yield (Supermer(padMinimizer(hash), segment), SEQUENCE_FLAG)
       }
     } yield sm

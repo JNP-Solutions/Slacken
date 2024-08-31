@@ -31,11 +31,11 @@ class MinSplitterProps extends AnyFunSuite with ScalaCheckPropertyChecks {
         whenever(k <= x.size) {
           val extractor = MinSplitter(pri, k)
           val encoded = extractor.splitEncode(x).toList
-          val supermers = encoded.map(_._3.toString)
+          val supermers = encoded.map(_._2.toString)
 
           (supermers.head + supermers.tail.map(_.substring(k - 1)).mkString("")) should equal(x)
 
-          for {(_, _, ntseq, location) <- encoded} {
+          for {(_, ntseq, location) <- encoded} {
             x.substring(location.toInt, location.toInt + ntseq.size) should equal(ntseq.toString)
           }
         }
@@ -52,8 +52,8 @@ class MinSplitterProps extends AnyFunSuite with ScalaCheckPropertyChecks {
           val regions = extractor.splitEncode(x).toList
 
           //An improved version of this test would compare not only features but also the position of the motif
-          val expected = regions.map(r => scanner.allMatches(r._3)._2.validBitArrayIterator.min.data.toList)
-          val results = regions.map(_._2.toList)
+          val expected = regions.map(r => scanner.allMatches(r._2)._2.validBitArrayIterator.min.data.toList)
+          val results = regions.map(_._1.toList)
 
           results should equal(expected)
         }
