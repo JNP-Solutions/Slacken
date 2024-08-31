@@ -78,8 +78,7 @@ final class LowestCommonAncestor(taxonomy: Taxonomy) {
     resolveTree(hitCounts, requiredScore)
   }
 
-  /** Alternative version of resolveTree that operates on an Int2IntMap (fastutil),
-   * otherwise identical to the above.
+  /** A version of resolveTree that operates on an Int2IntMap (fastutil).
    * Note that Int2IntMap has a default value of 0 for missing keys.
    */
   def resolveTree(hitCounts: Int2IntMap, requiredScore: Double): Taxon = {
