@@ -18,8 +18,8 @@
 package com.jnpersson.kmers.minimizer
 
 /**
- * Tracks Motifs in a moving window, such that the top priority item can always be obtained efficiently.
- * Mutates the array. Can only be used once.
+ * Tracks minimizers in a moving window, such that the top priority item can always be obtained efficiently.
+ * Mutates the minimizer positions by setting valid/invalid flags. Can only be used once.
  * This class looks like an Iterator[Int], but to avoid boxing of integers, does not extend that trait.
  *
  * Invariants: the leftmost position has the highest priority (minimal rank).
@@ -37,7 +37,7 @@ final class PosRankWindow(m: Int, k: Int, val motifRanks: MinimizerPositions) {
   private[minimizer] var leftBound = 0
 
   //End of m-length window, not inclusive (1 past the end)
-  private[minimizer] var rightBound = 1
+  private[minimizer] var rightBound = 0
 
   //Initialize
   while (rightBound < k) {
