@@ -131,9 +131,10 @@ final case class RandomXOR(width: Int, xorMask: Long, canonical: Boolean) extend
   val mask = {
     val buf = NTBitArray.longBuffer(width)
     var i = 0
+    val lmerMask = -1L << ((width % 32) * 2)
     while (i < buf.length) {
       if (i == buf.length - 1 && (width % 64 != 0)) {
-        buf(i) = xorMask << (64 - (width % 32) * 2) //to align with the end of the left-adjusted data
+        buf(i) = xorMask & lmerMask
       } else {
         buf(i) = xorMask
       }
