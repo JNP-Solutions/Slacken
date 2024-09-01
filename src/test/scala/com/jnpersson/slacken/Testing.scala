@@ -7,7 +7,7 @@ package com.jnpersson.slacken
 
 import com.jnpersson.kmers
 import com.jnpersson.kmers.minimizer._
-import com.jnpersson.kmers.{IndexParams, Inputs, TestGenerators, Testing => TTesting}
+import com.jnpersson.kmers.{AnyMinSplitter, IndexParams, Inputs, TestGenerators, Testing => TTesting}
 import com.jnpersson.slacken.Taxonomy.{NONE, ROOT, Rank, Root}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.scalacheck.{Gen, Shrink}
@@ -107,11 +107,10 @@ object TestData {
 
   //Reference bracken weights
   val brackenWeightsLength100 = List[(Int, Int, Long)](
-    (526997, 526997, 3040666),
-    (1, 455631, 23),
-    (0, 455631, 201425), (0, 526997, 29747), (0, 9606, 159860),
-    (455631, 455631, 3924817),
-    (9606, 9606, 639961)
+    (455631, 455631, 3924339),
+    (0, 455631, 201893), (0, 526997, 29756), (0, 9606, 159859),
+    (526997, 526997, 3040657),
+    (1, 455631, 33), (9606, 9606, 639962)
   )
 
   // The total k-mer counts hardcoded below were independently computed using both KMC3 and Discount
@@ -124,11 +123,17 @@ object TestData {
   def library(k: Int)(implicit spark: SparkSession): GenomeLibrary =
     GenomeLibrary(inputs(k), "testData/slacken/seqid2taxid.map")
 
-  def minPriorities(m: Int): RandomXOR = RandomXOR(m, DEFAULT_TOGGLE_MASK, true)
-  def splitter(k: Int, m: Int): MinSplitter[RandomXOR] = MinSplitter(minPriorities(m), k)
+  def minPriorities(m: Int, s: Int): MinimizerPriorities =
+    if (s > 0)
+      SpacedSeed(s, RandomXOR(m, DEFAULT_TOGGLE_MASK, true))
+    else
+      RandomXOR(m, DEFAULT_TOGGLE_MASK, true)
 
-  def index(k: Int, m: Int, location: Option[String])(implicit spark: SparkSession): KeyValueIndex = {
-      val params = IndexParams(spark.sparkContext.broadcast(splitter(k, m)), 16, location.orNull)
+  def splitter(k: Int, m: Int, s: Int): AnyMinSplitter =
+    MinSplitter(minPriorities(m, s), k)
+
+  def index(k: Int, m: Int, s: Int, location: Option[String])(implicit spark: SparkSession): KeyValueIndex = {
+      val params = IndexParams(spark.sparkContext.broadcast(splitter(k, m, s)), 16, location.orNull)
       new KeyValueIndex(params, TestData.taxonomy)
   }
 

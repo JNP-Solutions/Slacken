@@ -5,7 +5,6 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.kmers.SparkSessionTestWrapper
-import org.apache.spark.sql.functions.sum
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 
@@ -18,8 +17,9 @@ class BrackenWeightsTest extends AnyFunSuite with SparkSessionTestWrapper with M
   test("Read counts from the underlying genomes are correct") {
     val k = 35
     val m = 31
+    val s = 7
     val readLen = 100
-    val idx = TestData.index(k, m, None)
+    val idx = TestData.index(k, m, s, None)
     val buckets = TestData.defaultBuckets(idx, k)
 
     val bw = new BrackenWeights(buckets, idx, readLen)

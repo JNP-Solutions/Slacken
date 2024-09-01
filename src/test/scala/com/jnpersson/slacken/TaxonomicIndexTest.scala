@@ -114,24 +114,28 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     val location = s"$dir/testData/slacken/slacken_test_kv"
     val k = 35
     val m = 31
-    val idx = TestData.index(k, m, Some(location))
+    val s = 7
+    val idx = TestData.index(k, m, s, Some(location))
     idx.writeBuckets(TestData.defaultBuckets(idx, k), location)
     val recordCount = KeyValueIndex.load(location, TestData.taxonomy).
       loadBuckets(location).filter($"taxon" =!= NONE).count()
 
-    val bcSplit = spark.sparkContext.broadcast(TestData.splitter(k, m))
+    val bcSplit = spark.sparkContext.broadcast(TestData.splitter(k, m, s))
     val distinctMinimizers = TestData.inputs(k).getInputFragments(false).flatMap(f =>
       bcSplit.value.superkmerPositions(f.nucleotides, false).map(_._2)
     ).distinct().count()
 
     recordCount should equal(distinctMinimizers)
+
+//    idx.report(None, "slacken_test_stats", None)
   }
 
   test("Insert random genomes and check index contents") {
     forAll(mAndKPairs) { case (m, k) =>
       forAll(dnaStrings(k, 1000)) { x =>
         whenever(k <= x.length) {
-          val idx = TestData.index(k, m, None)
+          val s = m/3
+          val idx = TestData.index(k, m, s, None)
           val taxaSequence = List((1, x)).toDS
           val bkts = idx.makeBuckets(taxaSequence)
           val recordCount = bkts.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect()
@@ -146,8 +150,8 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   test("Get spans") {
     val k = 35
     val m = 31
-
-    val idx = TestData.index(k, m, None)
+    val s = 7
+    val idx = TestData.index(k, m, s, None)
     val fragments = TestData.inputs(k).getInputFragments(withRC = false, withAmbiguous = true).
       map(f => f.copy(nucleotides = f.nucleotides.replaceAll("\\s+", "")))
 
@@ -165,7 +169,8 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   test("Dynamic index") {
     val k = 35
     val m = 31
-    val idx = TestData.index(k, m, None)
+    val s = 7
+    val idx = TestData.index(k, m, s, None)
     val cpar = ClassifyParams(2, true)
 
     val dyn = new Dynamic(idx, TestData.library(k),
@@ -180,7 +185,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   test("A known leaf node total k-mer count is correct with respect to the known value") {
     val k = 31
     val m = 10
-    val idx = TestData.index(k, m, None)
+    val idx = TestData.index(k, m, 0, None)
     val buckets = TestData.defaultBuckets(idx, k)
     val irs = new IndexStatistics(idx)
 
