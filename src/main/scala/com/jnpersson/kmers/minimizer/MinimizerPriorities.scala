@@ -134,7 +134,8 @@ final case class RandomXOR(width: Int, xorMask: Long, canonical: Boolean) extend
     val lmerMask = -1L << ((32 - width % 32) * 2)
     while (i < buf.length) {
       if (i == buf.length - 1 && (width % 32 != 0)) {
-        buf(i) = xorMask & lmerMask
+        //to align with the end of the left-adjusted data. This mimics Kraken 2 behaviour
+        buf(i) = xorMask << (64 - (width % 32) * 2)
       } else {
         buf(i) = xorMask
       }
