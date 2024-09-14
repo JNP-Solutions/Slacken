@@ -81,14 +81,9 @@ final case class MinSplitter[+P <: MinimizerPriorities](priorities: P, k: Int) {
    * @param addRC whether to add the reverse complement read on the fly
    * @return an iterator of (rank (hash/minimizer ID), encoded superkmer, location in sequence if available)
    */
-  def splitEncode(read: NTSeq, addRC: Boolean = false): Iterator[(Array[Long], NTBitArray, SeqLocation)] = {
+  def splitEncode(read: NTSeq): Iterator[(Array[Long], NTBitArray, SeqLocation)] = {
     val enc = scanner.allMatches(read)
-    val part1 = splitRead(enc._1, enc._2)
-    if (addRC) {
-      part1 ++ splitRead(enc._1, reverseComplement = true)
-    } else {
-      part1
-    }
+    splitRead(enc._1, enc._2)
   }
 
   /** Split an encoded read into superkmers.
@@ -102,20 +97,15 @@ final case class MinSplitter[+P <: MinimizerPriorities](priorities: P, k: Int) {
 
   /** Split a read into super-mers, returning only the position and length of each.
    * @return an iterator of (position in sequence, minimizer rank, length of superkmer) */
-  def superkmerPositions(read: NTSeq, addRC: Boolean): Iterator[(Int, Array[Long], Int)] = {
+  def superkmerPositions(read: NTSeq): Iterator[(Int, Array[Long], Int)] = {
     val enc = scanner.allMatches(read)
-    val part1 = superkmerPositions(enc._1, enc._2)
-    if (addRC) {
-      part1 ++ superkmerPositions(enc._1, reverseComplement = true)
-    } else {
-      part1
-    }
+    superkmerPositions(enc._1, enc._2)
   }
 
   /** Split an encoded read into super-mers, returning only the position and length of each.
    * @return an iterator of (position in sequence, minimizer rank, length of superkmer) */
-  def superkmerPositions(encoded: NTBitArray, reverseComplement: Boolean): Iterator[(Int, Array[Long], Int)] = {
-    val enc = scanner.allMatches(encoded, reverseComplement)
+  def superkmerPositions(encoded: NTBitArray): Iterator[(Int, Array[Long], Int)] = {
+    val enc = scanner.allMatches(encoded)
     superkmerPositions(enc._1, enc._2)
   }
 

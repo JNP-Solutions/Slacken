@@ -42,7 +42,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     //count minimizers per input sequence ID
     val noMinInput = fragments.map(r => {
       val splitter = spl.value
-      (splitter.superkmerPositions(r._2, addRC = false).size.toLong, r._1)
+      (splitter.superkmerPositions(r._2).size.toLong, r._1)
       }
     ).toDF("minimizers", "seqId").groupBy("seqId").agg(
       functions.sum("minimizers").as("sum")).filter($"sum" === 0L).cache()
@@ -61,25 +61,25 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     numIdColumns match {
       case 1 =>
         seqTaxa.flatMap(r => {
-          bcSplit.value.superkmerPositions(r._2, addRC = false).map { case (_, rank, _) =>
+          bcSplit.value.superkmerPositions(r._2).map { case (_, rank, _) =>
             (rank(0), r._1)
           }
         }).toDF(recordColumnNames: _*)
       case 2 =>
         seqTaxa.flatMap(r => {
-          bcSplit.value.superkmerPositions(r._2, addRC = false).map { case (_, rank, _) =>
+          bcSplit.value.superkmerPositions(r._2).map { case (_, rank, _) =>
             (rank(0), rank(1), r._1)
           }
         }).toDF(recordColumnNames: _*)
       case 3 =>
         seqTaxa.flatMap(r => {
-          bcSplit.value.superkmerPositions(r._2, addRC = false).map { case (_, rank, _) =>
+          bcSplit.value.superkmerPositions(r._2).map { case (_, rank, _) =>
             (rank(0), rank(1), rank(2), r._1)
           }
         }).toDF(recordColumnNames: _*)
       case 4 =>
         seqTaxa.flatMap(r => {
-          bcSplit.value.superkmerPositions(r._2, addRC = false).map { case (_, rank, _) =>
+          bcSplit.value.superkmerPositions(r._2).map { case (_, rank, _) =>
             (rank(0), rank(1), rank(2), rank(3), r._1)
           }
         }).toDF(recordColumnNames: _*)
