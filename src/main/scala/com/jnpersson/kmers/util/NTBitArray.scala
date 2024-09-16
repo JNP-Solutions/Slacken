@@ -25,8 +25,10 @@ import KmerTable.BuildParams
 import java.nio.ByteBuffer
 import scala.annotation.tailrec
 
-/** Methods for decoding NT sequences of a fixed max length, with reusable buffers. */
-class NTBitDecoder(buffer: ByteBuffer, builder: StringBuilder) {
+/** Methods for decoding NT sequences with reusable buffers. */
+class NTBitDecoder {
+  private var buffer: ByteBuffer = ByteBuffer.allocate(64)
+  private val builder = new StringBuilder()
 
   def bytesToString(bytes: Array[Byte], offset: Int, size: Int): NTSeq = {
     builder.clear()
@@ -43,6 +45,9 @@ class NTBitDecoder(buffer: ByteBuffer, builder: StringBuilder) {
    */
   def longsToString(data: Array[Long], offset: Int, size: Int): NTSeq = {
     buffer.clear()
+    while (buffer.capacity() < (size / 4 + 8)) {
+      buffer = ByteBuffer.allocate(buffer.capacity() * 2)
+    }
     var i = 0
     while (i < data.length) {
       buffer.putLong(data(i))
@@ -169,12 +174,8 @@ object NTBitArray {
   /**
    * A decoder that can decode NT sequences of a fixed max length.
    */
-  def fixedSizeDecoder(size: Int): NTBitDecoder = {
-    val sb = new StringBuilder
-    val bytes = if (size % 32 == 0) size / 4 else size / 4 + 8
-    val buf = ByteBuffer.allocate(bytes)
-    new NTBitDecoder(buf, sb)
-  }
+  def decoder: NTBitDecoder =
+    new NTBitDecoder
 
   /**
    * Decode a previously encoded NT sequence to human-readable string form.
@@ -185,7 +186,7 @@ object NTBitArray {
    * @return decoded string
    */
   def longsToString(data: Array[Long], offset: Int, size: Int): NTSeq =
-    fixedSizeDecoder(size).longsToString(data, offset, size)
+    decoder.longsToString(data, offset, size)
 }
 
 /**

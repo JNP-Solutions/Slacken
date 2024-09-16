@@ -111,7 +111,7 @@ trait MinimizerPriorities extends Serializable {
 
   //Thread local decoder to let humanReadable be thread safe
   @transient protected lazy val decoder =
-    ThreadLocal.withInitial(() => NTBitArray.fixedSizeDecoder(width))
+    ThreadLocal.withInitial(() => NTBitArray.decoder)
 
   def humanReadable(priority: Long): NTSeq =
     humanReadable(NTBitArray.fromLong(priority, width))
