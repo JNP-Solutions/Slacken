@@ -122,7 +122,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
 
     val bcSplit = spark.sparkContext.broadcast(TestData.splitter(k, m, s))
     val distinctMinimizers = TestData.inputs(k).getInputFragments(false).flatMap(f =>
-      bcSplit.value.superkmerPositions(f.nucleotides, false).map(_._2)
+      bcSplit.value.superkmerPositions(f.nucleotides).map(_._2)
     ).distinct().count()
 
     recordCount should equal(distinctMinimizers)
@@ -140,7 +140,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
           val bkts = idx.makeBuckets(taxaSequence)
           val recordCount = bkts.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect()
 
-          val minCount = idx.split.superkmerPositions(x, false).map(_._2).toSeq.toDS.distinct().count()
+          val minCount = idx.split.superkmerPositions(x).map(_._2).toSeq.toDS.distinct().count()
           List((1, minCount)) should equal(recordCount)
         }
       }
