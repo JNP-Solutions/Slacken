@@ -27,7 +27,7 @@ class IndexStatistics(index: KeyValueIndex)(implicit spark: SparkSession) {
     val allTaxa = indexBuckets.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect() //Dataframe
 
     val taxaLengthArray = index.joinSequencesAndLabels(genomeLibrary, addRC = false).map { x =>
-      val superkmers = spl.value.superkmerPositions(x._2, false)
+      val superkmers = spl.value.superkmerPositions(x._2)
       val superkmerSum = superkmers.map(s => s._3 - (k - 1)).sum
       (x._1, superkmerSum)
     }

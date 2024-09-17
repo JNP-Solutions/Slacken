@@ -120,7 +120,7 @@ class MinSplitterProps extends AnyFunSuite with ScalaCheckPropertyChecks {
           val encoded = NTBitArray.encode(x)
           val extractor = MinSplitter(pri, k)
           val mins1 = extractor.splitRead(encoded).map(_._1.toList).toList
-          val mins2 = extractor.superkmerPositions(encoded, false).map(_._2.toList).toList
+          val mins2 = extractor.superkmerPositions(encoded).map(_._2.toList).toList
           mins1 should equal(mins2)
         }
       }
