@@ -92,9 +92,8 @@ function histogram {
 
 function report {
   LIB=$1
-  K=$2
   #-l $K2/seqid2taxid.map
-  ./slacken2-aws.sh -k $K taxonIndex $DATA/$LIB report -l $K2 -o $DATA/$LIB
+  ./slacken2-aws.sh taxonIndex $DATA/$LIB report -l $K2 -o $DATA/$LIB
 }
 
 function brackenWeights {

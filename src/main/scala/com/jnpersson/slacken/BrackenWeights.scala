@@ -55,7 +55,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
 
     for { (seq, flag, _) <- segments } {
       if (flag == SEQUENCE_FLAG) {
-        val it = splitter.superkmerPositions(seq, addRC = false)
+        val it = splitter.superkmerPositions(seq)
         while (it.hasNext) {
           builder.addLongs(it.next._2)
         }
@@ -173,7 +173,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
     val empty = Array[Long]()
     segments.flatMap {
       case (seq, SEQUENCE_FLAG, pos) =>
-        splitter.superkmerPositions(seq, addRC = false).map(x => {
+        splitter.superkmerPositions(seq).map(x => {
           //Construct each minimizer hit.
           //Overloading the second argument (ordinal) to mean the absolute position in the fragment in this case
 

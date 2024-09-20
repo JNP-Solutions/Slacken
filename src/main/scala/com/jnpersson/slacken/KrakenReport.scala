@@ -8,10 +8,7 @@ package com.jnpersson.slacken
 import com.jnpersson.slacken.Taxonomy.{NONE, ROOT, Rank, Root, Unclassified}
 
 import java.io.PrintWriter
-import scala.collection.mutable
 import scala.collection.mutable.{Map => MMap}
-import scala.collection.mutable.ListBuffer
-
 
 /** Helper for aggregating per-taxon counts in the taxonomic tree */
 class TreeAggregator(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
@@ -25,101 +22,6 @@ class TreeAggregator(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
     for {p <- taxonomy.pathToRoot(taxid)} cladeTotals(p) += count
     if (taxid == NONE) cladeTotals(taxid) = count //pathToRoot doesn't include NONE
   }
-}
-
-class TotalKmerSizeAggregator(taxonomy: Taxonomy, genomeSizes: Array[(Taxon, Long)]) {
-  val genomeSizesMap = genomeSizes.toMap
-  val computedTreeMap: mutable.Map[Taxon, (Long, Long)] = computeFullTree()
-
-  /**
-   * Average kmer count among all leaf-children of that taxon.
-   * (present in the report under the column header "TKC1-LeafOnly")
-   * @param taxon
-   * @return
-   */
-  def totKmerAverageS1(taxon: Taxon): Double = {
-    val s1Agg = taxonomy.children(taxon).map(child => computedTreeMap(child)).
-      reduceOption((aggSum, pair) => (aggSum._1 + pair._1, aggSum._2 + pair._2))
-      .getOrElse(computedTreeMap(taxon))
-
-    val s1AggWithTaxon = if(genomeSizesMap.contains(taxon)) (s1Agg._1 + genomeSizesMap(taxon),s1Agg._2 + 1) else s1Agg
-
-    s1AggWithTaxon._1.toDouble / s1AggWithTaxon._2.toDouble
-  }
-
-  /**
-   * Average kmer count of average kmer counts of all first (immediate) children of that taxon.
-   * (present in the report under the column header "TKC2-FirstChildren")
-   * @param taxon
-   * @return
-   */
-  def totKmerAverageS2(taxon: Taxon): Double = {
-    if (taxonomy.children(taxon).nonEmpty) {
-      val s2Agg = taxonomy.children(taxon).map(child => computedTreeMap(child)).filter(_._2 > 0)
-        .map(pair => pair._1.toDouble / pair._2.toDouble)
-      val s2AggWithTaxon = if(genomeSizesMap.contains(taxon)) genomeSizesMap(taxon).toDouble::s2Agg else s2Agg
-
-      s2AggWithTaxon.sum / s2AggWithTaxon.size.toDouble
-    } else {
-      val a = computedTreeMap(taxon)
-      if (a._2 == 0) 0 else a._1 / a._2
-    }
-  }
-
-  /**
-   * Average kmer count among all children of that taxon.
-   * (present in the report under the column header "TKC3-AllChildren ")
-   * @param taxon
-   * @return
-   */
-  def totKmerAverageS3(taxon: Taxon): Double = {
-    val childrenNonZero = taxonomy.children(taxon).map(child => computedTreeMap(child)).filter(_._2 > 0)
-    val s1Agg = childrenNonZero.reduceOption { (aggSum, pair) => (aggSum._1 + pair._1, aggSum._2 + pair._2) }
-      .getOrElse(computedTreeMap(taxon))
-    val nonZeroChildSize = childrenNonZero.size.toDouble
-
-    if (s1Agg._2 + nonZeroChildSize == 0) 0 else {
-      ((totKmerAverageS1(taxon) * s1Agg._2.toDouble) +
-        (totKmerAverageS2(taxon) * nonZeroChildSize)) / (s1Agg._2.toDouble + nonZeroChildSize)
-    }
-  }
-
-  def computeFullTree(): mutable.Map[Taxon, (Long, Long)] = {
-    val results = mutable.Map[Taxon, (Long, Long)]()
-    computeLeafAggAndCounts(ROOT, results)
-    results
-  }
-
-  def computeLeafAggAndCounts(taxon: Taxon, results: mutable.Map[Taxon, (Long, Long)]): (Long, Long) = {
-    val children = taxonomy.children(taxon)
-    children match {
-      case Nil =>
-        if (genomeSizesMap.contains(taxon)) {
-          results += (taxon -> (genomeSizesMap(taxon), 1))
-          (genomeSizesMap(taxon), 1)
-        } else {
-          results += (taxon -> (0, 0))
-          (0, 0)
-        }
-
-      case childList =>
-        val genomeSizes = ListBuffer[Long]()
-        val genomeCounts = ListBuffer[Long]()
-        if (genomeSizesMap.contains(taxon)) {
-          genomeSizes += genomeSizesMap(taxon)
-          genomeCounts += 1
-        }
-        for {i <- childList
-             leafCounts = computeLeafAggAndCounts(i, results)} {
-          genomeSizes += leafCounts._1
-          genomeCounts += leafCounts._2
-        }
-        results += (taxon -> (genomeSizes.sum, genomeCounts.sum))
-        (genomeSizes.sum, genomeCounts.sum)
-
-    }
-  }
-
 }
 
 /** A Kraken 1/2 style taxonomic report with a tree structure.
@@ -193,23 +95,6 @@ class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], compatibleF
 
   def print(output: PrintWriter, reportZeros: Boolean = false): Unit =
     reportDFS(output, reportZeros)
-}
-
-class TotalKmerCountReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], val genomeSizes: Array[(Taxon, Long)])
-  extends KrakenReport(taxonomy, counts) {
-
-  lazy val totMinAgg = new TotalKmerSizeAggregator(taxonomy, genomeSizes)
-
-  override def dataColumnHeaders: String =
-    s"${super.dataColumnHeaders}\tTKC1-LeafOnly\tTKC2-FirstChildren\tTKC3-AllChildren"
-
-  override def dataColumns(taxid: Taxon): String = {
-    val totMinSizeS1 = math.round(totMinAgg.totKmerAverageS1(taxid))
-    val totMinSizeS2 = math.round(totMinAgg.totKmerAverageS2(taxid))
-    val totMinSizeS3 = math.round(totMinAgg.totKmerAverageS3(taxid))
-    s"${super.dataColumns(taxid)}\t$totMinSizeS1\t$totMinSizeS2\t$totMinSizeS3"
-
-  }
 }
 
 object KrakenReport {

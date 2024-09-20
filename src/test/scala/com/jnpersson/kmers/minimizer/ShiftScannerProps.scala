@@ -18,6 +18,7 @@
 package com.jnpersson.kmers.minimizer
 
 import com.jnpersson.kmers.Testing
+import com.jnpersson.kmers.util.{DNAHelpers, NTBitArray}
 import org.scalatest.matchers.should.Matchers._
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
@@ -28,16 +29,30 @@ class ShiftScannerProps extends AnyFunSuite with ScalaCheckPropertyChecks {
   test("Find all m-mers") {
     forAll(ms(10)) { m =>
       forAll(dnaStringsMixedCase(m, 200)) { x =>
-        whenever(m <= x.size && m > 0) {
+        whenever(m <= x.size) {
+
+          //These minTable minimizers permit every m-mer to be a minimizer
           val space = Testing.minTable(m)
           val scanner = space.scanner
           val expected = x.sliding(m).toList.map(_.toUpperCase())
 
+          def priorityToString(pri: NTBitArray) =
+            space.motifArray(pri.toInt).toString
+
           scanner.allMatches(x)._2.bitArraySeq.drop(m - 1). //first m-1 positions can't have an m-length match
-            map(x => space.motifArray(x.toInt).toString) should equal(expected)
+            map(priorityToString) should equal(expected)
 
           scanner.allMatches(x)._2.validBitArrayIterator.
-            map(m => space.motifArray(m.toInt).toString).toList should equal(expected)
+            map(priorityToString).toList should equal(expected)
+
+          val enc = NTBitArray.encode(x)
+          val rcString = DNAHelpers.reverseComplement(x)
+          val rcExpected = rcString.sliding(m).toList.map(_.toUpperCase())
+
+          scanner.allMatches(enc, true)._2.drop(m - 1). //first m-1 positions can't have an m-length match
+            map(priorityToString) should equal(rcExpected)
+          scanner.allMatches(enc, true)._2.validBitArrayIterator.
+            map(priorityToString).toList should equal(rcExpected)
         }
       }
     }

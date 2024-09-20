@@ -42,7 +42,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     //count minimizers per input sequence ID
     val noMinInput = fragments.map(r => {
       val splitter = spl.value
-      (splitter.superkmerPositions(r._2, addRC = false).size.toLong, r._1)
+      (splitter.superkmerPositions(r._2).size.toLong, r._1)
       }
     ).toDF("minimizers", "seqId").groupBy("seqId").agg(
       functions.sum("minimizers").as("sum")).filter($"sum" === 0L).cache()
@@ -61,25 +61,25 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     numIdColumns match {
       case 1 =>
         seqTaxa.flatMap(r => {
-          bcSplit.value.superkmerPositions(r._2, addRC = false).map { case (_, rank, _) =>
+          bcSplit.value.superkmerPositions(r._2).map { case (_, rank, _) =>
             (rank(0), r._1)
           }
         }).toDF(recordColumnNames: _*)
       case 2 =>
         seqTaxa.flatMap(r => {
-          bcSplit.value.superkmerPositions(r._2, addRC = false).map { case (_, rank, _) =>
+          bcSplit.value.superkmerPositions(r._2).map { case (_, rank, _) =>
             (rank(0), rank(1), r._1)
           }
         }).toDF(recordColumnNames: _*)
       case 3 =>
         seqTaxa.flatMap(r => {
-          bcSplit.value.superkmerPositions(r._2, addRC = false).map { case (_, rank, _) =>
+          bcSplit.value.superkmerPositions(r._2).map { case (_, rank, _) =>
             (rank(0), rank(1), rank(2), r._1)
           }
         }).toDF(recordColumnNames: _*)
       case 4 =>
         seqTaxa.flatMap(r => {
-          bcSplit.value.superkmerPositions(r._2, addRC = false).map { case (_, rank, _) =>
+          bcSplit.value.superkmerPositions(r._2).map { case (_, rank, _) =>
             (rank(0), rank(1), rank(2), rank(3), r._1)
           }
         }).toDF(recordColumnNames: _*)
@@ -175,6 +175,8 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     spark.sql(s"SELECT $idColumnsString, taxon FROM kv_taxidx")
   }
 
+  /** Split fragments into ordinals, which are either super-mers with a minimizer, or invalid spans.
+   * Whitespace (e.g. newlines) must have been removed prior to using this function. */
   def getSpans(subjects: Dataset[InputFragment], withTitle: Boolean): Dataset[OrdinalSpan] = {
     val bcSplit = this.bcSplit
     val k = this.k
@@ -268,35 +270,10 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     val leafTotal = leafTaxa.map(_._2).sum
     println(s"Total $m-minimizers: $recTotal, of which leaf records: $leafTotal (${formatPerc(leafTotal.toDouble/recTotal)})")
 //    for { library <- genomes} showTaxonCoverageStats(indexBuckets, library)
-    for { library <- genomes} showTaxonFullCoverageStats(indexBuckets, library)
-  }
-
-  /** For each genome in the input sequences, count all its minimizers (with repetitions) and calculate the fraction
-   * that is assigned (in the index) to that genome's taxon, rather than some ancestor.
-   * This is a measure of how well we can identify each distinct genome.
-   * @param indexBuckets index with LCAs
-   * @param genomes genome sequences to check (intended to be a subset of the sequences that were used
-   *               to build the index)
-   */
-  private def showTaxonCoverageStats(indexBuckets: DataFrame, genomes: GenomeLibrary): Unit = {
-    val inputSequences = joinSequencesAndLabels(genomes, addRC = false)
-    val mins = findMinimizers(inputSequences)
-
-    //1. Count how many times per input taxon each minimizer occurs
-    val agg = mins.groupBy(idColumns :+ $"taxon": _*).agg(count("*").as("countAll"))
-    // COLUMNS = [ taxon, minimizer(idColumns), countAll ]
-
-    //2. Join with buckets, find the fraction that is assigned to the same (leaf) taxon
-    val joint = agg.join(indexBuckets.withColumnRenamed("taxon", "idxTaxon"),
-        // indexBuckets COLUMNS = [ idxTaxon, idColumnNames ]
-        idColumnNames, "left").
-      withColumn("countLeaf", when($"idxTaxon" === $"taxon", $"countAll").
-        otherwise(lit(0L))).
-      groupBy("taxon").
-      agg((sum("countLeaf") / sum("countAll")).as("fracLeaf"),
-        sum("countAll").as("total"))
-
-    joint.select("fracLeaf", "total").summary().show()
+    for { library <- genomes} {
+      val irs = new IndexStatistics(this)
+      irs.showTaxonFullCoverageStats(indexBuckets, library)
+    }
   }
 
   /**
@@ -357,10 +334,11 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
              output: String, genomelib: Option[GenomeLibrary]): Unit = {
 
     //Report the contents of the index, count minimizers of taxa with distinct minimizer counts
-    val allTaxa = indexBuckets.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect() //Dataframe
+    val allTaxa = indexBuckets.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect()
     genomelib match {
       case Some(gl) =>
-        val report = totalKmerCountReport(indexBuckets,gl)
+        val irs = new IndexStatistics(this)
+        val report = irs.totalKmerCountReport(indexBuckets, gl)
         HDFSUtil.usingWriter(output + "_min_report.txt", wr => report.print(wr))
 
       case None =>

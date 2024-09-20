@@ -181,7 +181,8 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
       })
     }).toDF("category", "index").cache()
     val categoryBreakdown = hitCategories.groupBy("category").count().as[(String, Long)].cache()
-    val avgIndex = hitCategories.where(isnotnull($"index")).agg(avg("index")).as[Double].collect()(0)
+    val avgIndex = hitCategories.where(isnotnull($"index")).agg(avg("index")).as[Option[Double]].collect()(0).
+      getOrElse(Double.NaN)
 
     val catMap = categoryBreakdown.collect().toMap.withDefaultValue(0L)
 

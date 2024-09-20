@@ -7,7 +7,7 @@ package com.jnpersson.slacken
 
 import com.jnpersson.kmers
 import com.jnpersson.kmers.minimizer._
-import com.jnpersson.kmers.{IndexParams, Inputs, TestGenerators, Testing => TTesting}
+import com.jnpersson.kmers.{AnyMinSplitter, IndexParams, Inputs, TestGenerators, Testing => TTesting}
 import com.jnpersson.slacken.Taxonomy.{NONE, ROOT, Rank, Root}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.scalacheck.{Gen, Shrink}
@@ -106,33 +106,35 @@ object TestData {
   )
 
   //Reference bracken weights
-  val brackenWeightsLength100 = List[(Int, Int, Long)](
-    (526997, 526997, 3040666),
-    (1, 455631, 23),
-    (0, 455631, 201425), (0, 526997, 29747), (0, 9606, 159860),
-    (455631, 455631, 3924817),
-    (9606, 9606, 639961)
-  )
+  val brackenWeightsLength100 =
+    List[(Int, Int, Long)]((455631, 455631, 3924809), (0, 455631, 201425), (0, 526997, 29747),
+    (526997, 526997, 3040666), (1, 455631, 31), (0, 9606, 159860), (9606, 9606, 639961))
 
   // The total k-mer counts hardcoded below were independently computed using both KMC3 and Discount
   val numberOf31Mers = Map(526997 -> 2914769, 455631 -> 3594763, 9606 -> 639800)
+  val numberOf35Mers = Map(526997 -> 2902850, 455631 -> 3565872, 9606 -> 639784)
 
   def inputs(k: Int)(implicit spark: SparkSession) =
     new Inputs(List("testData/slacken/slacken_tinydata.fna"), k, 10000000)
 
-  def library(k: Int)(implicit spark: SparkSession) =
+  def library(k: Int)(implicit spark: SparkSession): GenomeLibrary =
     GenomeLibrary(inputs(k), "testData/slacken/seqid2taxid.map")
 
-  def index(k: Int, m: Int, location: Option[String])(implicit spark: SparkSession): KeyValueIndex = {
-      val mp = RandomXOR(m, DEFAULT_TOGGLE_MASK, true)
+  def minPriorities(m: Int, s: Int): MinimizerPriorities =
+    if (s > 0)
+      SpacedSeed(s, RandomXOR(m, DEFAULT_TOGGLE_MASK, true))
+    else
+      RandomXOR(m, DEFAULT_TOGGLE_MASK, true)
 
-      val splitter = MinSplitter(mp, k)
-      val params = IndexParams(spark.sparkContext.broadcast(splitter), 16, location.getOrElse(null))
+  def splitter(k: Int, m: Int, s: Int): AnyMinSplitter =
+    MinSplitter(minPriorities(m, s), k)
+
+  def index(k: Int, m: Int, s: Int, location: Option[String])(implicit spark: SparkSession): KeyValueIndex = {
+      val params = IndexParams(spark.sparkContext.broadcast(splitter(k, m, s)), 16, location.orNull)
       new KeyValueIndex(params, TestData.taxonomy)
   }
 
   def defaultBuckets(idx: KeyValueIndex, k: Int)(implicit spark: SparkSession): DataFrame =
     idx.makeBuckets(TestData.library(k), addRC = false)
-
 
 }

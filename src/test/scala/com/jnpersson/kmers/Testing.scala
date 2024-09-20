@@ -92,6 +92,16 @@ object TestGenerators {
     } yield withSpacedSeed(x, s)
   }
 
+  //Minimizer priorities that are invariant under reverse complement (canonicalised)
+  def minimizerPrioritiesCanonical(m: Int): Gen[MinimizerPriorities] = {
+    val DEFAULT_TOGGLE_MASK = 0xe37e28c4271b5a2dL
+    val mp = Gen.oneOf(List(RandomXOR(m, DEFAULT_TOGGLE_MASK, canonical = true)))
+    for {
+      x <- mp
+      s <- seedMaskSpaces(m)
+    } yield withSpacedSeed(x, s)
+  }
+
   //The standard Shrink[String] will shrink the characters into non-ACTG chars, which we do not want
   implicit def shrinkNTSeq: Shrink[NTSeq] = Shrink { s =>
     implicit val shrinkChar: Shrink[Char] = Shrink.shrinkAny //do not shrink the chars in the string
@@ -108,6 +118,13 @@ object TestGenerators {
       k <- ks
       m <- ms(k)
     } yield (m, k)
+
+  def mAndKPairsMaxM(maxM: Int): Gen[(Int, Int)] =
+    for {
+      k <- ks
+      m <- ms(maxM)
+    } yield (m, k)
+
 
   /** Shrink m and k while maintaining the invariants we expect from them */
   implicit def shrinkMAndK: Shrink[(Int, Int)] =
