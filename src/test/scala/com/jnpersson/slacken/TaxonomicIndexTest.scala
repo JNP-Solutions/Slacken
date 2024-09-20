@@ -6,12 +6,12 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.kmers.TestGenerators._
-
 import com.jnpersson.kmers.minimizer._
-
 import com.jnpersson.kmers.{NTSeq, SparkSessionTestWrapper, Testing => DTesting}
 import com.jnpersson.kmers.IndexParams
-import com.jnpersson.slacken.Taxonomy.{Species}
+import com.jnpersson.slacken.Taxonomy.{NONE, Species}
+import org.apache.spark.sql.functions
+import org.apache.spark.sql.functions.count
 import org.scalacheck.Gen
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
@@ -105,19 +105,63 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     }
   }
 
-  test("Random genomes, KeyValue method") {
+  test("Classify with random genomes, KeyValue method") {
     randomGenomesTest((params, taxonomy) => new KeyValueIndex(params, taxonomy), 128)
   }
 
-  test("Tiny index, KeyValue method") {
+  test("Insert testData genomes, write to disk, and check index contents") {
     val dir = System.getProperty("user.dir")
     val location = s"$dir/testData/slacken/slacken_test_kv"
     val k = 35
     val m = 31
-    val idx = TestData.index(k, m, Some(location))
+    val s = 7
+    val idx = TestData.index(k, m, s, Some(location))
     idx.writeBuckets(TestData.defaultBuckets(idx, k), location)
-    KeyValueIndex.load(location, TestData.taxonomy).
-      loadBuckets(location).count() should be > 0L
+    val recordCount = KeyValueIndex.load(location, TestData.taxonomy).
+      loadBuckets(location).filter($"taxon" =!= NONE).count()
+
+    val bcSplit = spark.sparkContext.broadcast(TestData.splitter(k, m, s))
+    val distinctMinimizers = TestData.inputs(k).getInputFragments(false).flatMap(f =>
+      bcSplit.value.superkmerPositions(f.nucleotides).map(_._2)
+    ).distinct().count()
+
+    recordCount should equal(distinctMinimizers)
+
+//    idx.report(None, "slacken_test_stats", None)
+  }
+
+  test("Insert random genomes and check index contents") {
+    forAll(mAndKPairs) { case (m, k) =>
+      forAll(dnaStrings(k, 1000)) { x =>
+        whenever(k <= x.length) {
+          val s = m/3
+          val idx = TestData.index(k, m, s, None)
+          val taxaSequence = List((1, x)).toDS
+          val bkts = idx.makeBuckets(taxaSequence)
+          val recordCount = bkts.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect()
+
+          val minCount = idx.split.superkmerPositions(x).map(_._2).toSeq.toDS.distinct().count()
+          List((1, minCount)) should equal(recordCount)
+        }
+      }
+    }
+  }
+
+  test("Get spans") {
+    val k = 35
+    val m = 31
+    val s = 7
+    val idx = TestData.index(k, m, s, None)
+    val fragments = TestData.inputs(k).getInputFragments(withRC = false, withAmbiguous = true).
+      map(f => f.copy(nucleotides = f.nucleotides.replaceAll("\\s+", "")))
+
+    val spans = idx.getSpans(fragments, withTitle = true)
+    val kmers = spans.map(x => (x.seqTitle.split("\\|")(1).toInt, x.kmers, x.flag)).toDF("title", "kmers", "flag").
+      filter($"flag" === SEQUENCE_FLAG).
+      groupBy("title").agg(functions.sum("kmers")).
+      as[(Taxon, Long)].collect()
+
+    kmers should contain theSameElementsAs(TestData.numberOf35Mers)
   }
 
   //Testing the basic code path for dynamic classification.
@@ -125,7 +169,8 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   test("Dynamic index") {
     val k = 35
     val m = 31
-    val idx = TestData.index(k, m, None)
+    val s = 7
+    val idx = TestData.index(k, m, s, None)
     val cpar = ClassifyParams(2, true)
 
     val dyn = new Dynamic(idx, TestData.library(k),
@@ -140,10 +185,11 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   test("A known leaf node total k-mer count is correct with respect to the known value") {
     val k = 31
     val m = 10
-    val idx = TestData.index(k, m, None)
+    val idx = TestData.index(k, m, 0, None)
     val buckets = TestData.defaultBuckets(idx, k)
+    val irs = new IndexStatistics(idx)
 
-    val genomeSizes = idx.totalKmerCountReport(buckets, TestData.library(idx.k)).genomeSizes.toMap
+    val genomeSizes = irs.totalKmerCountReport(buckets, TestData.library(idx.k)).genomeSizes.toMap
 
     val realGenomeSizes = TestData.numberOf31Mers
     genomeSizes should equal(realGenomeSizes)

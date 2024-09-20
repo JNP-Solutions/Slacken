@@ -73,7 +73,7 @@ class NTBitArrayProps extends AnyFunSuite with ScalaCheckPropertyChecks {
     forAll(dnaStrings, ks) { (x, k) =>
       whenever (k <= x.length && k >= 1 && x.nonEmpty) {
         val kmers = NTBitArray.encode(x).kmersAsLongArrays(k).toArray
-        val dec = NTBitArray.fixedSizeDecoder(k)
+        val dec = NTBitArray.decoder
         val kmerStrings = kmers.map(km => dec.longsToString(km, 0, k))
         kmerStrings.toList should equal (x.sliding(k).toList)
       }

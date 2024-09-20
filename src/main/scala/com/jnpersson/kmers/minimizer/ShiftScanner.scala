@@ -124,7 +124,7 @@ final case class ShiftScanner(priorities: MinimizerPriorities) {
         window.shiftAddBP(x.toByte)
         thisLong = (thisLong << 2) | x
         //window will now correspond to the "encoded form" of a motif (reversible mapping to 32-bit Int)
-        //priorityLookup will give the rank/ID
+        //priorityOf will give the rank/ID
         val priority = priorities.priorityOf(window)
         if (priority != null) {
           matches.addLongs(priority.data)

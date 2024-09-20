@@ -5,9 +5,9 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.slacken.Taxonomy.NONE
-import it.unimi.dsi.fastutil.ints.{Int2IntFunction, Int2IntMap}
+import com.jnpersson.slacken.Taxonomy.ROOT
+import it.unimi.dsi.fastutil.ints.{Int2IntMap}
 
-import scala.collection.{Map => CMap}
 
 /**
  * Lowest common ancestor algorithm. The calculation needs a data buffer,
@@ -57,7 +57,7 @@ final class LowestCommonAncestor(taxonomy: Taxonomy) {
       }
       b = parents(b)
     }
-    NONE
+    ROOT
   }
 
   /**
@@ -78,8 +78,7 @@ final class LowestCommonAncestor(taxonomy: Taxonomy) {
     resolveTree(hitCounts, requiredScore)
   }
 
-  /** Alternative version of resolveTree that operates on an Int2IntMap (fastutil),
-   * otherwise identical to the above.
+  /** A version of resolveTree that operates on an Int2IntMap (fastutil).
    * Note that Int2IntMap has a default value of 0 for missing keys.
    */
   def resolveTree(hitCounts: Int2IntMap, requiredScore: Double): Taxon = {
