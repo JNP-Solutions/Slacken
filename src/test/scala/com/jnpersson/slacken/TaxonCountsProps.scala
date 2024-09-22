@@ -16,20 +16,18 @@ import scala.collection.mutable.{IndexedSeq => MISeq}
 class TaxonCountsProps extends AnyFunSuite with ScalaCheckPropertyChecks with Matchers {
 
   def taxonCounts: Gen[TaxonCounts] =
-    for {ordinal <- Gen.choose(1, 10)
-         taxa <- Gen.listOfN(3, Gen.choose(1, 10))
+    for { taxa <- Gen.listOfN(3, Gen.choose(1, 10))
          counts <- Gen.listOfN(3, Gen.choose(1, 10))
-         } yield TaxonCounts(ordinal, taxa.to[MISeq], counts.to[MISeq])
+         } yield TaxonCounts(taxa.to[MISeq], counts.to[MISeq])
 
   def taxonCountsShrink: Shrink[TaxonCounts] =
     Shrink { tc =>
-      shrink(tc.asPairs.to[MISeq]).map(ps => TaxonCounts.fromPairs(tc.ordinal, ps))
+      shrink(tc.asPairs.to[MISeq]).map(ps => TaxonCounts.fromPairs(ps))
     }
 
   test("concatenate") {
     forAll(taxonCounts, taxonCounts) { case (tc1, tc2) =>
       val concat = TaxonCounts.concatenate(List(tc1, tc2))
-      concat.ordinal should equal(tc1.ordinal)
 
       //Iterator of concatenated values
       val cit = concat.asPairs

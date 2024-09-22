@@ -13,9 +13,9 @@ import scala.collection.mutable.ArrayBuffer
 object TaxonCounts {
 
   /** Construct a TaxonCounts object from an ordinal and (taxon, count) pairs */
-  def fromPairs(ordinal: Int, pairs: Iterable[(Taxon, Int)]): TaxonCounts = {
+  def fromPairs(pairs: Iterable[(Taxon, Int)]): TaxonCounts = {
     val (taxa, counts) = pairs.toArray.unzip
-    TaxonCounts(ordinal, taxa, counts)
+    TaxonCounts(taxa, counts)
   }
 
   /** Concatenate adjacent TaxonCounts (in order corresponding to the subject sequence)
@@ -44,20 +44,18 @@ object TaxonCounts {
         countRet += s.counts(i)
       }
     }
-    new TaxonCounts(summaries.headOption.map(_.ordinal).getOrElse(0), taxonRet, countRet)
+    new TaxonCounts(taxonRet, countRet)
   }
 }
 
 /**
  * Information about classified k-mers for a consecutive segment of a subject sequence.
  *
- * @param ordinal the relative position of this summary in a list of summaries for a subject sequence
- *              (not same as position in the query sequence)
  * @param taxa taxa for each classified region (may be repeated, but two consecutive taxa should not be the same)
  * @param counts k-mer counts for each taxon in the taxa array
  *
  */
-final case class TaxonCounts(ordinal: Int, taxa: mutable.IndexedSeq[Taxon], counts: mutable.IndexedSeq[Int]) {
+final case class TaxonCounts(taxa: mutable.IndexedSeq[Taxon], counts: mutable.IndexedSeq[Int]) {
 
   /** Obtain counts for each taxon as pairs */
   def asPairs: Iterator[(Taxon, Int)] =
