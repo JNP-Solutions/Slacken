@@ -140,7 +140,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
           val bkts = idx.makeBuckets(taxaSequence)
           val recordCount = bkts.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect()
 
-          val minCount = idx.split.superkmerPositions(x).map(_._2.toList).toSeq.toDS.distinct().count()
+          val minCount = idx.split.superkmerPositions(x).map(_.rank).toSeq.toDS.distinct().count()
           List((1, minCount)) should equal(recordCount)
         }
       }

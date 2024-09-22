@@ -49,7 +49,7 @@ class MinSplitterProps extends AnyFunSuite with ScalaCheckPropertyChecks {
       forAll(minimizerPriorities(m), dnaStrings(k)) { (pri, x) =>
         whenever(k <= x.size) {
           val extractor = MinSplitter(pri, k)
-          val encoded = extractor.splitEncode(x).map(_._1.toList)
+          val encoded = extractor.splitEncode(x).map(_.rank.toList)
 
           for { pair <- encoded.sliding(2)
                 if pair.length == 2 } {
