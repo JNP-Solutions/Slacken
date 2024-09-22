@@ -345,7 +345,7 @@ object KeyValueIndex {
  * */
 final case class TaxonHit(minimizer: Array[Long], ordinal: Int, taxon: Taxon, count: Int) {
   def summary: TaxonCounts =
-    TaxonCounts(ordinal, Array(taxon), Array(count))
+    TaxonCounts(Array(taxon), Array(count))
 
   def trueTaxon: Option[Taxon] = taxon match {
     case AMBIGUOUS_SPAN | MATE_PAIR_BORDER => None
