@@ -12,12 +12,6 @@ import com.jnpersson.kmers.util.NTBitArray
 import scala.util.Random
 import scala.util.matching.Regex
 
-/** A super-mer with a single minimizer.
- * @param minimizer the minimizer
- * @param segment Sequence data
- */
-final case class Supermer(minimizer: Array[Long], segment: NTBitArray)
-
 /** Helper functions for splitting segments into supermers in the presence of ambiguous data. */
 final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializable {
   val k = splitter.k
@@ -40,7 +34,7 @@ final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializab
       case Some(nt2) =>
         //mate pair, insert the flag in the correct location and process both sides
         val emptySequence = NTBitArray(Array(), 0)
-        val emptySupermer = Supermer(Array(Random.nextLong()), emptySequence)
+        val emptySupermer = Supermer(Array(Random.nextLong()), emptySequence, 0)
         splitFragment(sequence.nucleotides) ++
           Iterator((emptySupermer, MATE_PAIR_BORDER_FLAG)) ++
             splitFragment(nt2)
@@ -64,20 +58,21 @@ final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializab
    * Split a fragment into super-mers (by minimizer).
    * Ambiguous segments get a random minimizer. They will not be processed during classification,
    * but are needed at the end to create complete output
+   * The array length of minimizers will be standardised.
    * @param sequence the fragment to split.
    * @return Pairs of (segment, flag) where flag indicates whether the segment was ambiguous.
    */
   def splitFragment(sequence: NTSeq): Iterator[(Supermer, SegmentFlag)] =
     for {
-      (ntseq, flag, _) <- splitByAmbiguity(sequence)
+      (ntseq, flag, pos) <- splitByAmbiguity(sequence)
       if ntseq.length >= k
       sm <- flag match {
         case AMBIGUOUS_FLAG =>
-          Iterator((Supermer(randomMinimizer, NTBitArray(Array(), ntseq.length)), AMBIGUOUS_FLAG))
+          Iterator((Supermer(randomMinimizer, NTBitArray(Array(), ntseq.length), pos), AMBIGUOUS_FLAG))
         case SEQUENCE_FLAG =>
           for {
-            (hash, segment, _) <- splitter.splitEncode(ntseq)
-          } yield (Supermer(padMinimizer(hash), segment), SEQUENCE_FLAG)
+            Supermer(hash, segment, loc) <- splitter.splitEncode(ntseq)
+          } yield (Supermer(padMinimizer(hash), segment, loc + pos), SEQUENCE_FLAG)
       }
     } yield sm
 

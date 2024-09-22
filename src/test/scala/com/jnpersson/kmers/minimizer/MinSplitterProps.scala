@@ -32,11 +32,11 @@ class MinSplitterProps extends AnyFunSuite with ScalaCheckPropertyChecks {
         whenever(k <= x.size) {
           val extractor = MinSplitter(pri, k)
           val encoded = extractor.splitEncode(x).toList
-          val supermers = encoded.map(_._2.toString)
+          val supermers = encoded.map(_.nucleotides.toString)
 
           (supermers.head + supermers.tail.map(_.substring(k - 1)).mkString("")) should equal(x)
 
-          for {(_, ntseq, location) <- encoded} {
+          for {Supermer(_, ntseq, location) <- encoded} {
             x.substring(location.toInt, location.toInt + ntseq.size) should equal(ntseq.toString)
           }
         }
@@ -69,8 +69,8 @@ class MinSplitterProps extends AnyFunSuite with ScalaCheckPropertyChecks {
           val regions = extractor.splitEncode(x).toList
 
           //An improved version of this test would compare not only features but also the position of the motif
-          val expected = regions.map(r => scanner.allMatches(r._2)._2.validBitArrayIterator.min.data.toList)
-          val results = regions.map(_._1.toList)
+          val expected = regions.map(r => scanner.allMatches(r.nucleotides)._2.validBitArrayIterator.min.data.toList)
+          val results = regions.map(_.rank.toList)
 
           results should equal(expected)
         }
@@ -107,7 +107,7 @@ class MinSplitterProps extends AnyFunSuite with ScalaCheckPropertyChecks {
           val regions = extractor.splitRead(encoded, false).toList
           val rcRegions = extractor.splitRead(encoded, true).toList
 
-          regions.map(_._1.toList) should equal(rcRegions.map(_._1.toList).reverse)
+          regions.map(_.rank.toList) should equal(rcRegions.map(_.rank.toList).reverse)
         }
       }
     }
@@ -119,7 +119,7 @@ class MinSplitterProps extends AnyFunSuite with ScalaCheckPropertyChecks {
         whenever(k <= x.size) {
           val encoded = NTBitArray.encode(x)
           val extractor = MinSplitter(pri, k)
-          val mins1 = extractor.splitRead(encoded).map(_._1.toList).toList
+          val mins1 = extractor.splitRead(encoded).map(_.rank.toList).toList
           val mins2 = extractor.superkmerPositions(encoded).map(_.rank.toList).toList
           mins1 should equal(mins2)
         }

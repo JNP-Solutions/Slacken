@@ -17,7 +17,7 @@
 
 package com.jnpersson.kmers.minimizer
 
-import com.jnpersson.kmers._
+import com.jnpersson.kmers.{SeqLocation, _}
 import com.jnpersson.kmers.util.NTBitArray
 
 /**
@@ -54,10 +54,17 @@ final case class SplitSegment(hash: BucketId, sequence: SeqID, location: SeqLoca
 
 /**
  * @param location location of superkmer
- * @param rank rank (encoded priority) of minimizer; uniquely identifies it
+ * @param rank encoded priority of minimizer; uniquely identifies it
  * @param length length of superkmer
  */
 final case class Minimizer(location: Int, rank: Array[Long], length: Int)
+
+/**
+ * @param rank encoded priority of minimizer; uniquely identifies it
+ * @param nucleotides encoded super-mer
+ * @param location location in sequence if available
+ */
+final case class Supermer(rank: Array[Long], nucleotides: NTBitArray, location: SeqLocation)
 
 object MinSplitter {
   /** Estimated bin size (sampled count of a minimizer, scaled up) that is considered a "large" bucket
@@ -89,7 +96,7 @@ final case class MinSplitter[+P <: MinimizerPriorities](priorities: P, k: Int) {
    * @return an iterator of (rank (hash/minimizer ID), encoded superkmer, location in sequence if available)
    */
 
-  def splitEncode(read: NTSeq): Iterator[(Array[Long], NTBitArray, SeqLocation)] = {
+  def splitEncode(read: NTSeq): Iterator[Supermer] = {
     val enc = scanner.allMatches(read)
     splitRead(enc._1, enc._2)
   }
@@ -98,7 +105,7 @@ final case class MinSplitter[+P <: MinimizerPriorities](priorities: P, k: Int) {
    * @param encoded the read to split
    * @return an iterator of (rank (hash/minimizer ID), encoded superkmer, position of superkmer start in sequence)
    */
-  def splitRead(encoded: NTBitArray, reverseComplement: Boolean = false): Iterator[(Array[Long], NTBitArray, SeqLocation)] = {
+  def splitRead(encoded: NTBitArray, reverseComplement: Boolean = false): Iterator[Supermer] = {
     val enc = scanner.allMatches(encoded, reverseComplement)
     splitRead(enc._1, enc._2)
   }
@@ -124,14 +131,14 @@ final case class MinSplitter[+P <: MinimizerPriorities](priorities: P, k: Int) {
    * @param matches discovered motif ranks in the superkmer
    * @return an iterator of (rank (hash/minimizer ID), encoded superkmer, location in sequence)
    */
-  def splitRead(encoded: NTBitArray, matches: MinimizerPositions): Iterator[(Array[Long], NTBitArray, SeqLocation)] = {
+  def splitRead(encoded: NTBitArray, matches: MinimizerPositions): Iterator[Supermer] = {
     val window = new PosRankWindow(priorities.width, k, matches)
 
     var regionStart = 0
-    new Iterator[(Array[Long], NTBitArray, SeqLocation)] {
+    new Iterator[Supermer] {
       def hasNext: Boolean = window.hasNext
 
-      def next: (Array[Long], NTBitArray, SeqLocation) = {
+      def next: Supermer = {
         val p = window.next
 
         //TODO INVALID handling for computed priorities
@@ -156,10 +163,10 @@ final case class MinSplitter[+P <: MinimizerPriorities](priorities: P, k: Int) {
 
         if (window.hasNext) {
           val segment = encoded.sliceAsCopy(thisStart, consumed + (k - 1))
-          (rank, segment, thisStart)
+          Supermer(rank, segment, thisStart)
         } else {
           val segment = encoded.sliceAsCopy(thisStart, encoded.size - thisStart)
-          (rank, segment, thisStart)
+          Supermer(rank, segment, thisStart)
         }
       }
     }
@@ -218,7 +225,7 @@ final case class MinSplitter[+P <: MinimizerPriorities](priorities: P, k: Int) {
   def splitEncodeLocation(read: InputFragment, sequenceIDs: Map[SeqTitle, SeqID]): Iterator[SplitSegment] = {
     val width = priorities.width * 2
     for {
-      (rank, ntseq, location) <- splitEncode(read.nucleotides)
+      Supermer(rank, ntseq, location) <- splitEncode(read.nucleotides)
       shifted = rank(0) >>> (64 - width * 2)
     } yield SplitSegment(shifted, sequenceIDs(read.header), read.location + location, ntseq)
   }

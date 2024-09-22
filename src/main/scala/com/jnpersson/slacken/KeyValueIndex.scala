@@ -189,11 +189,11 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
         supermers.splitFragment(s).map(x =>
           //Drop the sequence data
           if (withTitle)
-            OrdinalSpan(x.segment.minimizer,
-              x.segment.segment.size - (k - 1), x.flag, x.ordinal, x.seqTitle)
+            OrdinalSpan(x.segment.rank,
+              x.segment.nucleotides.size - (k - 1), x.flag, x.ordinal, x.seqTitle)
           else
-            OrdinalSpan(x.segment.minimizer,
-              x.segment.segment.size - (k - 1), x.flag, x.ordinal, null)
+            OrdinalSpan(x.segment.rank,
+              x.segment.nucleotides.size - (k - 1), x.flag, x.ordinal, null)
         )
       )
     })
