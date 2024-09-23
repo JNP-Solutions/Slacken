@@ -117,7 +117,8 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   def multiStatsPerTaxon(subjects: Dataset[InputFragment])
   : (Dataset[(Taxon, Long, Long, Long)], Dataset[(Taxon, Long)], Dataset[(Taxon, String, String)]) = {
     val initThreshold = 0.0
-    val coveragePerTaxon = base.showTaxonFullCoverageStats(base.loadBuckets(), genomes)
+    val indexStats = new IndexStatistics(base)
+    val coveragePerTaxon = indexStats.showTaxonFullCoverageStats(base.loadBuckets(), genomes)
 
     val foundHits = base.findHits(base.loadBuckets(), subjects)
     val hits = base.classify(base.loadBuckets(), subjects)

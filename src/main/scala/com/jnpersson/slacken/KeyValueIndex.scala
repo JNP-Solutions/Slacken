@@ -276,60 +276,6 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     }
   }
 
-  /**
-   * 
-   * @param indexBuckets
-   * @param genomes
-   * @return
-   */
-  def showTaxonFullCoverageStats(indexBuckets: DataFrame, genomes: GenomeLibrary): Dataset[(Taxon, String, String)] = {
-    val inputSequences = joinSequencesAndLabels(genomes, addRC = false)
-    val mins = findMinimizers(inputSequences)
-
-    //1. Count how many times per input taxon each minimizer occurs
-    val minCounts = mins.groupBy(idColumns :+ $"taxon": _*).agg(count("*").as("countAll"), lit(1L).as("countDistinct"))
-
-    val bcTaxonomy = this.bcTaxonomy
-    val taxonDepth = udf((taxon: Taxon) => bcTaxonomy.value.depth(taxon))
-    val depthCountConcat = udf((depths: Array[Int], counts: Array[Long]) =>
-      depths.zip(counts).map(x => x._1 + ":" + x._2).mkString("|"))
-
-    //2. Join with buckets, find the fraction that is assigned to the same (leaf) taxon
-    minCounts.join(indexBuckets.withColumnRenamed("taxon", "idxTaxon"),
-        idColumnNames). //[ taxon, LCA(idxtaxon) , Minimizer(idColumns), countAll ]
-      withColumn("idxTaxDepth", taxonDepth($"idxtaxon")).
-      groupBy("taxon", "idxTaxDepth").agg(sum($"countAll").as("sumAll"), sum($"countDistinct").as("sumDistinct"))
-      .groupBy("taxon").agg(
-        collect_list("idxTaxDepth").as("lcaDepths"),
-        collect_list("sumAll").as("counts"),
-        collect_list("sumDistinct").as("distinctCounts"))
-      .select($"taxon",
-        depthCountConcat($"lcaDepths", $"counts").as("minimizerCoverage"),
-        depthCountConcat($"lcaDepths", $"distinctCounts").as("distinctMinimizerCoverage"))
-      .as[(Taxon, String, String)]
-  }
-
-  /**
-   * Generates K-mer counts (with duplicates) for each taxon in the library and creates a GenomeLengthReport
-   * @param indexBuckets
-   * @param genomeLibrary
-   * @return
-   */
-  def totalKmerCountReport(indexBuckets: DataFrame, genomeLibrary: GenomeLibrary): TotalKmerCountReport = {
-
-    val allTaxa = indexBuckets.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect() //Dataframe
-    val k = this.k
-    val spl = this.bcSplit
-    val taxaLengthArray = joinSequencesAndLabels(genomeLibrary, addRC = false).map {x =>
-        val superkmers = spl.value.superkmerPositions(x._2, false)
-        val superkmerSum = superkmers.map(s => s._3-(k-1)).sum
-        (x._1,superkmerSum)
-      }
-      .toDF("taxon", "length").groupBy("taxon").agg(functions.sum($"length")).as[(Taxon, Long)].collect()
-
-    new TotalKmerCountReport(taxonomy, allTaxa, taxaLengthArray)
-  }
-
   def report(indexBuckets: DataFrame, checkLabelFile: Option[String],
              output: String, genomelib: Option[GenomeLibrary]): Unit = {
 
