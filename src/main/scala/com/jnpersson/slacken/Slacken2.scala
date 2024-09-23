@@ -130,7 +130,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       val dynamicBrackenLength = opt[Int](descr =
         "Read length for bracken weights for the dynamic index (default 100)", default = Some(100))
 
-      val reportDynamicIndex = opt[Boolean](descr = "Report statistics on the dynamic index", default = Some(true),
+      val reportDynamicIndex = opt[Boolean](descr = "Report statistics on the dynamic index", default = Some(false),
         hidden = false)
 
       val classifyWithGoldStandard = opt[Boolean](descr = "whether to classify with the gold taxon set or just get " +
