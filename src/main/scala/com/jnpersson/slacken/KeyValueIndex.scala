@@ -61,26 +61,26 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     numIdColumns match {
       case 1 =>
         seqTaxa.flatMap(r => {
-          bcSplit.value.superkmerPositions(r._2).map { case (_, rank, _) =>
-            (rank(0), r._1)
+          bcSplit.value.superkmerPositions(r._2).map { min =>
+            (min.rank(0), r._1)
           }
         }).toDF(recordColumnNames: _*)
       case 2 =>
         seqTaxa.flatMap(r => {
-          bcSplit.value.superkmerPositions(r._2).map { case (_, rank, _) =>
-            (rank(0), rank(1), r._1)
+          bcSplit.value.superkmerPositions(r._2).map { min =>
+            (min.rank(0), min.rank(1), r._1)
           }
         }).toDF(recordColumnNames: _*)
       case 3 =>
         seqTaxa.flatMap(r => {
-          bcSplit.value.superkmerPositions(r._2).map { case (_, rank, _) =>
-            (rank(0), rank(1), rank(2), r._1)
+          bcSplit.value.superkmerPositions(r._2).map { min =>
+            (min.rank(0), min.rank(1), min.rank(2), r._1)
           }
         }).toDF(recordColumnNames: _*)
       case 4 =>
         seqTaxa.flatMap(r => {
-          bcSplit.value.superkmerPositions(r._2).map { case (_, rank, _) =>
-            (rank(0), rank(1), rank(2), rank(3), r._1)
+          bcSplit.value.superkmerPositions(r._2).map { min =>
+            (min.rank(0), min.rank(1), min.rank(2), min.rank(3), r._1)
           }
         }).toDF(recordColumnNames: _*)
       case _ =>
@@ -189,11 +189,11 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
         supermers.splitFragment(s).map(x =>
           //Drop the sequence data
           if (withTitle)
-            OrdinalSpan(x.segment.minimizer,
-              x.segment.segment.size - (k - 1), x.flag, x.ordinal, x.seqTitle)
+            OrdinalSpan(x.segment.rank,
+              x.segment.nucleotides.size - (k - 1), x.flag, x.ordinal, x.seqTitle)
           else
-            OrdinalSpan(x.segment.minimizer,
-              x.segment.segment.size - (k - 1), x.flag, x.ordinal, null)
+            OrdinalSpan(x.segment.rank,
+              x.segment.nucleotides.size - (k - 1), x.flag, x.ordinal, null)
         )
       )
     })
@@ -399,7 +399,7 @@ object KeyValueIndex {
  * */
 final case class TaxonHit(minimizer: Array[Long], ordinal: Int, taxon: Taxon, count: Int) {
   def summary: TaxonCounts =
-    TaxonCounts(ordinal, Array(taxon), Array(count))
+    TaxonCounts(Array(taxon), Array(count))
 
   def trueTaxon: Option[Taxon] = taxon match {
     case AMBIGUOUS_SPAN | MATE_PAIR_BORDER => None
