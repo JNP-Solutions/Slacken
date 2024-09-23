@@ -29,7 +29,8 @@ package object slacken {
   val MATE_PAIR_BORDER_FLAG: SegmentFlag = 3
 
   /**
-   * A super-mer with sequence data with an ordinal from a named sequence
+   * A super-mer with sequence data with an ordinal from a named sequence.
+   * By tracking the ordinal and the sequence title, the original sequences can be reconstructed.
    * @param segment the super-mer
    * @param flag ambiguous flag
    * @param ordinal the relative position of this super-mer in the original sequence
@@ -39,6 +40,7 @@ package object slacken {
 
   /**
    * A super-mer with a specific minimizer, which is potentially ambiguous, but without sequence data (so just a span)
+   * By tracking the ordinal and the sequence title, the original sequences can be reconstructed.
    * @param minimizer minimizer
    * @param kmers number of k-mers in this span
    * @param flag ambiguous flag
