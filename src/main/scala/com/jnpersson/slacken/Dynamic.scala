@@ -65,7 +65,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
       as[(Taxon, Long)].collect()
 
   def totalMinimizersPerTaxon(subjects: Dataset[InputFragment]): Array[(Taxon, Long)] =
-    minimizersInSubjects(subjects).agg(functions.sum($"minimizer").as("count")).
+    minimizersInSubjects(subjects).agg(functions.count($"minimizer").as("count")).
       as[(Taxon, Long)].collect()
 
   /** Counting method that counts the fraction of distinct minimizers per taxon seen in the sample,

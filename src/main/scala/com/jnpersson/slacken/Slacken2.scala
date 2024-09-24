@@ -121,7 +121,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
         choices = Taxonomy.rankValues.map(_.title)).map(r =>
         Taxonomy.rankValues.find(_.title == r).get)
 
-      val dynamicMinFraction = opt[Double](descr = "Min fraction for taxon inclusion in dynamic mode")
+      //val dynamicMinFraction = opt[Double](descr = "Min fraction for taxon inclusion in dynamic mode")
       val dynamicMinCount = opt[Int](descr = "Minimizer count for taxon inclusion in dynamic mode (default 100)",
         default = Some(100))
       val dynamicMinDistinct = opt[Int](descr = "Minimizer distinct count for taxon inclusion in dynamic mode")
