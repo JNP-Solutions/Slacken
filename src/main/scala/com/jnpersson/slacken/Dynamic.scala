@@ -5,10 +5,15 @@ import com.jnpersson.kmers.Output.formatPerc
 import com.jnpersson.kmers.{HDFSUtil, Inputs, Output}
 import com.jnpersson.slacken.Taxonomy.Rank
 import org.apache.spark.sql.functions.{approx_count_distinct, count}
-import org.apache.spark.sql.{DataFrame, Dataset, SparkSession, functions}
+import org.apache.spark.sql.{DataFrame, Dataset, RelationalGroupedDataset, SparkSession, functions}
 
 import scala.collection.mutable
 
+sealed trait TaxonCriteria
+case class MinimizerTotalCount(threshold: Int) extends TaxonCriteria
+case class ClassifiedReadCount(threshold: Int) extends TaxonCriteria
+case class MinimizerFraction(threshold: Double) extends TaxonCriteria
+case class MinimizerDistinctCount(threshold: Int) extends TaxonCriteria
 
 /** Two-step classification of reads with dynamically generated indexes,
  * starting from a base index.
@@ -27,8 +32,8 @@ import scala.collection.mutable
  * @param outputLocation prefix location for output files
  */
 class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
-              reclassifyRank: Rank, taxonMinFraction: Double,
-              taxonMinCount: Long,
+              reclassifyRank: Rank,
+              taxonCriteria: TaxonCriteria,
               cpar: ClassifyParams,
               dynamicBrackenReadLength: Option[Int],
               goldStandardTaxonSet: Option[(String, Boolean)],
@@ -39,24 +44,29 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
 
   def taxonomy = base.taxonomy
 
-  /** Counting method that counts the number of distinct minimizers per taxon in the sample,
-   * to aid taxon set filtering */
-  def distinctMinimizersPerTaxon(subjects: Dataset[InputFragment]): Array[(Taxon, Long)] = {
+  private def minimizersInSubjects(subjects: Dataset[InputFragment]): RelationalGroupedDataset = {
     val hits = base.findHits(base.loadBuckets(), subjects)
 
     val bcTax = base.bcTaxonomy
     val rank = reclassifyRank
 
-    val grouped = hits.flatMap(h =>
-      for { t <- h.trueTaxon
-        if bcTax.value.depth(t) >= rank.depth
-        } yield (t, h.minimizer)
+    hits.flatMap(h =>
+        for { t <- h.trueTaxon
+              if bcTax.value.depth(t) >= rank.depth
+              } yield (t, h.minimizer)
       ).
       toDF("taxon", "minimizer").groupBy("taxon")
-
-    grouped.agg(functions.count_distinct($"minimizer").as("count")).
-      as[(Taxon, Long)].collect()
   }
+
+  /** Counting method that counts the number of distinct minimizers per taxon in the sample,
+   * to aid taxon set filtering */
+  def distinctMinimizersPerTaxon(subjects: Dataset[InputFragment]): Array[(Taxon, Long)] =
+    minimizersInSubjects(subjects).agg(functions.count_distinct($"minimizer").as("count")).
+      as[(Taxon, Long)].collect()
+
+  def totalMinimizersPerTaxon(subjects: Dataset[InputFragment]): Array[(Taxon, Long)] =
+    minimizersInSubjects(subjects).agg(functions.sum($"minimizer").as("count")).
+      as[(Taxon, Long)].collect()
 
   /** Counting method that counts the fraction of distinct minimizers per taxon seen in the sample,
    * to aid taxon set filtering. */
@@ -67,24 +77,6 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
       toMap
 
     inSample.keys.toArray.map(t => (t, inSample(t).toDouble / inBuckets(t).toDouble))
-  }
-
-  /** Counting method that counts the number of k-mers per taxon in the sample, to aid taxon set filtering */
-  def kmersPerTaxon(subjects: Dataset[InputFragment]): Array[(Taxon, Long)] = {
-    val hits = base.findHits(base.loadBuckets(), subjects)
-
-    val bcTax = base.bcTaxonomy
-    val rank = reclassifyRank
-
-    val grouped = hits.flatMap(h =>
-        for { t <- h.trueTaxon
-              if bcTax.value.depth(t) >= rank.depth
-              } yield (t, h.count)
-      ).
-      toDF("taxon", "count").groupBy("taxon")
-
-    grouped.agg(functions.sum($"count").as("count")).
-      as[(Taxon, Long)].collect()
   }
 
   /** Counting method that counts the number of minimizers per taxon, in the buckets, to aid taxon set filtering */
@@ -126,7 +118,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
 
   /** Simple count filter that finds a taxon set by capping at a minimum count threshold.
    */
-  class CountFilter(counts: Array[(Taxon, Long)]) extends TaxonSetFinder {
+  class CountFilter(counts: Array[(Taxon, Long)], threshold: Int) extends TaxonSetFinder {
     val hitMinimizers = new TreeAggregator(taxonomy, counts)
 
     def report: KrakenReport =
@@ -136,7 +128,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
       mutable.BitSet.empty ++
         (for {taxon <- hitMinimizers.keys
               if taxonomy.depth(taxon) >= reclassifyRank.depth
-              if hitMinimizers.cladeTotals(taxon) >= taxonMinCount
+              if hitMinimizers.cladeTotals(taxon) >= threshold
               }
         yield taxon)
   }
@@ -145,7 +137,12 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
    * emphasising recall over precision.
    */
   def findTaxonSet(subjects: Dataset[InputFragment], writeLocation: Option[String]): mutable.BitSet = {
-    val finder = new CountFilter(distinctMinimizersPerTaxon(subjects))
+    val finder = taxonCriteria match {
+      case MinimizerTotalCount(threshold) => new CountFilter(totalMinimizersPerTaxon(subjects), threshold)
+      case MinimizerFraction(threshold) => ???
+      case ClassifiedReadCount(threshold) => new CountFilter(classifiedReadsPerTaxon(subjects), threshold)
+      case MinimizerDistinctCount(threshold) => new CountFilter(distinctMinimizersPerTaxon(subjects), threshold)
+    }
 
     if (reportDynamicIndex)
       HDFSUtil.usingWriter(outputLocation + "_support_report.txt", wr => finder.report.print(wr))
@@ -169,7 +166,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     }
 
     val withDescendants = taxonomy.taxaWithDescendants(keepTaxa)
-    println(s"Initial scan (cutoff $taxonMinCount) produced ${keepTaxa.size} taxa at rank $reclassifyRank, expanded with descendants to ${withDescendants.size}")
+    println(s"Initial scan (criterion $taxonCriteria) produced ${keepTaxa.size} taxa at rank $reclassifyRank, expanded with descendants to ${withDescendants.size}")
     withDescendants
   }
 
