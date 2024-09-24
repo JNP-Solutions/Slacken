@@ -7,11 +7,9 @@ package com.jnpersson.slacken
 import com.jnpersson.kmers.minimizer._
 import com.jnpersson.kmers.{Commands, HDFSUtil, IndexParams, RunCmd, SparkConfiguration, SparkTool}
 import com.jnpersson.slacken.Taxonomy.Species
-
 import com.jnpersson.slacken.analysis.{MappingComparison, Metrics, MinimizerMigration}
-
 import org.apache.spark.sql.SparkSession
-import org.rogach.scallop.Subcommand
+import org.rogach.scallop.{ScallopOption, Subcommand}
 
 import java.io.FileNotFoundException
 import java.util.regex.PatternSyntaxException
@@ -123,10 +121,12 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
         choices = Taxonomy.rankValues.map(_.title)).map(r =>
         Taxonomy.rankValues.find(_.title == r).get)
 
-      val dynamicMinFraction = opt[Double](descr = "Min fraction for taxon inclusion in dynamic mode (default 0.1)",
-        default = Some(0.1))
-      val dynamicMinCount = opt[Int](descr = "Min count for taxon inclusion in dynamic mode (default 100)",
+      //val dynamicMinFraction = opt[Double](descr = "Min fraction for taxon inclusion in dynamic mode")
+      val dynamicMinCount = opt[Int](descr = "Minimizer count for taxon inclusion in dynamic mode (default 100)",
         default = Some(100))
+      val dynamicMinDistinct = opt[Int](descr = "Minimizer distinct count for taxon inclusion in dynamic mode")
+      val dynamicMinReads = opt[Int](descr = "Min read count classified for taxon inclusion in dynamic mode")
+
       val dynamicBrackenLength = opt[Int](descr =
         "Read length for bracken weights for the dynamic index (default 100)", default = Some(100))
 
@@ -157,6 +157,8 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
         }
       }
 
+      mutuallyExclusive(dynamicMinCount, dynamicMinDistinct, dynamicMinReads)
+
       def run(): Unit = {
         val i = index()
         val inputs = inputReader(inFiles(), i.params.k, paired())
@@ -165,8 +167,12 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
           case Some(library) =>
             val genomes = findGenomes(library, Some(i.params.k))
             val goldStandardOpt = goldStandardTaxonSet.toOption.map(x => (x,classifyWithGoldStandard()))
+            val taxonCriteria = dynamicMinCount.map(MinimizerTotalCount).
+              orElse(dynamicMinReads.map(ClassifiedReadCount).toOption).
+              orElse(dynamicMinDistinct.map(MinimizerDistinctCount).toOption)
+
             val dyn = new Dynamic(i, genomes, dynamicRank(),
-              dynamicMinFraction(), dynamicMinCount(),
+              taxonCriteria(),
               cpar,
               dynamicBrackenLength.toOption, goldStandardOpt,
               reportDynamicIndex(),
