@@ -121,9 +121,8 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
         choices = Taxonomy.rankValues.map(_.title)).map(r =>
         Taxonomy.rankValues.find(_.title == r).get)
 
-      //val dynamicMinFraction = opt[Double](descr = "Min fraction for taxon inclusion in dynamic mode")
-      val dynamicMinCount = opt[Int](descr = "Minimizer count for taxon inclusion in dynamic mode (default 100)",
-        default = Some(100))
+//      val dynamicMinFraction = opt[Double](descr = "Min fraction for taxon inclusion in dynamic mode")
+      val dynamicMinCount = opt[Int](descr = "Minimizer count for taxon inclusion in dynamic mode (default 100)")
       val dynamicMinDistinct = opt[Int](descr = "Minimizer distinct count for taxon inclusion in dynamic mode")
       val dynamicMinReads = opt[Int](descr = "Min read count classified for taxon inclusion in dynamic mode")
 
@@ -169,10 +168,11 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
             val goldStandardOpt = goldStandardTaxonSet.toOption.map(x => (x,classifyWithGoldStandard()))
             val taxonCriteria = dynamicMinCount.map(MinimizerTotalCount).
               orElse(dynamicMinReads.map(ClassifiedReadCount).toOption).
-              orElse(dynamicMinDistinct.map(MinimizerDistinctCount).toOption)
+              orElse(dynamicMinDistinct.map(MinimizerDistinctCount).toOption).
+              getOrElse(MinimizerTotalCount(100))
 
             val dyn = new Dynamic(i, genomes, dynamicRank(),
-              taxonCriteria(),
+              taxonCriteria,
               cpar,
               dynamicBrackenLength.toOption, goldStandardOpt,
               reportDynamicIndex(),
