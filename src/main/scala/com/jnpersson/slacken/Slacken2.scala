@@ -125,6 +125,8 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       val dynamicMinCount = opt[Int](descr = "Minimizer count for taxon inclusion in dynamic mode (default 100)")
       val dynamicMinDistinct = opt[Int](descr = "Minimizer distinct count for taxon inclusion in dynamic mode")
       val dynamicMinReads = opt[Int](descr = "Min read count classified for taxon inclusion in dynamic mode")
+      val dynamicReadConfidence = opt[Double](descr = "Confidence threshold for initial read classification in dynamic mode (default 0.15)",
+        default = Some(0.15))
 
       val dynamicBrackenLength = opt[Int](descr =
         "Read length for bracken weights for the dynamic index (default 100)", default = Some(100))
@@ -167,7 +169,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
             val genomes = findGenomes(library, Some(i.params.k))
             val goldStandardOpt = goldStandardTaxonSet.toOption.map(x => (x,classifyWithGoldStandard()))
             val taxonCriteria = dynamicMinCount.map(MinimizerTotalCount).
-              orElse(dynamicMinReads.map(ClassifiedReadCount).toOption).
+              orElse(dynamicMinReads.map(ClassifiedReadCount(_, dynamicReadConfidence())).toOption).
               orElse(dynamicMinDistinct.map(MinimizerDistinctCount).toOption).
               getOrElse(MinimizerTotalCount(100))
 

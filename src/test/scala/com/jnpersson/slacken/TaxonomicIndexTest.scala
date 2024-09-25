@@ -172,7 +172,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     val cpar = ClassifyParams(2, true)
 
     val criteria = List(MinimizerTotalCount(100), MinimizerDistinctCount(100),
-      ClassifiedReadCount(10))
+      ClassifiedReadCount(10, 0))
 
     val reads = simulateReads(200, 1000).toDS().cache()
     for { c <- criteria } {
