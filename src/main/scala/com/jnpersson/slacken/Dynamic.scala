@@ -10,10 +10,18 @@ import org.apache.spark.sql.{DataFrame, Dataset, RelationalGroupedDataset, Spark
 import scala.collection.mutable
 
 sealed trait TaxonCriteria
+
+/** Criterion that includes taxa having a minimum number of total minimizer hits in the sample. */
 case class MinimizerTotalCount(threshold: Int) extends TaxonCriteria
-case class ClassifiedReadCount(threshold: Int, confidence: Double) extends TaxonCriteria
-case class MinimizerFraction(threshold: Double) extends TaxonCriteria
+
+/** Criterion that includes taxa having a minimum number of distinct minimizer hits in the sample. */
 case class MinimizerDistinctCount(threshold: Int) extends TaxonCriteria
+
+/** Criterion that includes taxa having a minimum number of classified reads in the sample, using the given
+ * confidence threshold. */
+case class ClassifiedReadCount(threshold: Int, confidence: Double) extends TaxonCriteria
+
+case class MinimizerFraction(threshold: Double) extends TaxonCriteria
 
 /** Two-step classification of reads with dynamically generated indexes,
  * starting from a base index.
@@ -21,10 +29,10 @@ case class MinimizerDistinctCount(threshold: Int) extends TaxonCriteria
  * to construct a taxonomic index for classifying the reads.
  * A bracken-style weights file describing the second index will optionally also be generated.
  *
- * @param base Initial index for identifying taxa by minimizer
+ * @param base initial index for identifying taxa by minimizer
  * @param genomes genomic library for construction of new indexes on the fly
  * @param reclassifyRank rank for the initial classification. Taxa at this level will be used to construct the second index
- * @param taxonMinFraction minimum distinct minimizers to keep a taxon in the first pass
+ * @param taxonCriteria criteria for selecting taxa for inclusion in the second index
  * @param cpar parameters for classification
  * @param dynamicBrackenReadLength read length for generating bracken weights for the second index (if any)
  * @param goldStandardTaxonSet parameters for deciding whether to get stats or classify wrt gold standard
