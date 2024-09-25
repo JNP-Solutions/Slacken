@@ -11,7 +11,7 @@ import scala.collection.mutable
 
 sealed trait TaxonCriteria
 case class MinimizerTotalCount(threshold: Int) extends TaxonCriteria
-case class ClassifiedReadCount(threshold: Int) extends TaxonCriteria
+case class ClassifiedReadCount(threshold: Int, confidence: Double) extends TaxonCriteria
 case class MinimizerFraction(threshold: Double) extends TaxonCriteria
 case class MinimizerDistinctCount(threshold: Int) extends TaxonCriteria
 
@@ -84,10 +84,9 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     base.distinctMinimizersPerTaxon(base.loadBuckets(), taxa)
 
   /** Counting method that counts the number of reads classified per taxon to aid taxon set filtering */
-  def classifiedReadsPerTaxon(subjects: Dataset[InputFragment]): Array[(Taxon, Long)] = {
-    val initThreshold = 0.0
+  def classifiedReadsPerTaxon(subjects: Dataset[InputFragment], confidenceThreshold: Double): Array[(Taxon, Long)] = {
     val hits = base.classify(base.loadBuckets(), subjects)
-    val classified = base.classifyHits(hits, cpar, initThreshold)
+    val classified = base.classifyHits(hits, cpar, confidenceThreshold)
     classified.where($"classified" === true).
       select("taxon").
       groupBy("taxon").agg(count("*")).as[(Taxon, Long)].
@@ -140,7 +139,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     val finder = taxonCriteria match {
       case MinimizerTotalCount(threshold) => new CountFilter(totalMinimizersPerTaxon(subjects), threshold)
       case MinimizerFraction(threshold) => ???
-      case ClassifiedReadCount(threshold) => new CountFilter(classifiedReadsPerTaxon(subjects), threshold)
+      case ClassifiedReadCount(threshold, confidence) => new CountFilter(classifiedReadsPerTaxon(subjects, confidence), threshold)
       case MinimizerDistinctCount(threshold) => new CountFilter(distinctMinimizersPerTaxon(subjects), threshold)
     }
 
