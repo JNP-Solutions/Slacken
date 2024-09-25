@@ -164,8 +164,6 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     kmers should contain theSameElementsAs(TestData.numberOf35Mers)
   }
 
-  //Testing the basic code path for dynamic classification.
-  //The results aren't yet checked for correctness.
   test("Dynamic index") {
     val k = 35
     val m = 31
@@ -173,13 +171,22 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     val idx = TestData.index(k, m, s, None)
     val cpar = ClassifyParams(2, true)
 
-    val dyn = new Dynamic(idx, TestData.library(k),
-      Species, MinimizerTotalCount(100), cpar,
-      None, None, false, "")
+    val criteria = List(MinimizerTotalCount(100), MinimizerDistinctCount(100),
+      ClassifiedReadCount(10))
 
-    val reads = simulateReads(200, 1000).toDS()
-    val (buckets, taxa) = dyn.makeBuckets(reads, None)
-    val hits = idx.classify(buckets, reads)
+    val reads = simulateReads(200, 1000).toDS().cache()
+    for { c <- criteria } {
+      println(s"Testing: $c")
+      val dyn = new Dynamic(idx, TestData.library(k),
+        Species, c, cpar,
+        None, None, false, "")
+
+      //Testing the basic code path for dynamic classification.
+      //The results aren't yet checked for correctness.
+      val (buckets, taxa) = dyn.makeBuckets(reads, None)
+      val hits = idx.classify(buckets, reads)
+    }
+    reads.unpersist()
   }
 
   test("A known leaf node total k-mer count is correct with respect to the known value") {
