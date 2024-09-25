@@ -4,8 +4,8 @@ import com.jnpersson.kmers.minimizer._
 import com.jnpersson.kmers.Output.formatPerc
 import com.jnpersson.kmers.{HDFSUtil, Inputs, Output}
 import com.jnpersson.slacken.Taxonomy.Rank
-import org.apache.spark.sql.functions.{approx_count_distinct, count}
-import org.apache.spark.sql.{DataFrame, Dataset, RelationalGroupedDataset, SparkSession, functions}
+import org.apache.spark.sql.functions.{approx_count_distinct, count, udf, concat_ws}
+import org.apache.spark.sql.{DataFrame, SaveMode, Dataset, RelationalGroupedDataset, SparkSession, functions}
 
 import scala.collection.mutable
 
@@ -176,13 +176,13 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
       case MinimizerDistinctCount(threshold) => new CountFilter(distinctMinimizersPerTaxon(subjects), threshold)
     }
     val statCollection = multiStatsPerTaxon(subjects)
-    val totalKmerCounter = new CountFilter(statCollection._1
+    val totalKmerCounter = new KrakenReport(taxonomy,statCollection._1
       .select("taxon","totalKmerCount").as[(Taxon,Long)].collect())
-    val distinctMinimizerCounter = new CountFilter(statCollection._1
+    val distinctMinimizerCounter = new KrakenReport(taxonomy, statCollection._1
       .select("taxon","distinctMinimizerCount").as[(Taxon,Long)].collect())
-    val totalMinimizerCounter = new CountFilter(statCollection._1
+    val totalMinimizerCounter = new KrakenReport(taxonomy, statCollection._1
       .select("taxon","totalMinimizerCount").as[(Taxon,Long)].collect())
-    val classifiedReadCounter = new CountFilter(statCollection._2
+    val classifiedReadCounter = new KrakenReport(taxonomy, statCollection._2
       .select("taxon","classifiedReadCount").as[(Taxon,Long)].collect())
     val minimizerCoverage = statCollection._3.cache
 
@@ -192,13 +192,13 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
 
     if (reportDynamicIndex) {
       HDFSUtil.usingWriter(outputLocation + "_support_report_totalKmerCount.txt",
-        wr => totalKmerCounter.report.print(wr))
+        wr => totalKmerCounter.print(wr))
       HDFSUtil.usingWriter(outputLocation + "_support_report_distinctMinimizerCount.txt",
-        wr => distinctMinimizerCounter.report.print(wr))
+        wr => distinctMinimizerCounter.print(wr))
       HDFSUtil.usingWriter(outputLocation + "_support_report_totalMinimizerCount.txt",
-        wr => totalMinimizerCounter.report.print(wr))
+        wr => totalMinimizerCounter.print(wr))
       HDFSUtil.usingWriter(outputLocation + "_support_report_classifiedReadCount.txt",
-        wr => classifiedReadCounter.report.print(wr))
+        wr => classifiedReadCounter.print(wr))
 
       minimizerCoverage
         .select(concat_ws("  ", $"taxon".cast("string"), $"minimizerCoverage"))
