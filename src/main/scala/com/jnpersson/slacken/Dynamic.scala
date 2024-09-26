@@ -175,41 +175,48 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
       case ClassifiedReadCount(threshold) => new CountFilter(classifiedReadsPerTaxon(subjects), threshold)
       case MinimizerDistinctCount(threshold) => new CountFilter(distinctMinimizersPerTaxon(subjects), threshold)
     }
-    val statCollection = multiStatsPerTaxon(subjects)
-    val totalKmerCounter = new KrakenReport(taxonomy,statCollection._1
-      .select("taxon","totalKmerCount").as[(Taxon,Long)].collect())
-    val distinctMinimizerCounter = new KrakenReport(taxonomy, statCollection._1
-      .select("taxon","distinctMinimizerCount").as[(Taxon,Long)].collect())
-    val totalMinimizerCounter = new KrakenReport(taxonomy, statCollection._1
-      .select("taxon","totalMinimizerCount").as[(Taxon,Long)].collect())
-    val classifiedReadCounter = new KrakenReport(taxonomy, statCollection._2
-      .select("taxon","classifiedReadCount").as[(Taxon,Long)].collect())
-    val minimizerCoverage = statCollection._3.cache
 
-//    lcaDepths
-//    minimizerCountAtDepth
-//    minimizerCoverage
+      //    lcaDepths
+      //    minimizerCountAtDepth
+      //    minimizerCoverage
 
-    if (reportDynamicIndex) {
-      HDFSUtil.usingWriter(outputLocation + "_support_report_totalKmerCount.txt",
-        wr => totalKmerCounter.print(wr))
-      HDFSUtil.usingWriter(outputLocation + "_support_report_distinctMinimizerCount.txt",
-        wr => distinctMinimizerCounter.print(wr))
-      HDFSUtil.usingWriter(outputLocation + "_support_report_totalMinimizerCount.txt",
-        wr => totalMinimizerCounter.print(wr))
-      HDFSUtil.usingWriter(outputLocation + "_support_report_classifiedReadCount.txt",
-        wr => classifiedReadCounter.print(wr))
+      if (reportDynamicIndex) {
 
-      minimizerCoverage
-        .select(concat_ws("  ", $"taxon".cast("string"), $"minimizerCoverage"))
-        .write.format("text").mode(SaveMode.Overwrite)
-        .save(outputLocation + "_support_report_minimizerCoverage")
+        val statCollection = multiStatsPerTaxon(subjects)
+        val totalKmerCounter = new KrakenReport(taxonomy,statCollection._1
+          .select("taxon","totalKmerCount").as[(Taxon,Long)].collect())
+        val distinctMinimizerCounter = new KrakenReport(taxonomy, statCollection._1
+          .select("taxon","distinctMinimizerCount").as[(Taxon,Long)].collect())
+        val totalMinimizerCounter = new KrakenReport(taxonomy, statCollection._1
+          .select("taxon","totalMinimizerCount").as[(Taxon,Long)].collect())
+        val classifiedReadCounter = new KrakenReport(taxonomy, statCollection._2
+          .select("taxon","classifiedReadCount").as[(Taxon,Long)].collect())
 
-      minimizerCoverage
-        .select(concat_ws("  ", $"taxon".cast("string"), $"distinctMinimizerCoverage"))
-        .write.format("text").mode(SaveMode.Overwrite)
-        .save(outputLocation + "_support_report_minimizerDistinctCoverage")
-    }
+        HDFSUtil.usingWriter(outputLocation + "_support_report_totalKmerCount.txt",
+          wr => totalKmerCounter.print(wr))
+        HDFSUtil.usingWriter(outputLocation + "_support_report_distinctMinimizerCount.txt",
+          wr => distinctMinimizerCounter.print(wr))
+        HDFSUtil.usingWriter(outputLocation + "_support_report_totalMinimizerCount.txt",
+          wr => totalMinimizerCounter.print(wr))
+        HDFSUtil.usingWriter(outputLocation + "_support_report_classifiedReadCount.txt",
+          wr => classifiedReadCounter.print(wr))
+
+        val minimizerCoverage = statCollection._3.cache
+
+        try {
+          minimizerCoverage
+            .select(concat_ws("  ", $"taxon".cast("string"), $"minimizerCoverage"))
+            .write.format("text").mode(SaveMode.Overwrite)
+            .save(outputLocation + "_support_report_minimizerCoverage")
+
+          minimizerCoverage
+            .select(concat_ws("  ", $"taxon".cast("string"), $"distinctMinimizerCoverage"))
+            .write.format("text").mode(SaveMode.Overwrite)
+            .save(outputLocation + "_support_report_minimizerDistinctCoverage")
+        } finally {
+          minimizerCoverage.unpersist()
+        }
+      }
 
     val keepTaxa = finder.taxa
 
