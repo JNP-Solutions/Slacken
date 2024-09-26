@@ -10,10 +10,18 @@ import org.apache.spark.sql.{DataFrame, SaveMode, Dataset, RelationalGroupedData
 import scala.collection.mutable
 
 sealed trait TaxonCriteria
+
+/** Criterion that includes taxa having a minimum number of total minimizer hits in the sample. */
 case class MinimizerTotalCount(threshold: Int) extends TaxonCriteria
-case class ClassifiedReadCount(threshold: Int) extends TaxonCriteria
-case class MinimizerFraction(threshold: Double) extends TaxonCriteria
+
+/** Criterion that includes taxa having a minimum number of distinct minimizer hits in the sample. */
 case class MinimizerDistinctCount(threshold: Int) extends TaxonCriteria
+
+/** Criterion that includes taxa having a minimum number of classified reads in the sample, using the given
+ * confidence threshold. */
+case class ClassifiedReadCount(threshold: Int, confidence: Double) extends TaxonCriteria
+
+case class MinimizerFraction(threshold: Double) extends TaxonCriteria
 
 /** Two-step classification of reads with dynamically generated indexes,
  * starting from a base index.
@@ -21,11 +29,11 @@ case class MinimizerDistinctCount(threshold: Int) extends TaxonCriteria
  * to construct a taxonomic index for classifying the reads.
  * A bracken-style weights file describing the second index will optionally also be generated.
  *
- * @param base                     Initial index for identifying taxa by minimizer
- * @param genomes                  genomic library for construction of new indexes on the fly
- * @param reclassifyRank           rank for the initial classification. Taxa at this level will be used to construct the second index
- * @param taxonMinFraction         minimum distinct minimizers to keep a taxon in the first pass
- * @param cpar                     parameters for classification
+ * @param base initial index for identifying taxa by minimizer
+ * @param genomes genomic library for construction of new indexes on the fly
+ * @param reclassifyRank rank for the initial classification. Taxa at this level will be used to construct the second index
+ * @param taxonCriteria criteria for selecting taxa for inclusion in the second index
+ * @param cpar parameters for classification
  * @param dynamicBrackenReadLength read length for generating bracken weights for the second index (if any)
  * @param goldStandardTaxonSet     parameters for deciding whether to get stats or classify wrt gold standard
  * @param reportDynamicIndex       whether to generate reports describing the second index
@@ -84,10 +92,9 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     base.distinctMinimizersPerTaxon(base.loadBuckets(), taxa)
 
   /** Counting method that counts the number of reads classified per taxon to aid taxon set filtering */
-  def classifiedReadsPerTaxon(subjects: Dataset[InputFragment]): Array[(Taxon, Long)] = {
-    val initThreshold = 0.0
+  def classifiedReadsPerTaxon(subjects: Dataset[InputFragment], confidenceThreshold: Double): Array[(Taxon, Long)] = {
     val hits = base.classify(base.loadBuckets(), subjects)
-    val classified = base.classifyHits(hits, cpar, initThreshold)
+    val classified = base.classifyHits(hits, cpar, confidenceThreshold)
     classified.where($"classified" === true).
       select("taxon").
       groupBy("taxon").agg(count("*")).as[(Taxon, Long)].
@@ -172,7 +179,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     val finder = taxonCriteria match {
       case MinimizerTotalCount(threshold) => new CountFilter(totalMinimizersPerTaxon(subjects), threshold)
       case MinimizerFraction(threshold) => ???
-      case ClassifiedReadCount(threshold) => new CountFilter(classifiedReadsPerTaxon(subjects), threshold)
+      case ClassifiedReadCount(threshold, confidence) => new CountFilter(classifiedReadsPerTaxon(subjects, confidence), threshold)
       case MinimizerDistinctCount(threshold) => new CountFilter(distinctMinimizersPerTaxon(subjects), threshold)
     }
 
