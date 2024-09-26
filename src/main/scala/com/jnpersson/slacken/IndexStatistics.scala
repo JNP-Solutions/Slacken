@@ -27,10 +27,10 @@ class IndexStatistics(index: KeyValueIndex)(implicit spark: SparkSession) {
     val allTaxa = indexBuckets.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect() //Dataframe
 
     val taxaLengthArray = index.joinSequencesAndLabels(genomeLibrary, addRC = false).map { x =>
-      val superkmers = spl.value.superkmerPositions(x._2)
-      val superkmerSum = superkmers.map(s => s.length - (k - 1)).sum
-      (x._1, superkmerSum)
-    }
+        val superkmers = spl.value.superkmerPositions(x._2)
+        val superkmerSum = superkmers.map(s => s.length - (k - 1)).sum
+        (x._1, superkmerSum)
+      }
       .toDF("taxon", "length").groupBy("taxon").agg(functions.sum($"length")).as[(Taxon, Long)].collect()
 
     new TotalKmerCountReport(taxonomy, allTaxa, taxaLengthArray)
@@ -54,8 +54,8 @@ class IndexStatistics(index: KeyValueIndex)(implicit spark: SparkSession) {
 
     //2. Join with buckets, find the fraction that is assigned to the same (leaf) taxon
     val joint = agg.join(indexBuckets.withColumnRenamed("taxon", "idxTaxon"),
-      // indexBuckets COLUMNS = [ idxTaxon, idColumnNames ]
-      index.idColumnNames, "left").
+        // indexBuckets COLUMNS = [ idxTaxon, idColumnNames ]
+        index.idColumnNames, "left").
       withColumn("countLeaf", when($"idxTaxon" === $"taxon", $"countAll").
         otherwise(lit(0L))).
       groupBy("taxon").
@@ -71,23 +71,31 @@ class IndexStatistics(index: KeyValueIndex)(implicit spark: SparkSession) {
    * @param genomes
    * @return
    */
-  def showTaxonFullCoverageStats(indexBuckets: DataFrame, genomes: GenomeLibrary): Array[(Taxon, Array[Int], Array[Long])] = {
+  def showTaxonFullCoverageStats(indexBuckets: DataFrame, genomes: GenomeLibrary): Dataset[(Taxon, String, String)] = {
     val inputSequences = index.joinSequencesAndLabels(genomes, addRC = false)
     val mins = index.findMinimizers(inputSequences)
 
     //1. Count how many times per input taxon each minimizer occurs
-    val minCounts = mins.groupBy(index.idColumns :+ $"taxon": _*).agg(count("*").as("countAll"))
+    val minCounts = mins.groupBy(index.idColumns :+ $"taxon": _*).agg(count("*").as("countAll"), lit(1L).as("countDistinct"))
 
     val bcTaxonomy = index.bcTaxonomy
     val taxonDepth = udf((taxon: Taxon) => bcTaxonomy.value.depth(taxon))
+    val depthCountConcat = udf((depths: Array[Int], counts: Array[Long]) =>
+      depths.zip(counts).map(x => x._1 + ":" + x._2).mkString("|"))
 
     //2. Join with buckets, find the fraction that is assigned to the same (leaf) taxon
     minCounts.join(indexBuckets.withColumnRenamed("taxon", "idxTaxon"),
-      index.idColumnNames). //[ taxon, LCA(idxtaxon) , Minimizer(idColumns), countAll ]
+        index.idColumnNames). //[ taxon, LCA(idxtaxon) , Minimizer(idColumns), countAll ]
       withColumn("idxTaxDepth", taxonDepth($"idxtaxon")).
-      groupBy("taxon", "idxTaxDepth").agg(sum($"countAll").as("countFull"))
-      .groupBy("taxon").agg(collect_list($"idxTaxDepth").as("lcaDepths"), collect_list("countFull").as("counts"))
-      .select("taxon", "lcaDepths", "counts").as[(Taxon, Array[Int], Array[Long])].collect()
+      groupBy("taxon", "idxTaxDepth").agg(sum($"countAll").as("sumAll"), sum($"countDistinct").as("sumDistinct"))
+      .groupBy("taxon").agg(
+        collect_list("idxTaxDepth").as("lcaDepths"),
+        collect_list("sumAll").as("counts"),
+        collect_list("sumDistinct").as("distinctCounts"))
+      .select($"taxon",
+        depthCountConcat($"lcaDepths", $"counts").as("minimizerCoverage"),
+        depthCountConcat($"lcaDepths", $"distinctCounts").as("distinctMinimizerCoverage"))
+      .as[(Taxon, String, String)]
   }
 }
 
