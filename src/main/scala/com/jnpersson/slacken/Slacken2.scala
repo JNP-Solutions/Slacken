@@ -196,7 +196,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       def run(): Unit = {
         val i = index()
         val genomes = findGenomes(library(), Some(readLen()))
-        val outputLocation = location() + "_database" + readLen() + "mers.kmer_distrib"
+        val outputLocation = location() + "_bracken/database" + readLen() + "mers.kmer_distrib"
 
         val bw = new BrackenWeights(i.loadBuckets(), i, readLen())
         bw.buildAndWriteWeights(genomes, genomes.taxonSet(i.taxonomy), outputLocation, gradual = true)
