@@ -78,13 +78,6 @@ function build {
   histogram $NAME
 }
 
-function respace {
-  LIB=$1
-  SPACES=$2
-  #The output path will be renamed automatically as long as the _s naming convention is followed
-  ./slacken2-aws.sh taxonIndex $DATA/$LIB respace -s $SPACES -o $DATA/$LIB
-}
-
 function histogram {
   LIB=$1
   ./slacken2-aws.sh taxonIndex $DATA/$LIB histogram
