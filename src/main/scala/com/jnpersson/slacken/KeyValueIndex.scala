@@ -367,65 +367,6 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
     kmerDepthHistogram().
       write.mode(SaveMode.Overwrite).option("sep", "\t").csv(s"${output}_taxonDepths")
 
-
-  /** Map records into a new set of records where a larger number of spaces have been applied
-   * in the spaced seed mask. Loses information, as the new index is expected to be smaller (this is a
-   * dimensionality reduction).
-   * @param spaces new number of spaces
-   * @return A new KeyValueIndex with identical parameters to this one (except for spaces) and the new set of records
-   */
-  def respace(spaces: Int): KeyValueIndex = {
-
-    val newPriorities = params.splitter.priorities match {
-      case SpacedSeed(s, inner) =>
-        if (spaces <= s) {
-          throw new Exception(s"Respacing to a smaller or identical number of spaces is not meaningful. (was $s, requested $spaces)")
-        }
-        SpacedSeed(spaces, inner)
-      case p => SpacedSeed(spaces, p)
-    }
-    val newSplitter: AnyMinSplitter = MinSplitter(newPriorities, params.k)
-    val bcSpl = spark.sparkContext.broadcast(newSplitter)
-    val bcSs = spark.sparkContext.broadcast(newPriorities)
-    val newParams = params.copy(bcSpl, params.buckets, "")
-
-    val applySpaceUdf = udf((data: Array[Long]) => {
-      val min = NTBitArray(data, bcSs.value.width)
-      bcSs.value.maskSpacesOnly(min).data
-    })
-
-    val bcTax = this.bcTaxonomy
-    val udafLca = udaf(TaxonLCA(bcTax))
-
-    val nrecords = records.select(applySpaceUdf(minimizerColumnFromIdColumns), $"taxon").
-      select($"taxon" +: idColumnsFromMinimizer :_*).
-      groupBy(idColumns: _*).
-      agg(udafLca($"taxon").as("taxon"))
-
-    new KeyValueIndex(nrecords, newParams, taxonomy)
-  }
-
-
-  /** Respace this index to larger numbers of spaced seeds, creating a new index for
-   * each value. This is possible because an index with s spaces contains all information necessary
-   * to construct an index with s+x spaces (we effectively project it into the new space with some information loss)
-   * Each new index will be written to a separate location.
-   */
-  def respaceMultiple(spaces: List[Int], outputLocation: String): Unit = {
-    for {s <- spaces} {
-      val idx = respace(s)
-      val reg = "_s[0-9]+".r
-      if (reg.findFirstIn(outputLocation).isEmpty) {
-        throw new Exception(s"Unable to guess the correct output location for new indexes at: $outputLocation")
-      }
-
-      val outLoc = reg.replaceFirstIn(outputLocation, s"_s$s")
-      idx.writeRecords(outLoc)
-      Taxonomy.copyToLocation(params.location + "_taxonomy", outLoc + "_taxonomy")
-      println(s"Stats for $outLoc")
-      idx.withRecords(idx.loadRecords(outLoc)).showIndexStats(None)
-    }
-  }
 }
 
 object KeyValueIndex {
