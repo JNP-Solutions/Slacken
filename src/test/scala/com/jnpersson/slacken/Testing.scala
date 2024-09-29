@@ -134,7 +134,7 @@ object TestData {
       new KeyValueIndex(params, TestData.taxonomy)
   }
 
-  def defaultBuckets(idx: KeyValueIndex, k: Int)(implicit spark: SparkSession): DataFrame =
-    idx.makeBuckets(TestData.library(k), addRC = false)
+  def defaultRecords(idx: KeyValueIndex, k: Int)(implicit spark: SparkSession): DataFrame =
+    idx.makeRecords(TestData.library(k), addRC = false)
 
 }

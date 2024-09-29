@@ -52,21 +52,21 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
   def checkInput(inputs: Inputs): Unit = {}
 
   /**
-   * Construct buckets for a new index from genomes.
+   * Construct records for a new index from genomes.
    *
-   * @param library           Input data
+   * @param library          Input data
    * @param addRC            Whether to add reverse complements
    * @param taxonFilter      Optionally limit input sequences to only taxa in this set (and their descendants)
-   * @return index buckets
+   * @return index records
    */
-  def makeBuckets(library: GenomeLibrary, addRC: Boolean,
+  def makeRecords(library: GenomeLibrary, addRC: Boolean,
                   taxonFilter: Option[mutable.BitSet] = None)(implicit spark: SparkSession): Dataset[Record] = {
     val input = taxonFilter match {
       case Some(tf) =>
         val titlesTaxa = getTaxonLabels(library.labelFile).
           filter(l => tf.contains(l._2)).as[(SeqTitle, Taxon)].toDF("header", "taxon").cache //TODO unpersist
 
-        println("Construct dynamic buckets from:")
+        println("Construct dynamic records from:")
         titlesTaxa.select(countDistinct($"header"), countDistinct($"taxon")).show()
 
         library.inputs.getInputFragments(addRC).join(titlesTaxa, List("header")).
@@ -79,7 +79,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
     val bcTax = this.bcTaxonomy
     val isValid = udf((t: Taxon) => bcTax.value.isDefined(t))
     val filtered = input.filter(isValid($"taxon"))
-    makeBuckets(filtered)
+    makeRecords(filtered)
   }
 
   def joinSequencesAndLabels(library: GenomeLibrary, addRC: Boolean): Dataset[(Taxon, NTSeq)] = {
@@ -90,55 +90,55 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
   }
 
   /**
-   * Build index buckets
+   * Build index records
    *
    * @param taxaSequences Pairs of (taxon, genome)
    */
-  def makeBuckets(taxaSequences: Dataset[(Taxon, NTSeq)]): Dataset[Record]
+  def makeRecords(taxaSequences: Dataset[(Taxon, NTSeq)]): Dataset[Record]
 
-  def writeBuckets(buckets: Dataset[Record], location: String): Unit
+  def writeRecords(records: Dataset[Record], location: String): Unit
 
   /** Respace this index to larger numbers of spaced seeds, creating a new index for
    * each value. This is possible because an index with s spaces contains all information necessary
    * to construct an index with s+x spaces (we effectively project it into the new space with some information loss)
    * Each new index will be written to a separate location.
    */
-  def respaceMultiple(buckets: Dataset[Record], spaces: List[Int], outputLocation: String): Unit = {
+  def respaceMultiple(records: Dataset[Record], spaces: List[Int], outputLocation: String): Unit = {
     for {s <- spaces} {
-      val (idx, bkts) = respace(buckets, s)
+      val (idx, recs) = respace(records, s)
       val reg = "_s[0-9]+".r
       if (reg.findFirstIn(outputLocation).isEmpty) {
         throw new Exception(s"Unable to guess the correct output location for new indexes at: $outputLocation")
       }
 
       val outLoc = reg.replaceFirstIn(outputLocation, s"_s$s")
-      idx.writeBuckets(bkts, outLoc)
+      idx.writeRecords(recs, outLoc)
       TaxonomicIndex.copyTaxonomy(params.location + "_taxonomy", outLoc + "_taxonomy")
       println(s"Stats for $outLoc")
-      idx.showIndexStats(loadBuckets(outLoc), None)
+      idx.showIndexStats(loadRecords(outLoc), None)
     }
   }
 
   /** Remap this index to a larger number of spaces in the bit mask (irreversibly). */
-  def respace(buckets: Dataset[Record], spaces: Int): (TaxonomicIndex[Record], Dataset[Record])
+  def respace(records: Dataset[Record], spaces: Int): (TaxonomicIndex[Record], Dataset[Record])
 
-  /** Load index bucket from the params location */
-  def loadBuckets(): Dataset[Record] =
-    loadBuckets(params.location)
+  /** Load index records from the params location */
+  def loadRecords(): Dataset[Record] =
+    loadRecords(params.location)
 
-  /** Load index buckets from the specified location */
-  def loadBuckets(location: String): Dataset[Record]
+  /** Load index records from the specified location */
+  def loadRecords(location: String): Dataset[Record]
 
   /** Find TaxonHits from InputFragments and set their taxa, without grouping them by seqTitle. */
-  def findHits(buckets: Dataset[Record], subjects: Dataset[InputFragment]): Dataset[TaxonHit]
+  def findHits(records: Dataset[Record], subjects: Dataset[InputFragment]): Dataset[TaxonHit]
 
   /** Find the number of distinct minimizers for each of the given taxa */
-  def distinctMinimizersPerTaxon(buckets: Dataset[Record], taxa: Seq[Taxon]): Array[(Taxon, Long)]
+  def distinctMinimizersPerTaxon(records: Dataset[Record], taxa: Seq[Taxon]): Array[(Taxon, Long)]
 
   /** Classify subject sequences */
-  def classify(buckets: Dataset[Record], subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])]
+  def classify(records: Dataset[Record], subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])]
 
-  def classifySpans(buckets: Dataset[Record], subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit])]
+  def classifySpans(records: Dataset[Record], subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit])]
 
 
   /** Classify subject sequences using the given index, optionally for multiple samples,
@@ -174,7 +174,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
    */
   def classifyAndWrite(inputs: Inputs, outputLocation: String, cpar: ClassifyParams): Unit = {
     val subjects = inputs.getInputFragments(withRC = false, withAmbiguous = true)
-    val hits = classify(loadBuckets(), subjects)
+    val hits = classify(loadRecords(), subjects)
     classifyHitsAndWrite(hits, outputLocation, cpar)
   }
 
@@ -255,22 +255,22 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
   }
 
   /** K-mers or minimizers in this index (keys) sorted by taxon depth from deep to shallow */
-  def kmersDepths(buckets: Dataset[Record]): DataFrame
+  def kmersDepths(records: Dataset[Record]): DataFrame
 
   /** Taxa in this index (values) together with their depths */
-  def taxonDepths(buckets: Dataset[Record]): Dataset[(Taxon, Int)]
+  def taxonDepths(records: Dataset[Record]): Dataset[(Taxon, Int)]
 
   def kmerDepthHistogram(): DataFrame = {
-    val indexBuckets = loadBuckets()
-    kmersDepths(indexBuckets).select("depth").groupBy("depth").count().
+    val records = loadRecords()
+    kmersDepths(records).select("depth").groupBy("depth").count().
       sort("depth").
       withColumn("rank", rankStrUdf($"depth")).
       select("depth", "rank", "count")
   }
 
   def taxonDepthHistogram(): DataFrame = {
-    val indexBuckets = loadBuckets()
-    taxonDepths(indexBuckets).select("depth").groupBy("depth").count().
+    val records = loadRecords()
+    taxonDepths(records).select("depth").groupBy("depth").count().
       sort("depth").
       withColumn("rank", rankStrUdf($"depth")).
       select("depth", "rank", "count")
@@ -289,12 +289,12 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
    * the database.
    */
   def showIndexStats(genomes: Option[GenomeLibrary]): Unit =
-    showIndexStats(loadBuckets(), genomes)
+    showIndexStats(loadRecords(), genomes)
 
-  def showIndexStats(indexBuckets: Dataset[Record], genomes: Option[GenomeLibrary]): Unit
+  def showIndexStats(records: Dataset[Record], genomes: Option[GenomeLibrary]): Unit
 
   def report(checkLabelFile: Option[String], output: String, genomeLib: Option[GenomeLibrary]): Unit =
-    report(loadBuckets(), checkLabelFile, output, genomeLib)
+    report(loadRecords(), checkLabelFile, output, genomeLib)
 
   /**
    * Produce reports describing the index.
@@ -312,7 +312,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
    * @param output        output filename prefix
    * @param genomelib     If supplied, produce new-style k-mer count reports, otherwise produce traditional reports
    */
-  def report(indexBuckets: Dataset[Record], checkLabelFile: Option[String],
+  def report(records: Dataset[Record], checkLabelFile: Option[String],
              output: String, genomelib: Option[GenomeLibrary] = None): Unit
 }
 

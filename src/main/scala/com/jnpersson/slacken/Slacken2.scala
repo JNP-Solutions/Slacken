@@ -79,8 +79,8 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
         if (check()) {
           index.checkInput(genomes.inputs)
         } else { //build index
-          val bkts = index.makeBuckets(genomes, addRC = false)
-          index.writeBuckets(bkts, params.location)
+          val recs = index.makeRecords(genomes, addRC = false)
+          index.writeRecords(recs, params.location)
           TaxonomicIndex.copyTaxonomy(taxonomy(), location() + "_taxonomy")
           index.showIndexStats(None)
           TaxonomicIndex.inputStats(genomes.labelFile, tax)
@@ -97,7 +97,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
 
       def run(): Unit = {
         val i = index()
-        i.respaceMultiple(i.loadBuckets(), spaces(), output())
+        i.respaceMultiple(i.loadRecords(), spaces(), output())
       }
     }
     addSubcommand(respace)
@@ -198,7 +198,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
         val genomes = findGenomes(library(), Some(readLen()))
         val outputLocation = location() + "_bracken/database" + readLen() + "mers.kmer_distrib"
 
-        val bw = new BrackenWeights(i.loadBuckets(), i, readLen())
+        val bw = new BrackenWeights(i.loadRecords(), i, readLen())
         bw.buildAndWriteWeights(genomes, genomes.taxonSet(i.taxonomy), outputLocation, gradual = true)
       }
     }
