@@ -79,7 +79,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
           val idx = makeIdx(params, taxonomy)
 
           val joint = genomesDS.join(labels, "header").select("taxon", "nucleotides").as[(Taxon, NTSeq)]
-          val minimizers = idx.makeBuckets(joint)
+          val minimizers = idx.makeRecords(joint)
 
           val cpar = ClassifyParams(2, true)
           //The property of known reads classifying correctly.
@@ -116,9 +116,9 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     val m = 31
     val s = 7
     val idx = TestData.index(k, m, s, Some(location))
-    idx.writeBuckets(TestData.defaultBuckets(idx, k), location)
+    idx.writeRecords(TestData.defaultRecords(idx, k), location)
     val recordCount = KeyValueIndex.load(location, TestData.taxonomy).
-      loadBuckets(location).filter($"taxon" =!= NONE).count()
+      loadRecords(location).filter($"taxon" =!= NONE).count()
 
     val bcSplit = spark.sparkContext.broadcast(TestData.splitter(k, m, s))
     val distinctMinimizers = TestData.inputs(k).getInputFragments(false).flatMap(f =>
@@ -137,8 +137,8 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
           val s = m/3
           val idx = TestData.index(k, m, s, None)
           val taxaSequence = List((1, x)).toDS
-          val bkts = idx.makeBuckets(taxaSequence)
-          val recordCount = bkts.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect()
+          val recs = idx.makeRecords(taxaSequence)
+          val recordCount = recs.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect()
 
           val minCount = idx.split.superkmerPositions(x).map(_.rank).toSeq.toDS.distinct().count()
           List((1, minCount)) should equal(recordCount)
@@ -183,8 +183,8 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
 
       //Testing the basic code path for dynamic classification.
       //The results aren't yet checked for correctness.
-      val (buckets, taxa) = dyn.makeBuckets(reads, None)
-      val hits = idx.classify(buckets, reads)
+      val (records, taxa) = dyn.makeRecords(reads, None)
+      val hits = idx.classify(records, reads)
     }
     reads.unpersist()
   }
@@ -193,10 +193,10 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     val k = 31
     val m = 10
     val idx = TestData.index(k, m, 0, None)
-    val buckets = TestData.defaultBuckets(idx, k)
+    val records = TestData.defaultRecords(idx, k)
     val irs = new IndexStatistics(idx)
 
-    val genomeSizes = irs.totalKmerCountReport(buckets, TestData.library(idx.k)).genomeSizes.toMap
+    val genomeSizes = irs.totalKmerCountReport(records, TestData.library(idx.k)).genomeSizes.toMap
 
     val realGenomeSizes = TestData.numberOf31Mers
     genomeSizes should equal(realGenomeSizes)

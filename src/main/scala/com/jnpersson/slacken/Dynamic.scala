@@ -53,7 +53,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   def taxonomy = base.taxonomy
 
   private def minimizersInSubjects(subjects: Dataset[InputFragment]): RelationalGroupedDataset = {
-    val hits = base.findHits(base.loadBuckets(), subjects)
+    val hits = base.findHits(base.loadRecords(), subjects)
 
     val bcTax = base.bcTaxonomy
     val rank = reclassifyRank
@@ -81,19 +81,19 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   def minimizerFractionPerTaxon(subjects: Dataset[InputFragment]): Array[(Taxon, Double)] = {
     val inSample = distinctMinimizersPerTaxon(subjects).
       toMap
-    val inBuckets = base.distinctMinimizersPerTaxon(base.loadBuckets(), inSample.map(_._1).toSeq).
+    val inRecords = base.distinctMinimizersPerTaxon(base.loadRecords(), inSample.map(_._1).toSeq).
       toMap
 
-    inSample.keys.toArray.map(t => (t, inSample(t).toDouble / inBuckets(t).toDouble))
+    inSample.keys.toArray.map(t => (t, inSample(t).toDouble / inRecords(t).toDouble))
   }
 
-  /** Counting method that counts the number of minimizers per taxon, in the buckets, to aid taxon set filtering */
+  /** Counting method that counts the number of minimizers per taxon, in the records, to aid taxon set filtering */
   def minimizersPerTaxon(taxa: Seq[Taxon]): Array[(Taxon, Long)] =
-    base.distinctMinimizersPerTaxon(base.loadBuckets(), taxa)
+    base.distinctMinimizersPerTaxon(base.loadRecords(), taxa)
 
   /** Counting method that counts the number of reads classified per taxon to aid taxon set filtering */
   def classifiedReadsPerTaxon(subjects: Dataset[InputFragment], confidenceThreshold: Double): Array[(Taxon, Long)] = {
-    val hits = base.classify(base.loadBuckets(), subjects)
+    val hits = base.classify(base.loadRecords(), subjects)
     val classified = base.classifyHits(hits, cpar, confidenceThreshold)
     classified.where($"classified" === true).
       select("taxon").
@@ -105,7 +105,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
    * distinct minimizers, to aid taxon set filtering */
   def classifiedReadsPerTaxonWithDistinctMinimizers(subjects: Dataset[InputFragment]): Array[(Taxon, Long, Long)] = {
     val initThreshold = 0.0
-    val hits = base.classify(base.loadBuckets(), subjects)
+    val hits = base.classify(base.loadRecords(), subjects)
     val classified = base.classifyHits(hits, cpar, initThreshold)
     classified.where($"classified" === true).
       flatMap(r => r.hits.map(hit => (r.taxon, hit.minimizer, r.title))).toDF("taxon", "minimizer", "title").
@@ -117,10 +117,10 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   : (Dataset[(Taxon, Long, Long, Long)], Dataset[(Taxon, Long)], Dataset[(Taxon, String, String)]) = {
     val initThreshold = 0.0
     val indexStats = new IndexStatistics(base)
-    val coveragePerTaxon = indexStats.showTaxonFullCoverageStats(base.loadBuckets(), genomes)
+    val coveragePerTaxon = indexStats.showTaxonFullCoverageStats(base.loadRecords(), genomes)
 
-    val foundHits = base.findHits(base.loadBuckets(), subjects)
-    val hits = base.classify(base.loadBuckets(), subjects)
+    val foundHits = base.findHits(base.loadRecords(), subjects)
+    val hits = base.classify(base.loadRecords(), subjects)
     val classified = base.classifyHits(hits, cpar, initThreshold)
       .where($"classified" === true)
       .groupBy("taxon").agg(count("*").as("classifiedReadCount")).as[(Taxon, Long)]
@@ -281,25 +281,25 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   def twoStepClassifyAndWrite(inputs: Inputs, partitions: Int): Unit = {
     val reads = inputs.getInputFragments(withRC = false, withAmbiguous = true).
       coalesce(partitions)
-    val (buckets, usedTaxa) = makeBuckets(reads, Some(outputLocation + "_taxonSet.txt"))
+    val (records, usedTaxa) = makeRecords(reads, Some(outputLocation + "_taxonSet.txt"))
     if (reportDynamicIndex || dynamicBrackenReadLength.nonEmpty) {
-      buckets.cache()
+      records.cache()
     }
 
     try {
       //Write genome and minimizer reports for the dynamic index
-      //Inefficient but simple (could be caching buckets), intended for debugging purposes
+      //Inefficient but simple (could be caching records), intended for debugging purposes
       if (reportDynamicIndex)
-        base.report(buckets, None, outputLocation + "_dynamic")
+        base.report(records, None, outputLocation + "_dynamic")
 
       for {brackenLength <- dynamicBrackenReadLength} {
-        new BrackenWeights(buckets, base, brackenLength).
+        new BrackenWeights(records, base, brackenLength).
           buildAndWriteWeights(genomes, usedTaxa, outputLocation + s"/database${brackenLength}mers.kmer_distrib")
       }
-      val hits = base.classify(buckets, reads)
+      val hits = base.classify(records, reads)
       base.classifyHitsAndWrite(hits, outputLocation, cpar)
     } finally {
-      buckets.unpersist()
+      records.unpersist()
     }
   }
 
@@ -309,7 +309,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
    * @param subjects         reads for detecting a taxon set
    * @param setWriteLocation location to write the detected taxon set (optionally) for later inspection
    */
-  def makeBuckets(subjects: Dataset[InputFragment], setWriteLocation: Option[String]): (DataFrame, mutable.BitSet) = {
+  def makeRecords(subjects: Dataset[InputFragment], setWriteLocation: Option[String]): (DataFrame, mutable.BitSet) = {
 
     val taxonSet = goldStandardTaxonSet match {
       case Some((path, true)) =>
@@ -320,7 +320,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     }
 
     //Dynamically create a new index containing only the identified taxa
-    (base.makeBuckets(genomes, addRC = false, Some(taxonSet)), taxonSet)
+    (base.makeRecords(genomes, addRC = false, Some(taxonSet)), taxonSet)
   }
 
 }

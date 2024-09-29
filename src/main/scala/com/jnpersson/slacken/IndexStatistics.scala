@@ -16,15 +16,15 @@ class IndexStatistics(index: KeyValueIndex)(implicit spark: SparkSession) {
   /**
    * Generates K-mer counts (with duplicates) for each taxon in the library and creates a TotalKmerCountReport
    *
-   * @param indexBuckets
+   * @param records
    * @param genomeLibrary
    * @return
    */
-  def totalKmerCountReport(indexBuckets: DataFrame, genomeLibrary: GenomeLibrary): TotalKmerCountReport = {
+  def totalKmerCountReport(records: DataFrame, genomeLibrary: GenomeLibrary): TotalKmerCountReport = {
     val k = index.k
     val spl = index.bcSplit
 
-    val allTaxa = indexBuckets.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect() //Dataframe
+    val allTaxa = records.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect() //Dataframe
 
     val taxaLengthArray = index.joinSequencesAndLabels(genomeLibrary, addRC = false).map { x =>
         val superkmers = spl.value.superkmerPositions(x._2)
@@ -40,11 +40,11 @@ class IndexStatistics(index: KeyValueIndex)(implicit spark: SparkSession) {
    * that is assigned (in the index) to that genome's taxon, rather than some ancestor.
    * This is a measure of how well we can identify each distinct genome.
    *
-   * @param indexBuckets index with LCAs
+   * @param records index with LCAs
    * @param genomes      genome sequences to check (intended to be a subset of the sequences that were used
    *                     to build the index)
    */
-  def showTaxonCoverageStats(indexBuckets: DataFrame, genomes: GenomeLibrary): Unit = {
+  def showTaxonCoverageStats(records: DataFrame, genomes: GenomeLibrary): Unit = {
     val inputSequences = index.joinSequencesAndLabels(genomes, addRC = false)
     val mins = index.findMinimizers(inputSequences)
 
@@ -52,10 +52,10 @@ class IndexStatistics(index: KeyValueIndex)(implicit spark: SparkSession) {
     val agg = mins.groupBy(index.idColumns :+ $"taxon": _*).agg(count("*").as("countAll"))
     // COLUMNS = [ taxon, minimizer(idColumns), countAll ]
 
-    //2. Join with buckets, find the fraction that is assigned to the same (leaf) taxon
-    val joint = agg.join(indexBuckets.withColumnRenamed("taxon", "idxTaxon"),
-        // indexBuckets COLUMNS = [ idxTaxon, idColumnNames ]
-        index.idColumnNames, "left").
+    //2. Join with records, find the fraction that is assigned to the same (leaf) taxon
+    val joint = agg.join(records.withColumnRenamed("taxon", "idxTaxon"),
+      // records COLUMNS = [ idxTaxon, idColumnNames ]
+      index.idColumnNames, "left").
       withColumn("countLeaf", when($"idxTaxon" === $"taxon", $"countAll").
         otherwise(lit(0L))).
       groupBy("taxon").
@@ -67,11 +67,11 @@ class IndexStatistics(index: KeyValueIndex)(implicit spark: SparkSession) {
 
   /**
    *
-   * @param indexBuckets
+   * @param records
    * @param genomes
    * @return
    */
-  def showTaxonFullCoverageStats(indexBuckets: DataFrame, genomes: GenomeLibrary): Dataset[(Taxon, String, String)] = {
+  def showTaxonFullCoverageStats(records: DataFrame, genomes: GenomeLibrary): Dataset[(Taxon, String, String)] = {
     val inputSequences = index.joinSequencesAndLabels(genomes, addRC = false)
     val mins = index.findMinimizers(inputSequences)
 
@@ -83,8 +83,8 @@ class IndexStatistics(index: KeyValueIndex)(implicit spark: SparkSession) {
     val depthCountConcat = udf((depths: Array[Int], counts: Array[Long]) =>
       depths.zip(counts).map(x => x._1 + ":" + x._2).mkString("|"))
 
-    //2. Join with buckets, find the fraction that is assigned to the same (leaf) taxon
-    minCounts.join(indexBuckets.withColumnRenamed("taxon", "idxTaxon"),
+    //2. Join with records, find the fraction that is assigned to the same (leaf) taxon
+    minCounts.join(records.withColumnRenamed("taxon", "idxTaxon"),
         index.idColumnNames). //[ taxon, LCA(idxtaxon) , Minimizer(idColumns), countAll ]
       withColumn("idxTaxDepth", taxonDepth($"idxtaxon")).
       groupBy("taxon", "idxTaxDepth").agg(sum($"countAll").as("sumAll"), sum($"countDistinct").as("sumDistinct"))

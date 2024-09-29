@@ -289,12 +289,12 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
  * This is intended to be fully compatible with Bracken for abundance reestimation.
  * See: https://github.com/jenniferlu717/Bracken
  *
- * @param buckets       minimizer LCAs to classify genomes against.
+ * @param records       minimizer LCAs to classify genomes against.
  * @param keyValueIndex used to collect minimizer parameters, taxonomy, splitter
  * @param readLen       length of reads to be generated and classified
  * @param spark
  */
-class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: Int)(implicit val spark: SparkSession) {
+class BrackenWeights(records: DataFrame, keyValueIndex: KeyValueIndex, readLen: Int)(implicit val spark: SparkSession) {
 
   import spark.sqlContext.implicits._
 
@@ -335,7 +335,7 @@ class BrackenWeights(buckets: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
         x.distinctMinimizers(bcSplit.value, emptyMinimizer).map(m => (x.header, x.location, m))
       }.toDF("header", "location", "minimizer").
       select(keyValueIndex.idColumnsFromMinimizer ++ Seq($"header", $"location") :_*).
-      join(buckets, keyValueIndex.idColumnNames, "left"). //left join to preserve fragments with the empty minimizer (all invalid reads)
+      join(records, keyValueIndex.idColumnNames, "left"). //left join to preserve fragments with the empty minimizer (all invalid reads)
       groupBy("header", "location").agg(
         collect_list(keyValueIndex.minimizerColumnFromIdColumns),
         collect_list(ifnull($"taxon", lit(NONE)))

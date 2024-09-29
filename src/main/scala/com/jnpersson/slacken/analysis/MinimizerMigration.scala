@@ -24,8 +24,8 @@ class MinimizerMigration(index: KeyValueIndex, reference: KeyValueIndex)(implici
    */
   def taxaDistances(): Dataset[(Taxon, Taxon, Int)] = {
 
-    val b1 = index.loadBuckets()
-    val b2 = reference.loadBuckets()
+    val b1 = index.loadRecords()
+    val b2 = reference.loadRecords()
     val bcTax = reference.bcTaxonomy //Assumed to be the larger if the two taxonomies are different
     val cols = index.idColumnNames
 
