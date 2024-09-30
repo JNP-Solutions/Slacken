@@ -131,10 +131,14 @@ object TestData {
 
   def index(k: Int, m: Int, s: Int, location: Option[String])(implicit spark: SparkSession): KeyValueIndex = {
       val params = IndexParams(spark.sparkContext.broadcast(splitter(k, m, s)), 16, location.orNull)
-      new KeyValueIndex(params, TestData.taxonomy)
+      new KeyValueIndex(spark.emptyDataFrame, params, TestData.taxonomy)
   }
 
   def defaultRecords(idx: KeyValueIndex, k: Int)(implicit spark: SparkSession): DataFrame =
     idx.makeRecords(TestData.library(k), addRC = false)
 
+  def indexWithRecords(k: Int, m: Int, s: Int, location: Option[String])(implicit spark: SparkSession): KeyValueIndex = {
+    val i = index(k, m, s, location)
+    i.withRecords(defaultRecords(i, k))
+  }
 }

@@ -289,12 +289,11 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
  * This is intended to be fully compatible with Bracken for abundance reestimation.
  * See: https://github.com/jenniferlu717/Bracken
  *
- * @param records       minimizer LCAs to classify genomes against.
- * @param keyValueIndex used to collect minimizer parameters, taxonomy, splitter
+ * @param keyValueIndex minimizer LCAs to classify genomes against.
  * @param readLen       length of reads to be generated and classified
  * @param spark
  */
-class BrackenWeights(records: DataFrame, keyValueIndex: KeyValueIndex, readLen: Int)(implicit val spark: SparkSession) {
+class BrackenWeights(keyValueIndex: KeyValueIndex, readLen: Int)(implicit val spark: SparkSession) {
 
   import spark.sqlContext.implicits._
 
@@ -329,6 +328,7 @@ class BrackenWeights(records: DataFrame, keyValueIndex: KeyValueIndex, readLen: 
     val bcSplit = keyValueIndex.bcSplit
     val bcTaxonomy = keyValueIndex.bcTaxonomy
     val emptyMinimizer = Array.fill(keyValueIndex.numIdColumns)(0L)
+    val records = keyValueIndex.records
 
     //Join fragment IDs with LCA taxa based on minimizers
     val idMins = fragments.flatMap { x =>
