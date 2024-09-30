@@ -31,11 +31,13 @@ final case class ClassifyParams(minHitGroups: Int, withUnclassified: Boolean, th
                                 sampleRegex: Option[String] = None)
 
 /** Parameters for a Kraken1/2 compatible taxonomic index for read classification. Associates k-mers with LCA taxa.
+ * @param records
  * @param params Parameters for k-mers, index bucketing and persistence
  * @param taxonomy The taxonomy
  * @tparam Record type of index records
  */
-abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonomy)(implicit spark: SparkSession) {
+abstract class TaxonomicIndex[Record](val records: Dataset[Record], params: IndexParams,
+                                      val taxonomy: Taxonomy)(implicit spark: SparkSession) {
   val sc: org.apache.spark.SparkContext = spark.sparkContext
 
   import spark.sqlContext.implicits._
@@ -50,6 +52,8 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
 
   /** Sanity check input data */
   def checkInput(inputs: Inputs): Unit = {}
+
+  def withRecords(records: Dataset[Record]): TaxonomicIndex[Record]
 
   /**
    * Construct records for a new index from genomes.
@@ -96,31 +100,31 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
    */
   def makeRecords(taxaSequences: Dataset[(Taxon, NTSeq)]): Dataset[Record]
 
-  def writeRecords(records: Dataset[Record], location: String): Unit
+  def writeRecords(location: String): Unit
 
   /** Respace this index to larger numbers of spaced seeds, creating a new index for
    * each value. This is possible because an index with s spaces contains all information necessary
    * to construct an index with s+x spaces (we effectively project it into the new space with some information loss)
    * Each new index will be written to a separate location.
    */
-  def respaceMultiple(records: Dataset[Record], spaces: List[Int], outputLocation: String): Unit = {
+  def respaceMultiple(spaces: List[Int], outputLocation: String): Unit = {
     for {s <- spaces} {
-      val (idx, recs) = respace(records, s)
+      val idx = respace(s)
       val reg = "_s[0-9]+".r
       if (reg.findFirstIn(outputLocation).isEmpty) {
         throw new Exception(s"Unable to guess the correct output location for new indexes at: $outputLocation")
       }
 
       val outLoc = reg.replaceFirstIn(outputLocation, s"_s$s")
-      idx.writeRecords(recs, outLoc)
+      idx.writeRecords(outLoc)
       TaxonomicIndex.copyTaxonomy(params.location + "_taxonomy", outLoc + "_taxonomy")
       println(s"Stats for $outLoc")
-      idx.showIndexStats(loadRecords(outLoc), None)
+      idx.withRecords(idx.loadRecords(outLoc)).showIndexStats(None)
     }
   }
 
   /** Remap this index to a larger number of spaces in the bit mask (irreversibly). */
-  def respace(records: Dataset[Record], spaces: Int): (TaxonomicIndex[Record], Dataset[Record])
+  def respace(spaces: Int): TaxonomicIndex[Record]
 
   /** Load index records from the params location */
   def loadRecords(): Dataset[Record] =
@@ -130,15 +134,15 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
   def loadRecords(location: String): Dataset[Record]
 
   /** Find TaxonHits from InputFragments and set their taxa, without grouping them by seqTitle. */
-  def findHits(records: Dataset[Record], subjects: Dataset[InputFragment]): Dataset[TaxonHit]
+  def findHits(subjects: Dataset[InputFragment]): Dataset[TaxonHit]
 
   /** Find the number of distinct minimizers for each of the given taxa */
-  def distinctMinimizersPerTaxon(records: Dataset[Record], taxa: Seq[Taxon]): Array[(Taxon, Long)]
+  def distinctMinimizersPerTaxon(taxa: Seq[Taxon]): Array[(Taxon, Long)]
 
   /** Classify subject sequences */
-  def classify(records: Dataset[Record], subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])]
+  def classify(subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])]
 
-  def classifySpans(records: Dataset[Record], subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit])]
+  def classifySpans(subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit])]
 
 
   /** Classify subject sequences using the given index, optionally for multiple samples,
@@ -174,7 +178,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
    */
   def classifyAndWrite(inputs: Inputs, outputLocation: String, cpar: ClassifyParams): Unit = {
     val subjects = inputs.getInputFragments(withRC = false, withAmbiguous = true)
-    val hits = classify(loadRecords(), subjects)
+    val hits = classify(subjects)
     classifyHitsAndWrite(hits, outputLocation, cpar)
   }
 
@@ -255,22 +259,20 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
   }
 
   /** K-mers or minimizers in this index (keys) sorted by taxon depth from deep to shallow */
-  def kmersDepths(records: Dataset[Record]): DataFrame
+  def kmersDepths: DataFrame
 
   /** Taxa in this index (values) together with their depths */
-  def taxonDepths(records: Dataset[Record]): Dataset[(Taxon, Int)]
+  def taxonDepths: Dataset[(Taxon, Int)]
 
   def kmerDepthHistogram(): DataFrame = {
-    val records = loadRecords()
-    kmersDepths(records).select("depth").groupBy("depth").count().
+    kmersDepths.select("depth").groupBy("depth").count().
       sort("depth").
       withColumn("rank", rankStrUdf($"depth")).
       select("depth", "rank", "count")
   }
 
   def taxonDepthHistogram(): DataFrame = {
-    val records = loadRecords()
-    taxonDepths(records).select("depth").groupBy("depth").count().
+    taxonDepths.select("depth").groupBy("depth").count().
       sort("depth").
       withColumn("rank", rankStrUdf($"depth")).
       select("depth", "rank", "count")
@@ -288,13 +290,7 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
    * Optionally, input sequences and a label file can be specified, and they will then be checked against
    * the database.
    */
-  def showIndexStats(genomes: Option[GenomeLibrary]): Unit =
-    showIndexStats(loadRecords(), genomes)
-
-  def showIndexStats(records: Dataset[Record], genomes: Option[GenomeLibrary]): Unit
-
-  def report(checkLabelFile: Option[String], output: String, genomeLib: Option[GenomeLibrary]): Unit =
-    report(loadRecords(), checkLabelFile, output, genomeLib)
+  def showIndexStats(genomes: Option[GenomeLibrary]): Unit
 
   /**
    * Produce reports describing the index.
@@ -307,12 +303,11 @@ abstract class TaxonomicIndex[Record](params: IndexParams, val taxonomy: Taxonom
    * If genomeLib is given, we produce a new report format that describes the average total k-mer count and genome
    * sizes for each taxon.
    *
-   * @param indexBuckets  LCA buckets to include in the report
    * @param checkLabelFile sequence label file used to build the index
    * @param output        output filename prefix
    * @param genomelib     If supplied, produce new-style k-mer count reports, otherwise produce traditional reports
    */
-  def report(records: Dataset[Record], checkLabelFile: Option[String],
+  def report(checkLabelFile: Option[String],
              output: String, genomelib: Option[GenomeLibrary] = None): Unit
 }
 

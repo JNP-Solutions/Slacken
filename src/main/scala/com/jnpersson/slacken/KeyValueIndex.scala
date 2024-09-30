@@ -25,8 +25,8 @@ import scala.collection.mutable
  * @param params Parameters for k-mers, index bucketing and persistence
  * @param taxonomy The taxonomy
  */
-final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit val spark: SparkSession)
-  extends TaxonomicIndex[Row](params, taxonomy) with KmerKeyedIndex {
+final class KeyValueIndex(records: DataFrame, val params: IndexParams, taxonomy: Taxonomy)(implicit val spark: SparkSession)
+  extends TaxonomicIndex[Row](records, params, taxonomy) with KmerKeyedIndex {
   import spark.sqlContext.implicits._
 
   lazy val recordColumnNames: Seq[String] = idColumnNames :+ "taxon"
@@ -96,7 +96,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     reduceLCAs(findMinimizers(taxaSequences))
 
   /** Write records to the given location */
-  def writeRecords(records: DataFrame, location: String): Unit = {
+  def writeRecords(location: String): Unit = {
     params.write(location, s"Properties for Slacken KeyValueIndex $location")
     println(s"Saving index into ${params.buckets} partitions at $location")
 
@@ -115,11 +115,10 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   /** Map records into a new set of records where a larger number of spaces have been applied
    * in the spaced seed mask. Loses information, as the new index is expected to be smaller (this is a
    * dimensionality reduction).
-   * @param records records to map
    * @param spaces new number of spaces
    * @return A new KeyValueIndex with identical parameters to this one (except for spaces) and the new set of records
    */
-  def respace(records: DataFrame, spaces: Int): (KeyValueIndex, DataFrame) = {
+  def respace(spaces: Int): KeyValueIndex = {
 
     val newPriorities = params.splitter.priorities match {
       case SpacedSeed(s, inner) =>
@@ -147,7 +146,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       groupBy(idColumns: _*).
       agg(udafLca($"taxon").as("taxon"))
 
-    (new KeyValueIndex(newParams, taxonomy), nrecords)
+    new KeyValueIndex(nrecords, newParams, taxonomy)
   }
 
   /** Given non-combined pairs of minimizers and taxa, combine them using the lowest common ancestor (LCA)
@@ -200,7 +199,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   }
 
   /** Find TaxonHits from InputFragments and set their taxa, without grouping them by seqTitle. */
-  def findHits(records: DataFrame, subjects: Dataset[InputFragment]): Dataset[TaxonHit] = {
+  def findHits(subjects: Dataset[InputFragment]): Dataset[TaxonHit] = {
     val spans = getSpans(subjects, withTitle = false)
     //The 'subject' struct constructs an OrdinalSpan
     val taggedSpans = spans.select(
@@ -216,7 +215,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       select($"hit.*").as[TaxonHit]
   }
 
-  def distinctMinimizersPerTaxon(records: DataFrame, taxa: Seq[Taxon]): Array[(Taxon, Long)] = {
+  def distinctMinimizersPerTaxon(taxa: Seq[Taxon]): Array[(Taxon, Long)] = {
     val precalcLocation = s"${params.location}_distinctMinimizers"
     if (!HDFSUtil.fileExists(precalcLocation)) {
       /** Precompute these values and store them for reuse later */
@@ -234,10 +233,10 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   }
 
   /** Classify subject sequences using the supplied index (as a dataset) */
-  def classify(records: DataFrame, subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])] =
-    classifySpans(records, getSpans(subjects, withTitle = true))
+  def classify(subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])] =
+    classifySpans(getSpans(subjects, withTitle = true))
 
-  def classifySpans(records: DataFrame, subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit])] = {
+  def classifySpans(subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit])] = {
     //The 'subject' struct constructs an OrdinalSpan
     val taggedSpans = subjects.select(
       struct($"minimizer", $"kmers", $"flag", $"ordinal", $"seqTitle").as("subject") +:
@@ -258,7 +257,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
       as[(SeqTitle, Array[TaxonHit])]
   }
 
-  def showIndexStats(records: DataFrame, genomes: Option[GenomeLibrary]): Unit = {
+  def showIndexStats(genomes: Option[GenomeLibrary]): Unit = {
     val allTaxa = records.groupBy("taxon").agg(count("taxon")).as[(Taxon, Long)].collect()
 
     val leafTaxa = allTaxa.filter(x => taxonomy.isLeafNode(x._1))
@@ -272,11 +271,11 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
 //    for { library <- genomes} showTaxonCoverageStats(records, library)
     for { library <- genomes} {
       val irs = new IndexStatistics(this)
-      irs.showTaxonFullCoverageStats(records, library)
+      irs.showTaxonFullCoverageStats(library)
     }
   }
 
-  def report(records: DataFrame, checkLabelFile: Option[String],
+  def report(checkLabelFile: Option[String],
              output: String, genomelib: Option[GenomeLibrary]): Unit = {
 
     //Report the contents of the index, count minimizers of taxa with distinct minimizer counts
@@ -284,7 +283,7 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
     genomelib match {
       case Some(gl) =>
         val irs = new IndexStatistics(this)
-        val report = irs.totalKmerCountReport(records, gl)
+        val report = irs.totalKmerCountReport(gl)
         HDFSUtil.usingWriter(output + "_min_report.txt", wr => report.print(wr))
 
       case None =>
@@ -311,28 +310,32 @@ final class KeyValueIndex(val params: IndexParams, taxonomy: Taxonomy)(implicit 
   }
 
   /** An iterator of (k-mer, taxonomic depth) pairs where the root level has depth zero. */
-  def kmersDepths(records: DataFrame): DataFrame = {
+  def kmersDepths: DataFrame = {
     val bcTax = this.bcTaxonomy
     val depth = udf((x: Taxon) => bcTax.value.depth(x))
     records.select(depth($"taxon").as("depth") +: idColumns :_*).
       sort(desc("depth"))
   }
 
-  def taxonDepths(records: DataFrame): Dataset[(Taxon, Int)] = {
+  def taxonDepths: Dataset[(Taxon, Int)] = {
     val bcTax = this.bcTaxonomy
     val depth = udf((x: Taxon) => bcTax.value.depth(x))
     records.select($"taxon").distinct.select($"taxon", depth($"taxon").as("depth")).
       sort(desc("depth")).as[(Taxon, Int)]
   }
 
+  override def withRecords(records: Dataset[Row]): KeyValueIndex =
+    new KeyValueIndex(records, params, taxonomy)
 }
 
 object KeyValueIndex {
   /** Load index from the given location */
   def load(location: String, taxonomy: Taxonomy)(implicit spark: SparkSession): KeyValueIndex = {
+
     val params = IndexParams.read(location)
     val sp = SparkTool.newSession(spark, params.buckets) //Ensure that new datasets have the same number of partitions
-    new KeyValueIndex(params, taxonomy)(sp)
+    val i = new KeyValueIndex(spark.sqlContext.emptyDataFrame, params, taxonomy)(sp)
+    i.withRecords(i.loadRecords())
   }
 }
 

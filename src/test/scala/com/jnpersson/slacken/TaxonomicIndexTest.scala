@@ -83,7 +83,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
 
           val cpar = ClassifyParams(2, true)
           //The property of known reads classifying correctly.
-          val subjectsHits = idx.classify(minimizers, reads)
+          val subjectsHits = idx.withRecords(minimizers).classify(reads)
           idx.classifyHits(subjectsHits, cpar, 0.0).filter(hit => {
             //Check that each read got classified to the expected taxon. In the generated reads
             //the title contains the taxon, as a bookkeeping trick.
@@ -95,7 +95,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
           //the property of noise reads not classifying. Hard to check with random data for
           //small m. In the future we could generate better test data to get around this.
           if (m >= 30) {
-            val subjectsHits = idx.classify(minimizers, noiseReads)
+            val subjectsHits = idx.withRecords(minimizers).classify(noiseReads)
             idx.classifyHits(subjectsHits, cpar, 0.0).filter(r =>
               r.classified
             ).isEmpty should be(true)
@@ -106,7 +106,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   }
 
   test("Classify with random genomes, KeyValue method") {
-    randomGenomesTest((params, taxonomy) => new KeyValueIndex(params, taxonomy), 128)
+    randomGenomesTest((params, taxonomy) => new KeyValueIndex(spark.emptyDataFrame, params, taxonomy), 128)
   }
 
   test("Insert testData genomes, write to disk, and check index contents") {
@@ -115,8 +115,8 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     val k = 35
     val m = 31
     val s = 7
-    val idx = TestData.index(k, m, s, Some(location))
-    idx.writeRecords(TestData.defaultRecords(idx, k), location)
+    val idx = TestData.indexWithRecords(k, m, s, Some(location))
+    idx.writeRecords(location)
     val recordCount = KeyValueIndex.load(location, TestData.taxonomy).
       loadRecords(location).filter($"taxon" =!= NONE).count()
 
@@ -168,7 +168,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     val k = 35
     val m = 31
     val s = 7
-    val idx = TestData.index(k, m, s, None)
+    val idx = TestData.indexWithRecords(k, m, s, None)
     val cpar = ClassifyParams(2, true)
 
     val criteria = List(MinimizerTotalCount(100), MinimizerDistinctCount(100),
@@ -184,7 +184,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
       //Testing the basic code path for dynamic classification.
       //The results aren't yet checked for correctness.
       val (records, taxa) = dyn.makeRecords(reads, None)
-      val hits = idx.classify(records, reads)
+      val hits = idx.withRecords(records).classify(reads)
     }
     reads.unpersist()
   }
@@ -192,11 +192,10 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   test("A known leaf node total k-mer count is correct with respect to the known value") {
     val k = 31
     val m = 10
-    val idx = TestData.index(k, m, 0, None)
-    val records = TestData.defaultRecords(idx, k)
+    val idx = TestData.indexWithRecords(k, m, 0, None)
     val irs = new IndexStatistics(idx)
 
-    val genomeSizes = irs.totalKmerCountReport(records, TestData.library(idx.k)).genomeSizes.toMap
+    val genomeSizes = irs.totalKmerCountReport(TestData.library(idx.k)).genomeSizes.toMap
 
     val realGenomeSizes = TestData.numberOf31Mers
     genomeSizes should equal(realGenomeSizes)

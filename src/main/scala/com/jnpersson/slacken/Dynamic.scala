@@ -53,7 +53,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   def taxonomy = base.taxonomy
 
   private def minimizersInSubjects(subjects: Dataset[InputFragment]): RelationalGroupedDataset = {
-    val hits = base.findHits(base.loadRecords(), subjects)
+    val hits = base.findHits(subjects)
 
     val bcTax = base.bcTaxonomy
     val rank = reclassifyRank
@@ -81,7 +81,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   def minimizerFractionPerTaxon(subjects: Dataset[InputFragment]): Array[(Taxon, Double)] = {
     val inSample = distinctMinimizersPerTaxon(subjects).
       toMap
-    val inRecords = base.distinctMinimizersPerTaxon(base.loadRecords(), inSample.map(_._1).toSeq).
+    val inRecords = base.distinctMinimizersPerTaxon(inSample.map(_._1).toSeq).
       toMap
 
     inSample.keys.toArray.map(t => (t, inSample(t).toDouble / inRecords(t).toDouble))
@@ -89,11 +89,11 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
 
   /** Counting method that counts the number of minimizers per taxon, in the records, to aid taxon set filtering */
   def minimizersPerTaxon(taxa: Seq[Taxon]): Array[(Taxon, Long)] =
-    base.distinctMinimizersPerTaxon(base.loadRecords(), taxa)
+    base.distinctMinimizersPerTaxon(taxa)
 
   /** Counting method that counts the number of reads classified per taxon to aid taxon set filtering */
   def classifiedReadsPerTaxon(subjects: Dataset[InputFragment], confidenceThreshold: Double): Array[(Taxon, Long)] = {
-    val hits = base.classify(base.loadRecords(), subjects)
+    val hits = base.classify(subjects)
     val classified = base.classifyHits(hits, cpar, confidenceThreshold)
     classified.where($"classified" === true).
       select("taxon").
@@ -105,7 +105,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
    * distinct minimizers, to aid taxon set filtering */
   def classifiedReadsPerTaxonWithDistinctMinimizers(subjects: Dataset[InputFragment]): Array[(Taxon, Long, Long)] = {
     val initThreshold = 0.0
-    val hits = base.classify(base.loadRecords(), subjects)
+    val hits = base.classify(subjects)
     val classified = base.classifyHits(hits, cpar, initThreshold)
     classified.where($"classified" === true).
       flatMap(r => r.hits.map(hit => (r.taxon, hit.minimizer, r.title))).toDF("taxon", "minimizer", "title").
@@ -117,10 +117,10 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   : (Dataset[(Taxon, Long, Long, Long)], Dataset[(Taxon, Long)], Dataset[(Taxon, String, String)]) = {
     val initThreshold = 0.0
     val indexStats = new IndexStatistics(base)
-    val coveragePerTaxon = indexStats.showTaxonFullCoverageStats(base.loadRecords(), genomes)
+    val coveragePerTaxon = indexStats.showTaxonFullCoverageStats(genomes)
 
-    val foundHits = base.findHits(base.loadRecords(), subjects)
-    val hits = base.classify(base.loadRecords(), subjects)
+    val foundHits = base.findHits(subjects)
+    val hits = base.classify(subjects)
     val classified = base.classifyHits(hits, cpar, initThreshold)
       .where($"classified" === true)
       .groupBy("taxon").agg(count("*").as("classifiedReadCount")).as[(Taxon, Long)]
@@ -286,17 +286,19 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
       records.cache()
     }
 
+    val dynamicIndex = base.withRecords(records)
+
     try {
       //Write genome and minimizer reports for the dynamic index
       //Inefficient but simple (could be caching records), intended for debugging purposes
       if (reportDynamicIndex)
-        base.report(records, None, outputLocation + "_dynamic")
+        dynamicIndex.report(None, outputLocation + "_dynamic")
 
       for {brackenLength <- dynamicBrackenReadLength} {
-        new BrackenWeights(records, base, brackenLength).
+        new BrackenWeights(dynamicIndex, brackenLength).
           buildAndWriteWeights(genomes, usedTaxa, outputLocation + s"/database${brackenLength}mers.kmer_distrib")
       }
-      val hits = base.classify(records, reads)
+      val hits = dynamicIndex.classify(reads)
       base.classifyHitsAndWrite(hits, outputLocation, cpar)
     } finally {
       records.unpersist()
