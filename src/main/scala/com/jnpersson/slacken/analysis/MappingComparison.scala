@@ -114,9 +114,9 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
   def perTaxonComparison(cmpDataRaw: DataFrame, rank: Option[Rank]): PerTaxonMetrics = {
     val tax = this.tax
     val ancestorAtLevel = udf((x: Taxon) =>
-      rank.flatMap(r => tax.value.standardAncestorAtLevel(x, r)).getOrElse(x))
+      rank.flatMap(r => tax.value.standardAncestorAtLevel(x, r)))
     val cmpData = cmpDataRaw.withColumn("taxon", ancestorAtLevel($"testTaxon")).
-      where($"taxon" =!= Taxonomy.NONE)
+      where(isnotnull($"taxon").and($"taxon" =!= Taxonomy.NONE))
 
     val refClass = referenceData.
       withColumn("taxon", ancestorAtLevel($"refTaxon"))
