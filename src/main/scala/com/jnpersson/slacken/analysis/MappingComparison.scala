@@ -119,7 +119,8 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
       where(isnotnull($"taxon").and($"taxon" =!= Taxonomy.NONE))
 
     val refClass = referenceData.
-      withColumn("taxon", ancestorAtLevel($"refTaxon"))
+      withColumn("taxon", ancestorAtLevel($"refTaxon")).
+      where(isnotnull($"taxon"))
 
     val refTaxa = mutable.BitSet.empty ++ refClass.
       select("taxon").distinct().
