@@ -5,7 +5,9 @@
 
 package com.jnpersson.slacken
 
+import com.jnpersson.kmers.HDFSUtil
 import com.jnpersson.slacken.Taxonomy.Rank
+import org.apache.spark.sql.SparkSession
 
 import scala.annotation.tailrec
 import scala.collection.mutable
@@ -85,6 +87,43 @@ object Taxonomy {
     ranks(NONE) = Unclassified
     ranks(ROOT) = Root
     new Taxonomy(parents, ranks, scientificNames, primary)
+  }
+
+  /**
+   * Read a taxonomy from a directory with NCBI nodes.dmp, merged.dmp, and names.dmp.
+   * The files are expected to be small.
+   * @return
+   */
+  def load(dir: String)(implicit spark: SparkSession): Taxonomy = {
+    val nodes = HDFSUtil.getSource(s"$dir/nodes.dmp").
+      getLines().map(_.split("\\|")).
+      map(x => (x(0).trim.toInt, x(1).trim.toInt, x(2).trim))
+
+    val names = HDFSUtil.getSource(s"$dir/names.dmp").
+      getLines().map(_.split("\\|")).
+      flatMap(x => {
+        val nameType = x(3).trim
+        if (nameType == "scientific name") {
+          Some((x(0).trim.toInt, x(1).trim))
+        } else None
+      })
+
+    val merged = if (HDFSUtil.fileExists(s"$dir/merged.dmp")) {
+      HDFSUtil.getSource(s"$dir/merged.dmp").
+        getLines().map(_.split("\\|")).
+        map(x => (x(0).trim.toInt, x(1).trim.toInt))
+    } else Iterator.empty
+
+    Taxonomy.fromNodesAndNames(nodes.toArray[(Taxon, Taxon, String)], names, merged.toArray[(Taxon, Taxon)])
+  }
+
+  /**
+   * Copy a taxonomy to a new location, including only the files actually used by Slacken.
+   */
+  def copyToLocation(fromDir: String, toDir: String)(implicit spark: SparkSession): Unit = {
+    HDFSUtil.copyFile(s"$fromDir/nodes.dmp", s"$toDir/nodes.dmp")
+    HDFSUtil.copyFile(s"$fromDir/names.dmp", s"$toDir/names.dmp")
+    HDFSUtil.copyFile(s"$fromDir/merged.dmp", s"$toDir/merged.dmp")
   }
 }
 

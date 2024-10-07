@@ -10,7 +10,6 @@ import com.jnpersson.kmers.Helpers.randomTableName
 import com.jnpersson.kmers.Output.formatPerc
 
 import com.jnpersson.kmers.util.NTBitArray
-import com.jnpersson.slacken.TaxonomicIndex.getTaxonLabels
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.expressions.Aggregator
 import org.apache.spark.sql.functions._
@@ -232,7 +231,7 @@ final class KeyValueIndex(records: DataFrame, val params: IndexParams, taxonomy:
       collect()
   }
 
-  /** Classify subject sequences using the supplied index (as a dataset) */
+  /** Classify subject sequences (as a dataset) */
   def classify(subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])] =
     classifySpans(getSpans(subjects, withTitle = true))
 
@@ -300,7 +299,7 @@ final class KeyValueIndex(records: DataFrame, val params: IndexParams, taxonomy:
     //Report missing genomes that were present in the input label file but are not in the index
     for { labels <- checkLabelFile } {
       val presentTaxa = allTaxa.iterator.map(_._1)
-      val inputTaxa = getTaxonLabels(labels).select("_2").distinct().as[Taxon].collect()
+      val inputTaxa = GenomeLibrary.getTaxonLabels(labels).select("_2").distinct().as[Taxon].collect()
       //count of 1 per genome
       val missingLeaf = (mutable.BitSet.empty ++ inputTaxa -- presentTaxa).toArray.map(t => (t, 1L))
       HDFSUtil.usingWriter(output + "_missing_report.txt", wr =>

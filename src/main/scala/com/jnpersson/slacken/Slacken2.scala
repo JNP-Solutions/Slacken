@@ -32,10 +32,10 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
 
   /** Get the Taxonomy from the default location or from the user-overridden location */
   def getTaxonomy(indexLocation: String) = taxonomy.toOption match {
-    case Some(l) => TaxonomicIndex.getTaxonomy(l)
+    case Some(l) => Taxonomy.load(l)
     case _ =>
       try {
-        TaxonomicIndex.getTaxonomy(s"${indexLocation}_taxonomy")
+        Taxonomy.load(s"${indexLocation}_taxonomy")
       } catch {
         case fnf: FileNotFoundException =>
           Console.err.println(s"Taxonomy not found: ${fnf.getMessage}. Please specify the taxonomy location with --taxonomy.")
@@ -82,9 +82,9 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
           val recs = index.makeRecords(genomes, addRC = false)
           val ni = index.withRecords(recs)
           ni.writeRecords(params.location)
-          TaxonomicIndex.copyTaxonomy(taxonomy(), location() + "_taxonomy")
+          Taxonomy.copyToLocation(taxonomy(), location() + "_taxonomy")
           ni.showIndexStats(None)
-          TaxonomicIndex.inputStats(genomes.labelFile, tax)
+          GenomeLibrary.inputStats(genomes.labelFile, tax)
         }
       }
     }
@@ -182,7 +182,8 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
 
             dyn.twoStepClassifyAndWrite(inputs, partitions())
           case None =>
-            i.classifyAndWrite(inputs, output(), cpar)
+            val cls = new Classifier(i)
+            cls.classifyAndWrite(inputs, output(), cpar)
         }
       }
     }
@@ -289,7 +290,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       required = true)
 
     def run(): Unit = {
-      val t = spark.sparkContext.broadcast(TaxonomicIndex.getTaxonomy(taxonomy()))
+      val t = spark.sparkContext.broadcast(Taxonomy.load(taxonomy()))
       val mc = new MappingComparison(t, reference(), idCol(), taxonCol(), skipHeader(), 10, multi())
       val metrics =
         for { t <- testFiles().iterator
@@ -307,7 +308,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
     def run(): Unit = {
       val t = getTaxonomy(taxonomy())
       for { l <- labels } {
-        TaxonomicIndex.inputStats (l, t)
+        GenomeLibrary.inputStats (l, t)
       }
     }
   }

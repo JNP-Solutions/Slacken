@@ -61,7 +61,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
   /* Note: this test is probabilistic and relies on randomly generated DNA sequences
      not having enough k-mers in common.
    */
-  def randomGenomesTest[R](makeIdx: (IndexParams, Taxonomy) => TaxonomicIndex[R], maxM: Int): Unit = {
+  def randomGenomesTest[R](makeIdx: (IndexParams, Taxonomy) => KeyValueIndex, maxM: Int): Unit = {
     //Simulate very long reads to reduce the risk of misclassification by chance in random data
     val reads = simulateReads(200, 1000).toDS()
     val genomesDS = genomes.toDF("nucleotides", "header")
@@ -77,6 +77,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
           val splitter = MinSplitter(mp, k)
           val params = IndexParams(spark.sparkContext.broadcast(splitter), 16, "")
           val idx = makeIdx(params, taxonomy)
+          val cls = new Classifier(idx)
 
           val joint = genomesDS.join(labels, "header").select("taxon", "nucleotides").as[(Taxon, NTSeq)]
           val minimizers = idx.makeRecords(joint)
@@ -84,7 +85,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
           val cpar = ClassifyParams(2, true)
           //The property of known reads classifying correctly.
           val subjectsHits = idx.withRecords(minimizers).classify(reads)
-          idx.classifyHits(subjectsHits, cpar, 0.0).filter(hit => {
+          cls.classifyHits(subjectsHits, cpar, 0.0).filter(hit => {
             //Check that each read got classified to the expected taxon. In the generated reads
             //the title contains the taxon, as a bookkeeping trick.
             val expTaxon = hit.title.split(":")(1).toInt
@@ -96,7 +97,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
           //small m. In the future we could generate better test data to get around this.
           if (m >= 30) {
             val subjectsHits = idx.withRecords(minimizers).classify(noiseReads)
-            idx.classifyHits(subjectsHits, cpar, 0.0).filter(r =>
+            cls.classifyHits(subjectsHits, cpar, 0.0).filter(r =>
               r.classified
             ).isEmpty should be(true)
           }

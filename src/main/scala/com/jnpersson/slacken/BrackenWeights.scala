@@ -2,7 +2,6 @@ package com.jnpersson.slacken
 
 import com.jnpersson.kmers._
 import com.jnpersson.kmers.util.{KmerTable, NTBitArray}
-import com.jnpersson.slacken.TaxonomicIndex.getTaxonLabels
 import com.jnpersson.slacken.Taxonomy.NONE
 import it.unimi.dsi.fastutil.ints.Int2IntMap
 import it.unimi.dsi.fastutil.objects.{Object2IntOpenCustomHashMap, Object2IntOpenHashMap}
@@ -246,7 +245,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
   }
 
   /** Classify a single read efficiently.
-   * This is a simplified version of [[TaxonomicIndex.classify()]].
+   * This is a simplified version of [[Classifier$.classify]].
    * @param lca LCA calculator
    * @param sortedHits hits in this read. Used for sufficientHitGroups only. Counts will not be used.
    * @param summary taxon to k-mer count lookup map for this read
@@ -262,7 +261,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
   }
 
   /** For the given set of sorted hits, was there a sufficient number of hit groups wrt the given minimum?
-   * This is a simplified version of [[TaxonomicIndex.sufficientHitGroups()]] for this special use case.
+   * This is a simplified version of [[Classifier.sufficientHitGroups()]] for this special use case.
    */
   def sufficientHitGroups(sortedHits: IndexedSeq[TaxonHit], minimum: Int): Boolean = {
     var hitCount = 0
@@ -309,7 +308,7 @@ class BrackenWeights(keyValueIndex: KeyValueIndex, readLen: Int)(implicit val sp
    */
   def buildWeights(library: GenomeLibrary, taxa: BitSet): DataFrame = {
 
-    val titlesTaxa = getTaxonLabels(library.labelFile).toDF("header", "taxon")
+    val titlesTaxa = library.getTaxonLabels.toDF("header", "taxon")
 
     val idSeqDF = library.inputs.getInputFragments(withRC = false, withAmbiguous = true)
     val presentTaxon = udf((x: Taxon) => taxa.contains(x))
