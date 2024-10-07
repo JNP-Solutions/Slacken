@@ -59,12 +59,12 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
    */
   def classifyAndWrite(inputs: Inputs, outputLocation: String, cpar: ClassifyParams): Unit = {
     val subjects = inputs.getInputFragments(withRC = false, withAmbiguous = true)
-    val hits = index.classify(subjects)
+    val hits = index.collectHitsBySequence(subjects)
     classifyHitsAndWrite(hits, outputLocation, cpar)
   }
 
   def classify(subjects: Dataset[InputFragment], cpar: ClassifyParams, threshold: Double): Dataset[ClassifiedRead] = {
-    val hits = index.classify(subjects)
+    val hits = index.collectHitsBySequence(subjects)
     classifyHits(hits, cpar, threshold)
   }
 

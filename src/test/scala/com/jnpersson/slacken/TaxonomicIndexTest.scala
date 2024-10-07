@@ -84,7 +84,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
 
           val cpar = ClassifyParams(2, true)
           //The property of known reads classifying correctly.
-          val subjectsHits = idx.withRecords(minimizers).classify(reads)
+          val subjectsHits = idx.withRecords(minimizers).collectHitsBySequence(reads)
           cls.classifyHits(subjectsHits, cpar, 0.0).filter(hit => {
             //Check that each read got classified to the expected taxon. In the generated reads
             //the title contains the taxon, as a bookkeeping trick.
@@ -96,7 +96,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
           //the property of noise reads not classifying. Hard to check with random data for
           //small m. In the future we could generate better test data to get around this.
           if (m >= 30) {
-            val subjectsHits = idx.withRecords(minimizers).classify(noiseReads)
+            val subjectsHits = idx.withRecords(minimizers).collectHitsBySequence(noiseReads)
             cls.classifyHits(subjectsHits, cpar, 0.0).filter(r =>
               r.classified
             ).isEmpty should be(true)
@@ -185,7 +185,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
       //Testing the basic code path for dynamic classification.
       //The results aren't yet checked for correctness.
       val (records, taxa) = dyn.makeRecords(reads, None)
-      val hits = idx.withRecords(records).classify(reads)
+      val hits = idx.withRecords(records).collectHitsBySequence(reads)
     }
     reads.unpersist()
   }
