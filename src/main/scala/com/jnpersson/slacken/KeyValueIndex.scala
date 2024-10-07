@@ -173,7 +173,7 @@ final class KeyValueIndex(records: DataFrame, val params: IndexParams, taxonomy:
     spark.sql(s"SELECT $idColumnsString, taxon FROM kv_taxidx")
   }
 
-  /** Split fragments into ordinals, which are either super-mers with a minimizer, or invalid spans.
+  /** Split fragments into ordinal spans, which are either super-mers with a minimizer, or invalid spans.
    * Whitespace (e.g. newlines) must have been removed prior to using this function. */
   def getSpans(subjects: Dataset[InputFragment], withTitle: Boolean): Dataset[OrdinalSpan] = {
     val bcSplit = this.bcSplit
@@ -232,10 +232,10 @@ final class KeyValueIndex(records: DataFrame, val params: IndexParams, taxonomy:
   }
 
   /** Classify subject sequences (as a dataset) */
-  def classify(subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])] =
-    classifySpans(getSpans(subjects, withTitle = true))
+  def collectHitsBySequence(subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])] =
+    spansToGroupedHits(getSpans(subjects, withTitle = true))
 
-  def classifySpans(subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit])] = {
+  def spansToGroupedHits(subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit])] = {
     //The 'subject' struct constructs an OrdinalSpan
     val taggedSpans = subjects.select(
       struct($"minimizer", $"kmers", $"flag", $"ordinal", $"seqTitle").as("subject") +:
@@ -251,7 +251,6 @@ final class KeyValueIndex(records: DataFrame, val params: IndexParams, taxonomy:
 
     //Group all hits by sequence title again so that we can reassemble (the hits from) each sequence according
     // to the original order.
-
     taxonHits.groupBy("seqTitle").agg(collect_list("hit").as("hits")).
       as[(SeqTitle, Array[TaxonHit])]
   }

@@ -118,9 +118,9 @@ abstract class TaxonomicIndex[Record](val records: Dataset[Record], params: Inde
   def distinctMinimizersPerTaxon(taxa: Seq[Taxon]): Array[(Taxon, Long)]
 
   /** Classify subject sequences */
-  def classify(subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])]
+  def collectHitsBySequence(subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])]
 
-  def classifySpans(subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit])]
+  def spansToGroupedHits(subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit])]
 
   /** K-mers or minimizers in this index (keys) sorted by taxon depth from deep to shallow */
   def kmersDepths: DataFrame
