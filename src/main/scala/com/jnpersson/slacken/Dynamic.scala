@@ -93,8 +93,8 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
 
   /** Counting method that counts the number of reads classified per taxon to aid taxon set filtering */
   def classifiedReadsPerTaxon(subjects: Dataset[InputFragment], confidenceThreshold: Double): Array[(Taxon, Long)] = {
-    val hits = base.classify(subjects)
-    val classified = base.classifyHits(hits, cpar, confidenceThreshold)
+    val cls = new Classifier(base)
+    val classified = cls.classify(subjects, cpar, confidenceThreshold)
     classified.where($"classified" === true).
       select("taxon").
       groupBy("taxon").agg(count("*")).as[(Taxon, Long)].
@@ -105,8 +105,8 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
    * distinct minimizers, to aid taxon set filtering */
   def classifiedReadsPerTaxonWithDistinctMinimizers(subjects: Dataset[InputFragment]): Array[(Taxon, Long, Long)] = {
     val initThreshold = 0.0
-    val hits = base.classify(subjects)
-    val classified = base.classifyHits(hits, cpar, initThreshold)
+    val cls = new Classifier(base)
+    val classified = cls.classify(subjects, cpar, initThreshold)
     classified.where($"classified" === true).
       flatMap(r => r.hits.map(hit => (r.taxon, hit.minimizer, r.title))).toDF("taxon", "minimizer", "title").
       groupBy("taxon").agg(approx_count_distinct("title"), approx_count_distinct("minimizer")).as[(Taxon, Long, Long)].
@@ -120,8 +120,8 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     val coveragePerTaxon = indexStats.showTaxonFullCoverageStats(genomes)
 
     val foundHits = base.findHits(subjects)
-    val hits = base.classify(subjects)
-    val classified = base.classifyHits(hits, cpar, initThreshold)
+    val cls = new Classifier(base)
+    val classified = cls.classify(subjects, cpar, initThreshold)
       .where($"classified" === true)
       .groupBy("taxon").agg(count("*").as("classifiedReadCount")).as[(Taxon, Long)]
 
@@ -299,7 +299,8 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
           buildAndWriteWeights(genomes, usedTaxa, outputLocation + s"/database${brackenLength}mers.kmer_distrib")
       }
       val hits = dynamicIndex.classify(reads)
-      base.classifyHitsAndWrite(hits, outputLocation, cpar)
+      val cls = new Classifier(dynamicIndex)
+      cls.classifyHitsAndWrite(hits, outputLocation, cpar)
     } finally {
       records.unpersist()
     }

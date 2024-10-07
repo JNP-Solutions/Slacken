@@ -5,7 +5,7 @@
 package com.jnpersson.slacken.analysis
 
 import com.jnpersson.slacken.Taxonomy.Rank
-import com.jnpersson.slacken.{KrakenReport, Taxon, TaxonomicIndex, Taxonomy}
+import com.jnpersson.slacken.{KrakenReport, Taxon, Taxonomy}
 import org.apache.spark.sql
 import org.apache.spark.sql.SparkSession
 
@@ -39,7 +39,7 @@ object CAMIToKrakenReport {
   def main(args: Array[String]): Unit = {
     val taxonomyDir = args(0)
     val minLevel = if (args.length > 1) Taxonomy.rank(args(1).toLowerCase()) else None
-    val tax = TaxonomicIndex.getTaxonomy(taxonomyDir)
+    val tax = Taxonomy.load(taxonomyDir)
     val location = args(3)
 
     val c2r = new CAMIToKrakenReport(args(2), tax, minLevel)

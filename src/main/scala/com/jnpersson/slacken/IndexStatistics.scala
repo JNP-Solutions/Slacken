@@ -25,7 +25,7 @@ class IndexStatistics(index: KeyValueIndex)(implicit spark: SparkSession) {
 
     val allTaxa = index.records.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect() //Dataframe
 
-    val taxaLengthArray = index.joinSequencesAndLabels(genomeLibrary, addRC = false).map { x =>
+    val taxaLengthArray = genomeLibrary.joinSequencesAndLabels(addRC = false).map { x =>
         val superkmers = spl.value.superkmerPositions(x._2)
         val superkmerSum = superkmers.map(s => s.length - (k - 1)).sum
         (x._1, superkmerSum)
@@ -43,7 +43,7 @@ class IndexStatistics(index: KeyValueIndex)(implicit spark: SparkSession) {
    *                     to build the index)
    */
   def showTaxonCoverageStats(genomes: GenomeLibrary): Unit = {
-    val inputSequences = index.joinSequencesAndLabels(genomes, addRC = false)
+    val inputSequences = genomes.joinSequencesAndLabels(addRC = false)
     val mins = index.findMinimizers(inputSequences)
 
     //1. Count how many times per input taxon each minimizer occurs
@@ -68,7 +68,7 @@ class IndexStatistics(index: KeyValueIndex)(implicit spark: SparkSession) {
    * @return
    */
   def showTaxonFullCoverageStats(genomes: GenomeLibrary): Dataset[(Taxon, String, String)] = {
-    val inputSequences = index.joinSequencesAndLabels(genomes, addRC = false)
+    val inputSequences = genomes.joinSequencesAndLabels(addRC = false)
     val mins = index.findMinimizers(inputSequences)
 
     //1. Count how many times per input taxon each minimizer occurs

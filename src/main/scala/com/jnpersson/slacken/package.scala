@@ -63,21 +63,4 @@ package object slacken {
     }
   }
 
-  /** A library containing some number of genomes (or scaffolds etc) labelled with taxa.
-   * @param inputs Input genome sequence files
-   * @param labelFile Path to a file labelling each sequence with a taxon (2-column TSV)
-   */
-  final case class GenomeLibrary(inputs: Inputs, labelFile: String) {
-    def taxonSet(taxonomy: Taxonomy)(implicit spark: SparkSession): mutable.BitSet = {
-      import spark.sqlContext.implicits._
-
-      //Collect a set of all taxa that have sequence in the library, and their ancestors
-      //This (reading the labels file) is more efficient than reading the entire library and looking for distinct taxa,
-      //but if the two diverge, then the label file will be taken as the source of truth here.
-      val withSequence = mutable.BitSet.empty ++
-        TaxonomicIndex.getTaxonLabels(labelFile).map(_._2).distinct().collect()
-      taxonomy.taxaWithAncestors(withSequence)
-    }
-  }
-
 }
