@@ -44,7 +44,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
               taxonCriteria: TaxonCriteria,
               cpar: ClassifyParams,
               dynamicBrackenReadLength: Option[Int],
-              goldStandardTaxonSet: Option[(String, Boolean)],
+              goldStandardTaxonSet: Option[(String, Boolean, Option[Rank])],
               reportDynamicIndex: Boolean,
               outputLocation: String)(implicit spark: SparkSession) {
 
@@ -231,8 +231,8 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
       HDFSUtil.writeTextLines(loc, keepTaxa.iterator.map(_.toString))
 
     goldStandardTaxonSet match {
-      case Some((path, _)) =>
-        val goldSet = readGoldSet(path)
+      case Some((path, _, promoteRank)) =>
+        val goldSet = readGoldSet(path, promoteRank)
         val tp = keepTaxa.intersect(goldSet).size
         val fp = (keepTaxa -- keepTaxa.intersect(goldSet)).size
         val fn = (goldSet -- keepTaxa.intersect(goldSet)).size
@@ -250,7 +250,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
 
   lazy val taxonSetInLibrary = genomes.taxonSet(taxonomy)
 
-  def readGoldSet(path: String): mutable.BitSet = {
+  def readGoldSet(path: String, promoteRank: Option[Rank]): mutable.BitSet = {
     val bcTax = base.bcTaxonomy
     val goldSet = mutable.BitSet.empty ++
       spark.read.csv(path).map(x => bcTax.value.primary(x.getString(0).toInt)).collect()
@@ -258,17 +258,25 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     println(s"Gold set contained ${goldSet.size} taxa")
     val notFound = goldSet -- taxonSetInLibrary
 
-    val elevated = notFound.flatMap(t => {
+    val promoted = notFound.flatMap(t => {
       val path = taxonomy.pathToRoot(t).filter(taxonSetInLibrary.contains)
       if (path.hasNext) Some(path.next) else None
     })
-    println(s"${notFound.size} taxa from gold set not found in library, elevated to ${elevated.size} taxa.")
-    val levelCounts = elevated.toSeq.map(t => taxonomy.depth(t)).groupBy(x => x).map(x =>
+    println(s"${notFound.size} taxa from gold set not found in library, promoted to ${promoted.size} taxa.")
+    val levelCounts = promoted.toSeq.map(t => taxonomy.depth(t)).groupBy(x => x).map(x =>
       (Taxonomy.rankForDepth(x._1).get, x._2.size)).toSeq.sorted
-    println(s"Elevated to levels: $levelCounts")
-    val total = goldSet ++ elevated
-    val filtered = total.filter(taxonomy.depth(_) >= reclassifyRank.depth)
-    println(s"Total adjusted gold set size ${total.size}, filtered at $reclassifyRank to ${filtered.size}")
+    println(s"Promoted to levels: $levelCounts")
+
+    val keptPromoted = promoteRank match {
+      case Some(r) =>
+        val kept = promoted.toList.filter(t => taxonomy.depth(t) >= r.depth)
+        println(s"Keeping ${kept.size} taxa at rank $r and below from promoted set")
+        kept
+      case None => List()
+    }
+    val total = goldSet ++ promoted
+    val filtered = total.filter(taxonomy.depth(_) >= reclassifyRank.depth) ++ keptPromoted
+    println(s"Initial adjusted gold set size ${total.size}, filtered at $reclassifyRank to ${filtered.size}")
     filtered
   }
 
@@ -315,8 +323,8 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   def makeRecords(subjects: Dataset[InputFragment], setWriteLocation: Option[String]): (DataFrame, mutable.BitSet) = {
 
     val taxonSet = goldStandardTaxonSet match {
-      case Some((path, true)) =>
-        val goldSet = readGoldSet(path)
+      case Some((path, true, promoteRank)) =>
+        val goldSet = readGoldSet(path, promoteRank)
         taxonomy.taxaWithDescendants(goldSet)
       case _ =>
         findTaxonSet(subjects, setWriteLocation)
