@@ -117,6 +117,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       val sampleRegex = opt[String](descr = "Regular expression for extracting sample ID from read header (e.g. \"@(.*):\")")
 
       val dynamic = opt[String](descr = "Library location for dynamic classification (if desired)")
+
       val dynamicRank = choice(descr = "Rank for initial classification in dynamic mode (default species)",
         default = Some(Species.title),
         choices = Taxonomy.rankValues.map(_.title)).map(r =>
@@ -137,6 +138,9 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       val classifyWithGoldStandard = opt[Boolean](descr = "whether to classify with the gold taxon set or just get " +
         "statistics wrt gold standard", default = Some(false), short = 'C')
       val goldStandardTaxonSet = opt[String](descr = "Location of gold standard reference taxon set in dynamic mode")
+      val promoteGoldSet = choice(descr = "Attempt to promote taxa with no minimizers from the gold set to this rank (at the highest)",
+        choices = Taxonomy.rankValues.map(_.title)).map(r =>
+        Taxonomy.rankValues.find(_.title == r).get)
 
       def cpar = ClassifyParams(minHitGroups(), unclassified(), confidence(), sampleRegex.toOption)
 
@@ -167,7 +171,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
         dynamic.toOption match {
           case Some(library) =>
             val genomes = findGenomes(library, Some(i.params.k))
-            val goldStandardOpt = goldStandardTaxonSet.toOption.map(x => (x,classifyWithGoldStandard()))
+            val goldStandardOpt = goldStandardTaxonSet.toOption.map(x => (x, classifyWithGoldStandard(), promoteGoldSet.toOption))
             val taxonCriteria = dynamicMinCount.map(MinimizerTotalCount).
               orElse(dynamicMinReads.map(ClassifiedReadCount(_, dynamicReadConfidence())).toOption).
               orElse(dynamicMinDistinct.map(MinimizerDistinctCount).toOption).
