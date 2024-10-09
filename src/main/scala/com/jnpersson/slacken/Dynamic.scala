@@ -23,6 +23,16 @@ case class ClassifiedReadCount(threshold: Int, confidence: Double) extends Taxon
 
 case class MinimizerFraction(threshold: Double) extends TaxonCriteria
 
+case class Timer(task: String, start: Long) {
+  def finish(): Unit = {
+    val elapsed = System.currentTimeMillis() - start
+    val s = elapsed / 1000
+    val min = s / 60
+    val rem = s % 60
+    println(s"$task completed in $min min $rem s")
+  }
+}
+
 /** Two-step classification of reads with dynamically generated indexes,
  * starting from a base index.
  * First, a set of taxa will be identified from the sample (reads). Then these taxa will be used
@@ -51,6 +61,12 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   import spark.sqlContext.implicits._
 
   def taxonomy = base.taxonomy
+
+  /** Report the time taken by subtasks. */
+  def startTimer(task: String): Timer = {
+    println(s"Start task: $task")
+    Timer(task, System.currentTimeMillis())
+  }
 
   private def minimizersInSubjects(subjects: Dataset[InputFragment]): RelationalGroupedDataset = {
     val hits = base.findHits(subjects)
@@ -176,6 +192,8 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
    * emphasising recall over precision.
    */
   def findTaxonSet(subjects: Dataset[InputFragment], writeLocation: Option[String]): mutable.BitSet = {
+    val t = startTimer("Find taxon set in subjects")
+
     val finder = taxonCriteria match {
       case MinimizerTotalCount(threshold) => new CountFilter(totalMinimizersPerTaxon(subjects), threshold)
       case MinimizerFraction(threshold) => ???
@@ -244,6 +262,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     }
 
     val withDescendants = taxonomy.taxaWithDescendants(keepTaxa)
+    t.finish()
     println(s"Initial scan (criterion $taxonCriteria) produced ${keepTaxa.size} taxa at rank $reclassifyRank, expanded with descendants to ${withDescendants.size}")
     withDescendants
   }
@@ -303,12 +322,17 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
         dynamicIndex.report(None, outputLocation + "_dynamic")
 
       for {brackenLength <- dynamicBrackenReadLength} {
+        val t = startTimer("Build Bracken weights")
         new BrackenWeights(dynamicIndex, brackenLength).
           buildAndWriteWeights(genomes, usedTaxa, outputLocation + s"/database${brackenLength}mers.kmer_distrib")
+        t.finish()
       }
+
+      val t = startTimer("Classify reads (final)")
       val hits = dynamicIndex.collectHitsBySequence(reads)
       val cls = new Classifier(dynamicIndex)
       cls.classifyHitsAndWrite(hits, outputLocation, cpar)
+      t.finish()
     } finally {
       records.unpersist()
     }
