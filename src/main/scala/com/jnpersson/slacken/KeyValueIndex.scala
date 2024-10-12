@@ -16,10 +16,9 @@ import org.apache.spark.sql._
 
 import scala.collection.mutable
 
-
 /** Metagenomic index compatible with the Kraken 2 algorithm.
- * This index does not store super-mers, but instead stores k-mers and taxa as key-value pairs.
- * The taxa of identical k-mers can be combined using the LCA method.
+ * This index stores k-mers and LCA taxa as key-value pairs.
+ * @param records LCA records
  * @param params Parameters for k-mers, index bucketing and persistence
  * @param taxonomy The taxonomy
  */
