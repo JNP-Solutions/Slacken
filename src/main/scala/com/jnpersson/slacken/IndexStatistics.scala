@@ -20,7 +20,7 @@ class IndexStatistics(index: KeyValueIndex)(implicit spark: SparkSession) {
    * @return
    */
   def totalKmerCountReport(genomeLibrary: GenomeLibrary): TotalKmerCountReport = {
-    val k = index.k
+    val k = index.params.k
     val spl = index.bcSplit
 
     val allTaxa = index.records.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect() //Dataframe

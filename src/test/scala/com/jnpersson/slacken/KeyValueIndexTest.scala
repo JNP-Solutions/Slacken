@@ -20,7 +20,7 @@ import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 import scala.annotation.tailrec
 import scala.util.Random
 
-class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with SparkSessionTestWrapper with Matchers {
+class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with SparkSessionTestWrapper with Matchers {
 
   implicit val sp = spark
   import spark.sqlContext.implicits._
@@ -196,7 +196,7 @@ class TaxonomicIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with 
     val idx = TestData.indexWithRecords(k, m, 0, None)
     val irs = new IndexStatistics(idx)
 
-    val genomeSizes = irs.totalKmerCountReport(TestData.library(idx.k)).genomeSizes.toMap
+    val genomeSizes = irs.totalKmerCountReport(TestData.library(idx.params.k)).genomeSizes.toMap
 
     val realGenomeSizes = TestData.numberOf31Mers
     genomeSizes should equal(realGenomeSizes)
