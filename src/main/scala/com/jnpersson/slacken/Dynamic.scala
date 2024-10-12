@@ -256,14 +256,14 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
         val fn = (goldSet -- keepTaxa.intersect(goldSet)).size
         val precision = tp.toDouble / (tp + fp)
         val recall = tp.toDouble / goldSet.size
-        println(s"True Positives: $tp, False Positives: $fp, False Negatives: $fn, " +
+        println(s"Comparing detected set with supplied gold set. True Positives: $tp, False Positives: $fp, False Negatives: $fn, " +
           s"Precision: ${formatPerc(precision)}, Recall: ${formatPerc(recall)}")
       case _ =>
     }
 
     val withDescendants = taxonomy.taxaWithDescendants(keepTaxa)
     t.finish()
-    println(s"Initial scan (criterion $taxonCriteria) produced ${keepTaxa.size} taxa at rank $reclassifyRank, expanded with descendants to ${withDescendants.size}")
+    println(s"Detected set: Initial scan (criterion $taxonCriteria) produced ${keepTaxa.size} taxa at rank $reclassifyRank, expanded with descendants to ${withDescendants.size}")
     withDescendants
   }
 
