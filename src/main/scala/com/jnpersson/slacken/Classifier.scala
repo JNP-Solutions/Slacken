@@ -72,7 +72,7 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
   def classifyHits(subjectsHits: Dataset[(SeqTitle, Array[TaxonHit])],
                    cpar: ClassifyParams, threshold: Double): Dataset[ClassifiedRead] = {
     val bcTax = index.bcTaxonomy
-    val k = index.k
+    val k = index.params.k
     val sre = cpar.sampleRegex.map(_.r)
     subjectsHits.map({ case (title, hits) =>
       val sortedHits = hits.sortBy(_.ordinal)

@@ -11,7 +11,6 @@ import com.jnpersson.kmers.Output.formatPerc
 
 import com.jnpersson.kmers.util.NTBitArray
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.sql.expressions.Aggregator
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql._
 
@@ -24,15 +23,20 @@ import scala.collection.mutable
  * @param params Parameters for k-mers, index bucketing and persistence
  * @param taxonomy The taxonomy
  */
-final class KeyValueIndex(records: DataFrame, val params: IndexParams, taxonomy: Taxonomy)(implicit val spark: SparkSession)
-  extends TaxonomicIndex[Row](records, params, taxonomy) with KmerKeyedIndex {
+final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val taxonomy: Taxonomy)
+                         (implicit val spark: SparkSession) extends KmerKeyedIndex {
   import spark.sqlContext.implicits._
+
+  def bcSplit: Broadcast[AnyMinSplitter] = params.bcSplit
+  def split: AnyMinSplitter = bcSplit.value
+  lazy val bcTaxonomy = spark.sparkContext.broadcast(taxonomy)
 
   lazy val recordColumnNames: Seq[String] = idColumnNames :+ "taxon"
 
   lazy val idLongs = NTBitArray.longsForSize(params.m)
 
-  override def checkInput(inputs: Inputs): Unit = {
+  /** Sanity check input data */
+  def checkInput(inputs: Inputs): Unit = {
     val fragments = inputs.getInputFragments(withRC = false).map(x => (x.header, x.nucleotides))
 
     /* Check if there are input sequences with no valid minimizers.
@@ -88,11 +92,49 @@ final class KeyValueIndex(records: DataFrame, val params: IndexParams, taxonomy:
     }
   }
 
-  /** Given input genomes and their taxon IDs, build an index of minimizers and LCA taxa.
+  /** Given input genomes and their taxon IDs, build index records of minimizers and LCA taxa.
    * @param taxaSequences pairs of (taxon, genome DNA)
    */
-  def makeRecords(taxaSequences: Dataset[(Taxon, NTSeq)]): DataFrame =
-    reduceLCAs(findMinimizers(taxaSequences))
+  def makeRecords(taxaSequences: Dataset[(Taxon, NTSeq)]): DataFrame = {
+    val minimizersTaxa = findMinimizers(taxaSequences)
+
+    val bcTax = this.bcTaxonomy
+    val udafLca = udaf(TaxonLCA(bcTax))
+    minimizersTaxa.
+      groupBy(idColumns: _*).
+      agg(udafLca($"taxon").as("taxon"))
+  }
+
+  /**
+   * Construct records for a new index from genomes.
+   *
+   * @param library     Input data
+   * @param addRC       Whether to add reverse complements
+   * @param taxonFilter Optionally limit input sequences to only taxa in this set (and their descendants)
+   * @return index records
+   */
+  def makeRecords(library: GenomeLibrary, addRC: Boolean,
+                  taxonFilter: Option[mutable.BitSet] = None)(implicit spark: SparkSession): DataFrame = {
+    val input = taxonFilter match {
+      case Some(tf) =>
+        val titlesTaxa = library.getTaxonLabels.
+          filter(l => tf.contains(l._2)).as[(SeqTitle, Taxon)].toDF("header", "taxon").cache //TODO unpersist
+
+        println("Construct dynamic records from:")
+        titlesTaxa.select(countDistinct($"header"), countDistinct($"taxon")).show()
+
+        library.inputs.getInputFragments(addRC).join(titlesTaxa, List("header")).
+          select("taxon", "nucleotides").as[(Taxon, NTSeq)].
+          repartition(params.buckets, List(): _*)
+      case None =>
+        library.joinSequencesAndLabels(addRC)
+    }
+
+    val bcTax = this.bcTaxonomy
+    val isValid = udf((t: Taxon) => bcTax.value.isDefined(t))
+    val filtered = input.filter(isValid($"taxon"))
+    makeRecords(filtered)
+  }
 
   /** Write records to the given location */
   def writeRecords(location: String): Unit = {
@@ -111,55 +153,13 @@ final class KeyValueIndex(records: DataFrame, val params: IndexParams, taxonomy:
       saveAsTable(tableName)
   }
 
-  /** Map records into a new set of records where a larger number of spaces have been applied
-   * in the spaced seed mask. Loses information, as the new index is expected to be smaller (this is a
-   * dimensionality reduction).
-   * @param spaces new number of spaces
-   * @return A new KeyValueIndex with identical parameters to this one (except for spaces) and the new set of records
-   */
-  def respace(spaces: Int): KeyValueIndex = {
+  /** Produce a copy of this index with the same parameters but different records */
+  def withRecords(records: Dataset[Row]): KeyValueIndex =
+    new KeyValueIndex(records, params, taxonomy)
 
-    val newPriorities = params.splitter.priorities match {
-      case SpacedSeed(s, inner) =>
-        if (spaces <= s) {
-          throw new Exception(s"Respacing to a smaller or identical number of spaces is not meaningful. (was $s, requested $spaces)")
-        }
-        SpacedSeed(spaces, inner)
-      case p => SpacedSeed(spaces, p)
-    }
-    val newSplitter: AnyMinSplitter = MinSplitter(newPriorities, k)
-    val bcSpl = spark.sparkContext.broadcast(newSplitter)
-    val bcSs = spark.sparkContext.broadcast(newPriorities)
-    val newParams = params.copy(bcSpl, params.buckets, "")
-
-    val applySpaceUdf = udf((data: Array[Long]) => {
-      val min = NTBitArray(data, bcSs.value.width)
-      bcSs.value.maskSpacesOnly(min).data
-    })
-
-    val bcTax = this.bcTaxonomy
-    val udafLca = udaf(TaxonLCA(bcTax))
-
-    val nrecords = records.select(applySpaceUdf(minimizerColumnFromIdColumns), $"taxon").
-      select($"taxon" +: idColumnsFromMinimizer :_*).
-      groupBy(idColumns: _*).
-      agg(udafLca($"taxon").as("taxon"))
-
-    new KeyValueIndex(nrecords, newParams, taxonomy)
-  }
-
-  /** Given non-combined pairs of minimizers and taxa, combine them using the lowest common ancestor (LCA)
-   * function to return only one LCA taxon per minimizer.
-   * @param minimizersTaxa tuples of (minimizer part 1, minimizer part 2, taxon)
-   * @return tuples of (minimizer part 1, minimizer part 2, LCA taxon)
-   */
-  def reduceLCAs(minimizersTaxa: DataFrame): DataFrame = {
-    val bcTax = this.bcTaxonomy
-    val udafLca = udaf(TaxonLCA(bcTax))
-    minimizersTaxa.
-      groupBy(idColumns: _*).
-      agg(udafLca($"taxon").as("taxon"))
-  }
+  /** Load index records from the params location (default location for this index) */
+  def loadRecords(): DataFrame =
+    loadRecords(params.location)
 
   /** Load records from the given location */
   def loadRecords(location: String): DataFrame = {
@@ -167,7 +167,7 @@ final class KeyValueIndex(records: DataFrame, val params: IndexParams, taxonomy:
     //This is to ensure that we get the one in the expected location
     spark.sql("DROP TABLE IF EXISTS kv_taxidx")
     spark.sql(s"""|CREATE TABLE kv_taxidx($idColumnsTypes, taxon int)
-                  |USING PARQUET CLUSTERED BY ($idColumnsString) INTO $numIndexBuckets BUCKETS
+                  |USING PARQUET CLUSTERED BY ($idColumnsString) INTO ${params.buckets} BUCKETS
                   |LOCATION '$location'
                   |""".stripMargin)
     spark.sql(s"SELECT $idColumnsString, taxon FROM kv_taxidx")
@@ -177,7 +177,7 @@ final class KeyValueIndex(records: DataFrame, val params: IndexParams, taxonomy:
    * Whitespace (e.g. newlines) must have been removed prior to using this function. */
   def getSpans(subjects: Dataset[InputFragment], withTitle: Boolean): Dataset[OrdinalSpan] = {
     val bcSplit = this.bcSplit
-    val k = this.k
+    val k = params.k
     val ni = numIdColumns
 
     //Split input sequences by minimizer, optionally preserving ordinal of the super-mer and optionally sequence ID
@@ -214,6 +214,7 @@ final class KeyValueIndex(records: DataFrame, val params: IndexParams, taxonomy:
       select($"hit.*").as[TaxonHit]
   }
 
+  /** Find the number of distinct minimizers for each of the given taxa */
   def distinctMinimizersPerTaxon(taxa: Seq[Taxon]): Array[(Taxon, Long)] = {
     val precalcLocation = s"${params.location}_distinctMinimizers"
     if (!HDFSUtil.fileExists(precalcLocation)) {
@@ -255,9 +256,12 @@ final class KeyValueIndex(records: DataFrame, val params: IndexParams, taxonomy:
       as[(SeqTitle, Array[TaxonHit])]
   }
 
+  /** Print basic statistics for this index.
+   * Optionally, input sequences and a label file can be specified, and they will then be checked against
+   * the database.
+   */
   def showIndexStats(genomes: Option[GenomeLibrary]): Unit = {
     val allTaxa = records.groupBy("taxon").agg(count("taxon")).as[(Taxon, Long)].collect()
-
     val leafTaxa = allTaxa.filter(x => taxonomy.isLeafNode(x._1))
     val treeSize = taxonomy.countDistinctTaxaWithAncestors(allTaxa.map(_._1))
     println(s"Tree size: $treeSize taxa, stored taxa: ${allTaxa.size}, of which ${leafTaxa.size} " +
@@ -265,6 +269,8 @@ final class KeyValueIndex(records: DataFrame, val params: IndexParams, taxonomy:
 
     val recTotal = allTaxa.map(_._2).sum
     val leafTotal = leafTaxa.map(_._2).sum
+
+    val m = params.m
     println(s"Total $m-minimizers: $recTotal, of which leaf records: $leafTotal (${formatPerc(leafTotal.toDouble/recTotal)})")
 //    for { library <- genomes} showTaxonCoverageStats(records, library)
     for { library <- genomes} {
@@ -273,8 +279,23 @@ final class KeyValueIndex(records: DataFrame, val params: IndexParams, taxonomy:
     }
   }
 
+  /**
+   * Produce reports describing the index.
+   *
+   * If genomeLib is not given, we produce Kraken-style quasi reports detailing:
+   * 1) contents of the index in minimizers (_min_report)
+   * 2) contents of the index in genomes (_genome_report)
+   * 3) missing genomes that are not uniquely identifiable by the index (_missing)
+   *
+   * If genomeLib is given, we produce a new report format that describes the average total k-mer count and genome
+   * sizes for each taxon.
+   *
+   * @param checkLabelFile sequence label file used to build the index
+   * @param output        output filename prefix
+   * @param genomelib     If supplied, produce new-style k-mer count reports, otherwise produce traditional reports
+   */
   def report(checkLabelFile: Option[String],
-             output: String, genomelib: Option[GenomeLibrary]): Unit = {
+             output: String, genomelib: Option[GenomeLibrary] = None): Unit = {
 
     //Report the contents of the index, count minimizers of taxa with distinct minimizer counts
     val allTaxa = records.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect()
@@ -307,7 +328,7 @@ final class KeyValueIndex(records: DataFrame, val params: IndexParams, taxonomy:
     }
   }
 
-  /** An iterator of (k-mer, taxonomic depth) pairs where the root level has depth zero. */
+  /** K-mers or minimizers in this index (keys) sorted by taxon depth from deep to shallow */
   def kmersDepths: DataFrame = {
     val bcTax = this.bcTaxonomy
     val depth = udf((x: Taxon) => bcTax.value.depth(x))
@@ -315,6 +336,7 @@ final class KeyValueIndex(records: DataFrame, val params: IndexParams, taxonomy:
       sort(desc("depth"))
   }
 
+  /** Taxa in this index (values) together with their depths */
   def taxonDepths: Dataset[(Taxon, Int)] = {
     val bcTax = this.bcTaxonomy
     val depth = udf((x: Taxon) => bcTax.value.depth(x))
@@ -322,8 +344,89 @@ final class KeyValueIndex(records: DataFrame, val params: IndexParams, taxonomy:
       sort(desc("depth")).as[(Taxon, Int)]
   }
 
-  override def withRecords(records: Dataset[Row]): KeyValueIndex =
-    new KeyValueIndex(records, params, taxonomy)
+  import GenomeLibrary.rankStrUdf
+
+  def kmerDepthHistogram(): DataFrame = {
+    kmersDepths.select("depth").groupBy("depth").count().
+      sort("depth").
+      withColumn("rank", rankStrUdf($"depth")).
+      select("depth", "rank", "count")
+  }
+
+  def taxonDepthHistogram(): DataFrame = {
+    taxonDepths.select("depth").groupBy("depth").count().
+      sort("depth").
+      withColumn("rank", rankStrUdf($"depth")).
+      select("depth", "rank", "count")
+  }
+
+  /**
+   * Write the histogram of this data to HDFS.
+   * @param output Directory to write to (prefix name)
+   */
+  def writeDepthHistogram(output: String): Unit =
+    kmerDepthHistogram().
+      write.mode(SaveMode.Overwrite).option("sep", "\t").csv(s"${output}_taxonDepths")
+
+
+  /** Map records into a new set of records where a larger number of spaces have been applied
+   * in the spaced seed mask. Loses information, as the new index is expected to be smaller (this is a
+   * dimensionality reduction).
+   * @param spaces new number of spaces
+   * @return A new KeyValueIndex with identical parameters to this one (except for spaces) and the new set of records
+   */
+  def respace(spaces: Int): KeyValueIndex = {
+
+    val newPriorities = params.splitter.priorities match {
+      case SpacedSeed(s, inner) =>
+        if (spaces <= s) {
+          throw new Exception(s"Respacing to a smaller or identical number of spaces is not meaningful. (was $s, requested $spaces)")
+        }
+        SpacedSeed(spaces, inner)
+      case p => SpacedSeed(spaces, p)
+    }
+    val newSplitter: AnyMinSplitter = MinSplitter(newPriorities, params.k)
+    val bcSpl = spark.sparkContext.broadcast(newSplitter)
+    val bcSs = spark.sparkContext.broadcast(newPriorities)
+    val newParams = params.copy(bcSpl, params.buckets, "")
+
+    val applySpaceUdf = udf((data: Array[Long]) => {
+      val min = NTBitArray(data, bcSs.value.width)
+      bcSs.value.maskSpacesOnly(min).data
+    })
+
+    val bcTax = this.bcTaxonomy
+    val udafLca = udaf(TaxonLCA(bcTax))
+
+    val nrecords = records.select(applySpaceUdf(minimizerColumnFromIdColumns), $"taxon").
+      select($"taxon" +: idColumnsFromMinimizer :_*).
+      groupBy(idColumns: _*).
+      agg(udafLca($"taxon").as("taxon"))
+
+    new KeyValueIndex(nrecords, newParams, taxonomy)
+  }
+
+
+  /** Respace this index to larger numbers of spaced seeds, creating a new index for
+   * each value. This is possible because an index with s spaces contains all information necessary
+   * to construct an index with s+x spaces (we effectively project it into the new space with some information loss)
+   * Each new index will be written to a separate location.
+   */
+  def respaceMultiple(spaces: List[Int], outputLocation: String): Unit = {
+    for {s <- spaces} {
+      val idx = respace(s)
+      val reg = "_s[0-9]+".r
+      if (reg.findFirstIn(outputLocation).isEmpty) {
+        throw new Exception(s"Unable to guess the correct output location for new indexes at: $outputLocation")
+      }
+
+      val outLoc = reg.replaceFirstIn(outputLocation, s"_s$s")
+      idx.writeRecords(outLoc)
+      Taxonomy.copyToLocation(params.location + "_taxonomy", outLoc + "_taxonomy")
+      println(s"Stats for $outLoc")
+      idx.withRecords(idx.loadRecords(outLoc)).showIndexStats(None)
+    }
+  }
 }
 
 object KeyValueIndex {
@@ -353,28 +456,3 @@ final case class TaxonHit(minimizer: Array[Long], ordinal: Int, taxon: Taxon, co
     case _ => Some(taxon)
   }
 }
-
-/**
- * An aggregator that merges taxa of the same k-mer by applying the LCA function.
- */
-final case class TaxonLCA(bcTaxonomy: Broadcast[Taxonomy]) extends Aggregator[Taxon, Taxon, Taxon] {
-  override def zero: Taxon = Taxonomy.NONE
-
-  @transient
-  lazy val taxonomy = bcTaxonomy.value
-
-  @transient
-  private lazy val lca = new LowestCommonAncestor(taxonomy)
-
-  override def reduce(b: Taxon, a: Taxon): Taxon = lca(b, a)
-
-  override def merge(b1: Taxon, b2: Taxon): Taxon = lca(b1, b2)
-
-  override def finish(reduction: Taxon): Taxon = reduction
-
-  override def bufferEncoder: Encoder[Taxon] = Encoders.scalaInt
-
-  override def outputEncoder: Encoder[Taxon] = Encoders.scalaInt
-}
-
-

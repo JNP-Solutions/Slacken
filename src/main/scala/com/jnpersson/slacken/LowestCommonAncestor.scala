@@ -6,7 +6,10 @@ package com.jnpersson.slacken
 
 import com.jnpersson.slacken.Taxonomy.NONE
 import com.jnpersson.slacken.Taxonomy.ROOT
-import it.unimi.dsi.fastutil.ints.{Int2IntMap}
+import it.unimi.dsi.fastutil.ints.Int2IntMap
+import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.sql.{Encoder, Encoders}
+import org.apache.spark.sql.expressions.Aggregator
 
 
 /**
@@ -128,4 +131,28 @@ final class LowestCommonAncestor(taxonomy: Taxonomy) {
     maxTaxon
   }
 }
+
+/**
+ * An aggregator that merges taxa of the same k-mer by applying the LCA function.
+ */
+final case class TaxonLCA(bcTaxonomy: Broadcast[Taxonomy]) extends Aggregator[Taxon, Taxon, Taxon] {
+  override def zero: Taxon = Taxonomy.NONE
+
+  @transient
+  lazy val taxonomy = bcTaxonomy.value
+
+  @transient
+  private lazy val lca = new LowestCommonAncestor(taxonomy)
+
+  override def reduce(b: Taxon, a: Taxon): Taxon = lca(b, a)
+
+  override def merge(b1: Taxon, b2: Taxon): Taxon = lca(b1, b2)
+
+  override def finish(reduction: Taxon): Taxon = reduction
+
+  override def bufferEncoder: Encoder[Taxon] = Encoders.scalaInt
+
+  override def outputEncoder: Encoder[Taxon] = Encoders.scalaInt
+}
+
 
