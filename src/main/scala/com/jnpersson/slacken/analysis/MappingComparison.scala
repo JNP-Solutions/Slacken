@@ -76,7 +76,7 @@ class MappingComparison(tax: Broadcast[Taxonomy],
       sampleMatch <- pattern.findFirstMatchIn(subdir)
       sample = sampleMatch.group(1)
       reference = s"$referencePrefix/sample$sample/reads_mapping.tsv"
-    } yield allMetrics(subdir, reference)
+    } yield allMetrics(s"$dir/$subdir", reference)
 
     HDFSUtil.writeTextLines(outputPrefix + "_metrics.tsv",
       Iterator(Metrics.header) ++ allSamplesMetrics.flatMap(_.flatMap(_.toTSVString)))
