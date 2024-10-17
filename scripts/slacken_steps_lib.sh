@@ -119,4 +119,15 @@ function compare {
     -o $ROOT/scratch/classified/$FAMILY/$LIB/sample$SAMPLE $CLASSIFICATIONS
 }
 
+function waitForStep {
+  PROFILE=$1
+  STEP=$2
+  aws --profile $PROFILE emr wait step-complete --cluster-id $AWS_EMR_CLUSTER --step-id $STEP || \
+    {
+      echo "Step $STEP did not complete within 30 minutes."
+      exit 1
+      }
+                                                                                                   }
+}
+
 
