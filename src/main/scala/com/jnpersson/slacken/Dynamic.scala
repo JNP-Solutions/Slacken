@@ -34,6 +34,15 @@ final case class Timer(task: String, start: Long) {
   }
 }
 
+/** Parameters for a user-supplied dynamic classification gold taxon set.
+ * @param taxonFile Path to the text file to read taxa from (one per line)
+ * @param promoteRank if supplied, taxa from the gold set that have no minimizers in the database will be
+ * promoted to this rank at the highest, e.g. Genus
+ * @param classifyWithGoldSet whether to classify using the gold set library, or just compare a detected taxon set with it
+ */
+case class DynamicGoldTaxonSet(taxonFile: String, promoteRank: Option[Rank], classifyWithGoldSet: Boolean)
+
+
 /** Two-step classification of reads with dynamically generated indexes,
  * starting from a base index.
  * First, a set of taxa will be identified from the sample (reads). Then these taxa will be used
@@ -46,7 +55,7 @@ final case class Timer(task: String, start: Long) {
  * @param taxonCriteria criteria for selecting taxa for inclusion in the second index
  * @param cpar parameters for classification
  * @param dynamicBrackenReadLength read length for generating bracken weights for the second index (if any)
- * @param goldStandardTaxonSet     parameters for deciding whether to get stats or classify wrt gold standard
+ * @param goldSet                 parameters for deciding whether to get stats or classify wrt gold standard
  * @param reportDynamicIndex       whether to generate reports describing the second index
  * @param outputLocation           prefix location for output files
  */
@@ -55,7 +64,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
               taxonCriteria: TaxonCriteria,
               cpar: ClassifyParams,
               dynamicBrackenReadLength: Option[Int],
-              goldStandardTaxonSet: Option[(String, Boolean, Option[Rank])],
+              goldSet: Option[DynamicGoldTaxonSet],
               reportDynamicIndex: Boolean,
               outputLocation: String)(implicit spark: SparkSession) {
 
@@ -249,9 +258,8 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     for {loc <- writeLocation}
       HDFSUtil.writeTextLines(loc, keepTaxa.iterator.map(_.toString))
 
-    goldStandardTaxonSet match {
-      case Some((path, _, promoteRank)) =>
-        val goldSet = readGoldSet(path, promoteRank)
+    for { gs <- goldSet } {
+        val goldSet = readGoldSet(gs)
         val tp = keepTaxa.intersect(goldSet).size
         val fp = (keepTaxa -- keepTaxa.intersect(goldSet)).size
         val fn = (goldSet -- keepTaxa.intersect(goldSet)).size
@@ -259,7 +267,6 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
         val recall = tp.toDouble / goldSet.size
         println(s"Comparing detected set with supplied gold set. True Positives: $tp, False Positives: $fp, False Negatives: $fn, " +
           s"Precision: ${formatPerc(precision)}, Recall: ${formatPerc(recall)}")
-      case _ =>
     }
 
     val withDescendants = taxonomy.taxaWithDescendants(keepTaxa)
@@ -270,10 +277,10 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
 
   lazy val taxonSetInLibrary = genomes.taxonSet(taxonomy)
 
-  def readGoldSet(path: String, promoteRank: Option[Rank]): mutable.BitSet = {
+  def readGoldSet(goldSetOpts: DynamicGoldTaxonSet): mutable.BitSet = {
     val bcTax = base.bcTaxonomy
     val goldSet = mutable.BitSet.empty ++
-      spark.read.csv(path).map(x => bcTax.value.primary(x.getString(0).toInt)).collect()
+      spark.read.csv(goldSetOpts.taxonFile).map(x => bcTax.value.primary(x.getString(0).toInt)).collect()
 
     println(s"Gold set contained ${goldSet.size} taxa")
     val notFound = goldSet -- taxonSetInLibrary
@@ -287,7 +294,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
       (Taxonomy.rankForDepth(x._1).orNull, x._2.size)).toSeq.sorted
     println(s"Promoted to levels: $levelCounts")
 
-    val keptPromoted = promoteRank match {
+    val keptPromoted = goldSetOpts.promoteRank match {
       case Some(r) =>
         val kept = promoted.toList.filter(t => taxonomy.depth(t) >= r.depth)
         println(s"Keeping ${kept.size} taxa at rank $r and below from promoted set")
@@ -347,9 +354,9 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
    */
   def makeRecords(subjects: Dataset[InputFragment], setWriteLocation: Option[String]): (DataFrame, mutable.BitSet) = {
 
-    val taxonSet = goldStandardTaxonSet match {
-      case Some((path, true, promoteRank)) =>
-        val goldSet = readGoldSet(path, promoteRank)
+    val taxonSet = goldSet match {
+      case Some(dgs@DynamicGoldTaxonSet(_, _, true)) =>
+        val goldSet = readGoldSet(dgs)
         taxonomy.taxaWithDescendants(goldSet)
       case _ =>
         findTaxonSet(subjects, setWriteLocation)
