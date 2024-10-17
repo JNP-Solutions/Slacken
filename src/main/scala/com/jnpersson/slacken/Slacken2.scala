@@ -289,8 +289,8 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
     val output = opt[String](descr = "Output location")
     val skipHeader = toggle(name = "header", descrYes = "Skip header in reference data", default = Some(false))
 
-    val multiDirs = opt[List[String]](name = "multi", descr = "Directories of multi-sample output data")
-    val testFiles = opt[List[String]]("testFiles", descr = "Mapping files to compare (Slacken/Kraken format)")
+    val multiDirs = opt[List[String]](descr = "Directories of multi-sample output data")
+    val testFiles = opt[List[String]](descr = "Mapping files to compare (Slacken/Kraken format)")
     requireOne(multiDirs, testFiles)
 
     def run(): Unit = {
