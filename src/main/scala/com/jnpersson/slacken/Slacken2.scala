@@ -62,7 +62,6 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
     val build = new RunCmd("build") {
       banner("Build a new index (library) from genomes")
       val library = opt[String](required = true, descr = "Location of sequence files (directory containing library/)")
-      val check = opt[Boolean](descr = "Only check input files for consistency", hidden = true, default = Some(false))
 
       def run(): Unit = {
         val genomes = findGenomes(library())
@@ -76,16 +75,12 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
         val tax = getTaxonomy(location())
         val index = new KeyValueIndex(spark.emptyDataFrame, params, tax)
 
-        if (check()) {
-          index.checkInput(genomes.inputs)
-        } else { //build index
-          val recs = index.makeRecords(genomes, addRC = false)
-          val ni = index.withRecords(recs)
-          ni.writeRecords(params.location)
-          Taxonomy.copyToLocation(taxonomy(), location() + "_taxonomy")
-          ni.showIndexStats(None)
-          GenomeLibrary.inputStats(genomes.labelFile, tax)
-        }
+        val recs = index.makeRecords(genomes, addRC = false)
+        val ni = index.withRecords(recs)
+        ni.writeRecords(params.location)
+        Taxonomy.copyToLocation(taxonomy(), location() + "_taxonomy")
+        ni.showIndexStats(None)
+        GenomeLibrary.inputStats(genomes.labelFile, tax)
       }
     }
     addSubcommand(build)
