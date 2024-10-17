@@ -103,31 +103,19 @@ function brackenWeights {
   ./slacken2-aws.sh -p 10000 taxonIndex $DATA/$LIB brackenWeights -l $K2 -r $READ_LENGTH
 }
 
-#Compare classifications of a single sample against a reference
+#Compare classifications of multiple samples and classifications against references
 function compare {
-  SAMPLE=$1
-  LIB=$2
+  LIB=$1
 
+  #Directories expected to contain multi-sample classifications
   CLASSIFICATIONS=""
   for C in "${CS[@]}"
   do
-    CLASSIFICATIONS="$CLASSIFICATIONS $ROOT/scratch/classified/$FAMILY/${LIB}_c${C}_classified/sample=S$SAMPLE"
+    CLASSIFICATIONS="$CLASSIFICATIONS $ROOT/scratch/classified/$FAMILY/${LIB}_c${C}_classified"
   done
 
-  REF=$SPATH/sample$SAMPLE/reads_mapping.tsv
+  #Directory expected to contain reads_mapping.tsv reference files for each sample
+  REF=$SPATH
   ./slacken2-aws.sh -t $TAXONOMY compare -r $REF -i 1 -T 3 -h \
-    -o $ROOT/scratch/classified/$FAMILY/$LIB/sample$SAMPLE $CLASSIFICATIONS
+    -o $ROOT/scratch/classified/$FAMILY/$LIB/samples --multiDirs $CLASSIFICATIONS
 }
-
-function waitForStep {
-  PROFILE=$1
-  STEP=$2
-  aws --profile $PROFILE emr wait step-complete --cluster-id $AWS_EMR_CLUSTER --step-id $STEP || \
-    {
-      echo "Step $STEP did not complete within 30 minutes."
-      exit 1
-      }
-                                                                                                   }
-}
-
-

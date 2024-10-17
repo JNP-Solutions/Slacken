@@ -42,11 +42,6 @@ classifyGS rspc_35_31_s7 rspc_gold_35_31_s7
 #classify rs_45_41_s7
 #classify rs_45_41_s12
 
-for ((s = 0; s <= 9; s++))
-do
-  STEP=$(compare $s rspc_gold_35_31_s7)
-  echo "Waiting for $STEP"
-  waitForStep $STEP
-done
+compare rspc_gold_35_31_s7
 
 #brackenWeights rsc_35_31_s7
