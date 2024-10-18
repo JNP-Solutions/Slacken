@@ -131,7 +131,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
         default = Some(0.15))
 
       val dynamicBrackenLength = opt[Int](descr =
-        "Read length for bracken weights for the dynamic index (default 100)", default = Some(100))
+        "Read length for bracken weights for the dynamic index")
 
       val reportDynamicIndex = opt[Boolean](descr = "Report statistics on the dynamic index", default = Some(false))
 
