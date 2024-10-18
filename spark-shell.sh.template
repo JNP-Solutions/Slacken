@@ -4,7 +4,7 @@
 MASTER=local[*]
 SPARK=/set/spark/dir
 
-DISCOUNT_HOME="$(dirname -- "$(readlink "${BASH_SOURCE}")")"
+SLACKEN_HOME="$(dirname -- "$(readlink "${BASH_SOURCE}")")"
 
 #For standalone mode (one process), it is helpful to provide as much memory as possible.
 MEMORY=spark.driver.memory=16g
@@ -20,9 +20,9 @@ LOCAL_DIR="spark.local.dir=/tmp"
 
 #Change 2.12 to 2.11 below if compiling for scala 2.11.
 exec $SPARK/bin/spark-shell \
-  -I $DISCOUNT_HOME/shell/spark-shell.scala \
+  -I $SLACKEN_HOME/shell/spark-shell.scala \
   --conf spark.driver.maxResultSize=2g \
   --master $MASTER \
   --conf $MEMORY \
   --conf $LOCAL_DIR \
-  --jars "$DISCOUNT_HOME/target/scala-2.12/Slacken-assembly-0.1.0.jar"
+  --jars "$SLACKEN_HOME/target/scala-2.12/Slacken-assembly-1.0.0.jar"
