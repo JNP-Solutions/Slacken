@@ -25,8 +25,6 @@ libraryDependencies += "org.scalatestplus" %% "scalacheck-1-15" % "latest.integr
 //The "provided" configuration prevents sbt-assembly from including spark in the packaged jar.
 libraryDependencies += "org.apache.spark" %% "spark-sql" % sparkVersion % "provided"
 
-Compile / unmanagedResourceDirectories += { baseDirectory.value / "resources" }
-
 //Do not run tests during the assembly task
 //(Running tests manually is still recommended)
 assembly / test := {}
