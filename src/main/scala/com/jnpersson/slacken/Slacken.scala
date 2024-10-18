@@ -14,9 +14,10 @@ import org.rogach.scallop.{ScallopOption, Subcommand}
 import java.io.FileNotFoundException
 import java.util.regex.PatternSyntaxException
 
+/** Command line parameters for Slacken */
 //noinspection TypeAnnotation
-class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends SparkConfiguration(args) {
-  version(s"Slacken 2 ${getClass.getPackage.getImplementationVersion} beta (c) 2019-2023 Johan Nyström-Persson")
+class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends SparkConfiguration(args) {
+  version(s"Slacken ${getClass.getPackage.getImplementationVersion} beta (c) 2019-2024 Johan Nyström-Persson")
   banner("Usage:")
 
   val taxonomy = opt[String](descr = "Path to taxonomy directory (nodes.dmp and names.dmp)")
@@ -43,6 +44,10 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
       }
   }
 
+  /** Find genome library files (.fna) in a directory and construct a GenomeLibrary
+   * @param location directory to search
+   * @param k optionally override the default k-mer length
+   */
   private def findGenomes(location: String, k: Option[Int] = None)(implicit spark: SparkSession): GenomeLibrary = {
     val inFiles = HDFSUtil.findFiles(location + "/library", ".fna")
     println(s"Discovered input files: $inFiles")
@@ -54,6 +59,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
   }
 
   val taxonIndex = new Subcommand("taxonIndex") {
+    banner("Taxonomic minimizer-LCA index functions")
     val location = trailArg[String](required = true, descr = "Path to location where index is stored")
 
     def index() =
@@ -113,7 +119,7 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
         default = Some(0.15))
 
       val dynamicBrackenLength = opt[Int](descr =
-        "Read length for bracken weights for the dynamic index (default 100)", default = Some(100))
+        "Read length for bracken weights for the dynamic index")
 
       val reportDynamicIndex = opt[Boolean](descr = "Report statistics on the dynamic index", default = Some(false))
 
@@ -254,24 +260,24 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
 
   val compare = new RunCmd("compare") {
     banner("Compare classifications")
-    val reference = opt[String](descr = "Reference mapping to compare (TSV format)", required = true)
+    val reference = opt[String](descr = "Reference mapping for comparison (TSV format)", required = true)
     val idCol = opt[Int](descr = "Read ID column in reference", default = Some(2))
     val taxonCol = opt[Int](descr = "Taxon column in reference", short = 'T', default = Some(3))
     val output = opt[String](descr = "Output location")
     val skipHeader = toggle(name = "header", descrYes = "Skip header in reference data", default = Some(false))
-    val multi = toggle(name = "multi", descrYes = "Classified reads were classified as multi-sample data", default = Some(true))
 
-    val testFiles = trailArg[List[String]]("testFiles", descr = "Mappings to compare (Slacken/Kraken format)",
-      required = true)
+    val multiDirs = opt[List[String]](descr = "Directories of multi-sample mapping data to compare")
+    val testFiles = opt[List[String]](descr = "Mapping files to compare")
+    requireOne(multiDirs, testFiles)
 
     def run(): Unit = {
       val t = spark.sparkContext.broadcast(Taxonomy.load(taxonomy()))
-      val mc = new MappingComparison(t, reference(), idCol(), taxonCol(), skipHeader(), 10, multi())
-      val metrics =
-        for { t <- testFiles().iterator
-            m <- mc.allMetrics(t) } yield m
-      HDFSUtil.writeTextLines(output() + "_metrics.tsv",
-        Iterator(Metrics.header) ++ metrics.flatMap(_.toTSVString))
+      val mc = new MappingComparison(t, idCol(), taxonCol(), skipHeader(), 10, multiDirs.isDefined)
+      if (testFiles.isDefined) {
+        mc.processFiles(testFiles(), output(), reference())
+      } else {
+        mc.processDirectories(multiDirs(), output(), reference())
+      }
     }
   }
   addSubcommand(compare)
@@ -293,9 +299,9 @@ class Slacken2Conf(args: Array[String])(implicit spark: SparkSession) extends Sp
 }
 
 /** Implements the Kraken 2 method for taxonomic classification. */
-object Slacken2 extends SparkTool("Slacken 2") {
+object Slacken extends SparkTool("Slacken") {
   def main(args: Array[String]): Unit = {
-    val conf = new Slacken2Conf(args)(sparkSession()).finishSetup()
+    val conf = new SlackenConf(args)(sparkSession()).finishSetup()
     Commands.run(conf)
   }
 }

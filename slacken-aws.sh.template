@@ -30,7 +30,7 @@ aws s3 cp $DISCOUNT_HOME/target/scala-2.12/Slacken-assembly-0.1.0.jar $BUCKET/
 COMMAND=( \
 #  --conf $SPLIT \
   --conf spark.driver.memory=24g \
-  --class com.jnpersson.slacken.Slacken2 $BUCKET/Slacken-assembly-0.1.0.jar $*)
+  --class com.jnpersson.slacken.Slacken $BUCKET/Slacken-assembly-0.1.0.jar $*)
 
 
 #Turn off paging for output

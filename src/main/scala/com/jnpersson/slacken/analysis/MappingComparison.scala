@@ -56,42 +56,78 @@ object Metrics {
 }
 
 /** Compare a set of classifications against a reference. */
-class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
+class MappingComparison(tax: Broadcast[Taxonomy],
                         refIdCol: Int, refTaxonCol: Int, skipHeader: Boolean,
                         minCountTaxon: Long,
                         multiSample: Boolean)(implicit spark: SparkSession) {
   import MappingComparison._
   import spark.sqlContext.implicits._
 
-  val unfilteredRefData = readCustomFormat(reference, refIdCol, refTaxonCol).
-    toDF("id", "refTaxon").cache()
 
-  def readReferenceData: DataFrame = {
+  /** Process directories of multi-sample classifications.
+   * A diretory prefix indicates where the reference mapping for each sample can be found.
+   */
+  def processDirectories(dirs: List[String], outputPrefix: String, referencePrefix: String): Unit = {
+    /** Find subdirectories that match the pattern */
+    val pattern = ".*sample=(.+)".r
+    val allSamplesMetrics = for {
+      dir <- dirs
+      subdir <- HDFSUtil.subdirectories(dir)
+      sampleMatch <- pattern.findFirstMatchIn(subdir)
+      sample = sampleMatch.group(1)
+      reference = s"$referencePrefix/sample$sample/reads_mapping.tsv"
+    } yield allMetrics(s"$dir/$subdir", reference)
+
+    HDFSUtil.writeTextLines(outputPrefix + "_metrics.tsv",
+      Iterator(Metrics.header) ++ allSamplesMetrics.flatMap(_.flatMap(_.toTSVString)))
+  }
+
+  /** Process a set of classification files with a common reference mapping. */
+  def processFiles(files: Iterable[String], outputPrefix: String, reference: String): Unit = {
+    val allFilesMetrics = for {
+      f <- files
+      metrics <- allMetrics(f, reference)
+    } yield metrics
+    HDFSUtil.writeTextLines(outputPrefix + "_metrics.tsv",
+      Iterator(Metrics.header) ++ allFilesMetrics.flatMap(_.toTSVString))
+  }
+
+  def unfilteredRefData(file: String) = readCustomFormat(file, refIdCol, refTaxonCol).
+    toDF("id", "refTaxon")
+
+  def readReferenceData(file: String): DataFrame = {
     val bcTax = this.tax
+    val unfiltered = unfilteredRefData(file)
 
     for {
-      taxon <- unfilteredRefData.select("refTaxon").distinct().as[Taxon].collect()
+      taxon <- unfiltered.select("refTaxon").distinct().as[Taxon].collect()
       if ! tax.value.isDefined(taxon)
     } {
       println(s"Reference contains unknown taxon, not known to taxonomy: $taxon. It will be filtered out.")
     }
 
     val contains = udf((x: Taxon) => bcTax.value.isDefined(x))
-    unfilteredRefData.filter(contains($"refTaxon")).cache
+    unfiltered.filter(contains($"refTaxon"))
   }
 
-  val referenceData = readReferenceData
-  println(s"Filtered reference size: ${referenceData.count}, unfiltered size: ${unfilteredRefData.count}")
 
-  def allMetrics(dataFile: String): Iterator[Metrics] = {
-    println(s"--------$dataFile--------")
-    Iterator(
-      allMetrics(dataFile, Some(Genus)),
-      allMetrics(dataFile, Some(Species))
-    )
+  def allMetrics(dataFile: String, reference: String): Iterator[Metrics] = {
+    val referenceData = readReferenceData(reference).cache
+    println(s"Filtered reference size: ${referenceData.count}")
+
+    try {
+      println(s"--------$dataFile--------")
+      Iterator(
+        allMetrics(dataFile, Some(Genus), referenceData),
+        allMetrics(dataFile, Some(Species), referenceData)
+      )
+    } finally {
+      referenceData.unpersist()
+    }
   }
 
-  def allMetrics(dataFile: String, rank: Option[Rank]): Metrics = {
+  /** Produce metrics for one dataFile (single file or directory of TSV) */
+  def allMetrics(dataFile: String, rank: Option[Rank], referenceData: DataFrame): Metrics = {
     val spl = dataFile.split("/")
     val title = if (multiSample) spl.takeRight(4).mkString("/") else spl.last
 
@@ -103,15 +139,15 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
       cache()
     try {
       Metrics(title, rank,
-        perTaxonComparison(cmpData, rank),
-        perReadComparison(cmpData, rank)
+        perTaxonComparison(cmpData, rank, referenceData),
+        perReadComparison(cmpData, rank, referenceData)
       )
     } finally {
       cmpData.unpersist()
     }
   }
 
-  def perTaxonComparison(cmpDataRaw: DataFrame, rank: Option[Rank]): PerTaxonMetrics = {
+  def perTaxonComparison(cmpDataRaw: DataFrame, rank: Option[Rank], referenceData: DataFrame): PerTaxonMetrics = {
     val tax = this.tax
     val ancestorAtLevel = udf((x: Taxon) =>
       rank.flatMap(r => tax.value.standardAncestorAtLevel(x, r)))
@@ -152,7 +188,7 @@ class MappingComparison(tax: Broadcast[Taxonomy], reference: String,
     PerTaxonMetrics(cmpTaxa.size, refTaxa.size, precision, recall)
   }
 
-  def perReadComparison(cmpData: DataFrame, rank: Option[Rank]): PerReadMetrics = {
+  def perReadComparison(cmpData: DataFrame, rank: Option[Rank], referenceData: DataFrame): PerReadMetrics = {
     //Inner join (effectively an intersection here), reasoning:
     //1) disregard reads that were present in the reference but not in the sample classified.
     //The reference is treated as a potential superset.
