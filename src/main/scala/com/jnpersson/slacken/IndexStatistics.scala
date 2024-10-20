@@ -35,34 +35,6 @@ class IndexStatistics(index: KeyValueIndex)(implicit spark: SparkSession) {
     new TotalKmerCountReport(taxonomy, allTaxa, taxaLengthArray)
   }
 
-  /** For each genome in the input sequences, count all its minimizers (with repetitions) and calculate the fraction
-   * that is assigned (in the index) to that genome's taxon, rather than some ancestor.
-   * This is a measure of how well we can identify each distinct genome.
-   *
-   * @param genomes      genome sequences to check (intended to be a subset of the sequences that were used
-   *                     to build the index)
-   */
-  def showTaxonCoverageStats(genomes: GenomeLibrary): Unit = {
-    val inputSequences = genomes.joinSequencesAndLabels(addRC = false)
-    val mins = index.findMinimizers(inputSequences)
-
-    //1. Count how many times per input taxon each minimizer occurs
-    val agg = mins.groupBy(index.idColumns :+ $"taxon": _*).agg(count("*").as("countAll"))
-    // COLUMNS = [ taxon, minimizer(idColumns), countAll ]
-
-    //2. Join with records, find the fraction that is assigned to the same (leaf) taxon
-    val joint = agg.join(index.records.withColumnRenamed("taxon", "idxTaxon"),
-      // records COLUMNS = [ idxTaxon, idColumnNames ]
-      index.idColumnNames, "left").
-      withColumn("countLeaf", when($"idxTaxon" === $"taxon", $"countAll").
-        otherwise(lit(0L))).
-      groupBy("taxon").
-      agg((sum("countLeaf") / sum("countAll")).as("fracLeaf"),
-        sum("countAll").as("total"))
-
-    joint.select("fracLeaf", "total").summary().show()
-  }
-
   /**
    * @param genomes
    * @return
