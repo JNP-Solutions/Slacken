@@ -16,8 +16,8 @@ import org.apache.spark.sql.{DataFrame, Dataset, SparkSession, functions}
 import scala.collection.mutable
 
 /** A single line of per-taxon metrics, corresponding to the classification of one sample and a set of parmeters. */
-final case class PerTaxonMetrics(refCount: Long, classifiedCount: Long, precision: Double, recall: Double) {
-  def toTSVString: String = s"$refCount\t$classifiedCount\t$precision\t$recall"
+final case class PerTaxonMetrics(classifiedCount: Long, refCount: Long, precision: Double, recall: Double) {
+  def toTSVString: String = s"$classifiedCount\t$refCount\t$precision\t$recall"
 }
 
 object PerTaxonMetrics {
