@@ -35,6 +35,7 @@ object Taxonomy {
 
   /** All Rank values except Unclassified. */
   val rankValues: List[Rank] = List(Root, Superkingdom, Kingdom, Phylum, Class, Order, Family, Genus, Species)
+  val rankTitles: List[String] = rankValues.map(_.title)
 
   def rank(title: String): Option[Rank] = title match {
     case Unclassified.title => Some(Unclassified)
@@ -50,8 +51,12 @@ object Taxonomy {
     case _ => None
   }
 
+  def rankOrNull(title: String): Rank =
+    rank(title).orNull
+
   def rankForDepth(d: Int): Option[Rank] =
     rankValues.find(_.depth == d)
+
 
   /**
    * Construct a Taxonomy from parsed NCBI style input data.

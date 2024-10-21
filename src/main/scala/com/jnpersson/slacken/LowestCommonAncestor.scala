@@ -112,9 +112,9 @@ final class LowestCommonAncestor(taxonomy: Taxonomy) {
     while (maxTaxon != NONE && maxScore < requiredScore) {
       maxScore = 0
 
-      val it = hitCounts.keySet().iterator()
-      while (it.hasNext) {
-        val taxon = it.nextInt()
+      val it2 = hitCounts.keySet().iterator()
+      while (it2.hasNext) {
+        val taxon = it2.nextInt()
         val score = hitCounts.applyAsInt(taxon)
         if (taxonomy.hasAncestor(taxon, maxTaxon)) {
           //Add score if taxon is in max_taxon's clade
