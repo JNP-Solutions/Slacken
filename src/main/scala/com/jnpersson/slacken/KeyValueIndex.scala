@@ -89,8 +89,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
    * @param taxonFilter Optionally limit input sequences to only taxa in this set (and their descendants)
    * @return index records
    */
-  def makeRecords(library: GenomeLibrary, addRC: Boolean,
-                  taxonFilter: Option[mutable.BitSet] = None)(implicit spark: SparkSession): DataFrame = {
+  def makeRecords(library: GenomeLibrary, addRC: Boolean, taxonFilter: Option[mutable.BitSet] = None): DataFrame = {
     val input = taxonFilter match {
       case Some(tf) =>
         val titlesTaxa = library.getTaxonLabels.
@@ -130,8 +129,8 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
   }
 
   /** Produce a copy of this index with the same parameters but different records */
-  def withRecords(records: Dataset[Row]): KeyValueIndex =
-    new KeyValueIndex(records, params, taxonomy)
+  def withRecords(recs: Dataset[Row]): KeyValueIndex =
+    new KeyValueIndex(recs, params, taxonomy)
 
   /** Load index records from the params location (default location for this index) */
   def loadRecords(): DataFrame =

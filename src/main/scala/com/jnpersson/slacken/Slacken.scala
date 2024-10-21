@@ -48,7 +48,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
    * @param location directory to search
    * @param k optionally override the default k-mer length
    */
-  private def findGenomes(location: String, k: Option[Int] = None)(implicit spark: SparkSession): GenomeLibrary = {
+  private def findGenomes(location: String, k: Option[Int] = None): GenomeLibrary = {
     val inFiles = HDFSUtil.findFiles(location + "/library", ".fna")
     println(s"Discovered input files: $inFiles")
     val reader = k match {
@@ -107,9 +107,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
       val dynamic = opt[String](descr = "Library location for dynamic classification (if desired)")
 
       val dynamicRank = choice(descr = "Rank for initial classification in dynamic mode (default species)",
-        default = Some(Species.title),
-        choices = Taxonomy.rankValues.map(_.title)).map(r =>
-        Taxonomy.rankValues.find(_.title == r).get)
+        default = Some(Species.title), choices = Taxonomy.rankTitles).map(Taxonomy.rankOrNull)
 
 //      val dynamicMinFraction = opt[Double](descr = "Min fraction for taxon inclusion in dynamic mode")
       val dynamicMinCount = opt[Int](descr = "Minimizer count for taxon inclusion in dynamic mode (default 100)")
@@ -127,8 +125,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
         "statistics wrt gold standard", default = Some(false), short = 'C')
       val goldStandardTaxonSet = opt[String](descr = "Location of gold standard reference taxon set in dynamic mode")
       val promoteGoldSet = choice(descr = "Attempt to promote taxa with no minimizers from the gold set to this rank (at the highest)",
-        choices = Taxonomy.rankValues.map(_.title)).map(r =>
-        Taxonomy.rankValues.find(_.title == r).get)
+        choices = Taxonomy.rankTitles).map(Taxonomy.rankOrNull)
 
       def cpar = ClassifyParams(minHitGroups(), unclassified(), confidence(), sampleRegex.toOption)
 
