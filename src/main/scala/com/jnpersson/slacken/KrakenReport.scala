@@ -114,10 +114,10 @@ object KrakenReport {
       getOrElse(Taxonomy.Unclassified).depth
 
   def main(args: Array[String]): Unit = {
-    val level = if (args.length > 0) Some(args(0)) else None
-    val minPercent = if (args.length > 1) Some(args(1).toDouble) else None
+    val levelArg = if (args.length > 0) Some(args(0)) else None
+    val minPercentArg = if (args.length > 1) Some(args(1).toDouble) else None
 
-    val cutoff = level.map(l => numRankForCode(l.toUpperCase))
+    val cutoff = levelArg.map(l => numRankForCode(l.toUpperCase))
     val digits = "[0-9]+".r
     for {
       l <- scala.io.Source.stdin.getLines()
@@ -125,7 +125,7 @@ object KrakenReport {
       spl = l.split("\t")
 
       frac = spl(0).toDouble
-      if minPercent.forall(frac >= _)
+      if minPercentArg.forall(frac >= _)
 
       level = digits.replaceAllIn(spl(3), "")
       numLevel = numRankForCode(level)
