@@ -12,18 +12,19 @@ import scala.collection.mutable
 sealed trait TaxonCriteria
 
 /** Criterion that includes taxa having a minimum number of total minimizer hits in the sample. */
-case class MinimizerTotalCount(threshold: Int) extends TaxonCriteria
+final case class MinimizerTotalCount(threshold: Int) extends TaxonCriteria
 
 /** Criterion that includes taxa having a minimum number of distinct minimizer hits in the sample. */
-case class MinimizerDistinctCount(threshold: Int) extends TaxonCriteria
+final case class MinimizerDistinctCount(threshold: Int) extends TaxonCriteria
 
 /** Criterion that includes taxa having a minimum number of classified reads in the sample, using the given
  * confidence threshold. */
-case class ClassifiedReadCount(threshold: Int, confidence: Double) extends TaxonCriteria
+final case class ClassifiedReadCount(threshold: Int, confidence: Double) extends TaxonCriteria
 
-case class MinimizerFraction(threshold: Double) extends TaxonCriteria
+final case class MinimizerFraction(threshold: Double) extends TaxonCriteria
 
-case class Timer(task: String, start: Long) {
+/** Helper for timing tasks */
+final case class Timer(task: String, start: Long) {
   def finish(): Unit = {
     val elapsed = System.currentTimeMillis() - start
     val s = elapsed / 1000
@@ -283,7 +284,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     })
     println(s"${notFound.size} taxa from gold set not found in library, promoted to ${promoted.size} taxa.")
     val levelCounts = promoted.toSeq.map(t => taxonomy.depth(t)).groupBy(x => x).map(x =>
-      (Taxonomy.rankForDepth(x._1).get, x._2.size)).toSeq.sorted
+      (Taxonomy.rankForDepth(x._1).orNull, x._2.size)).toSeq.sorted
     println(s"Promoted to levels: $levelCounts")
 
     val keptPromoted = promoteRank match {
