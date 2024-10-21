@@ -187,19 +187,19 @@ class TotalKmerSizeAggregator(taxonomy: Taxonomy, genomeSizes: Array[(Taxon, Lon
         }
 
       case childList =>
-        val genomeSizes = ListBuffer[Long]()
-        val genomeCounts = ListBuffer[Long]()
+        var genomeSizeSum = 0L
+        var genomeCountSum = 0L
         if (genomeSizesMap.contains(taxon)) {
-          genomeSizes += genomeSizesMap(taxon)
-          genomeCounts += 1
+          genomeSizeSum += genomeSizesMap(taxon)
+          genomeCountSum += 1
         }
         for {i <- childList
              leafCounts = computeLeafAggAndCounts(i, results)} {
-          genomeSizes += leafCounts._1
-          genomeCounts += leafCounts._2
+          genomeSizeSum += leafCounts._1
+          genomeCountSum += leafCounts._2
         }
-        results += (taxon -> (genomeSizes.sum, genomeCounts.sum))
-        (genomeSizes.sum, genomeCounts.sum)
+        results += (taxon -> (genomeSizeSum, genomeCountSum))
+        (genomeSizeSum, genomeCountSum)
     }
   }
 
