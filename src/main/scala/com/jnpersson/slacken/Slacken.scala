@@ -5,7 +5,7 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.kmers.minimizer._
-import com.jnpersson.kmers.{Commands, HDFSUtil, IndexParams, RunCmd, SparkConfiguration, SparkTool}
+import com.jnpersson.kmers.{Commands, HDFSUtil, IndexParams, RunCmd, SeqTitle, SparkConfiguration, SparkTool}
 import com.jnpersson.slacken.Taxonomy.Species
 import com.jnpersson.slacken.analysis.{MappingComparison, Metrics, MinimizerMigration}
 import org.apache.spark.sql.SparkSession
@@ -30,6 +30,9 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
   override def defaultXORMask: Long = DEFAULT_TOGGLE_MASK
   override def canonicalMinimizers: Boolean = true
   override def frequencyBySequence: Boolean = true
+
+  override protected def orderingChoices: Seq[String] =
+    Seq("frequency", "lexicographic", "xor")
 
   /** Get the Taxonomy from the default location or from the user-overridden location */
   def getTaxonomy(indexLocation: String) = taxonomy.toOption match {
