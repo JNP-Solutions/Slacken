@@ -39,6 +39,56 @@ private[jnpersson] abstract class RunCmd(title: String) extends Subcommand(title
   def run(): Unit
 }
 
+/** Extra configuration options relating to advanced minimizer orderings */
+trait AdvancedMinimizerOrderingsConfiguration {
+  this: SparkConfiguration =>
+
+  val normalize = opt[Boolean](descr = "Normalize k-mer orientation (forward/reverse complement)")
+
+  validate (k) { k =>
+    if (normalize() && (k % 2 == 0)) {
+      Left(s"--normalize is only available for odd values of k, but $k was given")
+    } else Right(Unit)
+  }
+
+  val extendMinimizers = opt[Int](descr = "Extended width of minimizers")
+
+  protected def extendedWithSuffix: Boolean = false
+
+  validate (extendMinimizers) { e =>
+    if (minimizerWidth() >= e) {
+      Left ("--extendMinimizers must be > m")
+    } else if (k() < e) {
+      Left("--extendMinimizers must be <= k")
+    } else Right(Unit)
+  }
+
+  protected def extendMinimizersIfConfigured(inner: MinimizerSource): MinimizerSource =
+    extendMinimizers.toOption match {
+      case Some(e) => Extended(inner, e, canonicalMinimizers, extendedWithSuffix)
+      case _ => inner
+    }
+
+  override def parseMinimizerSource: MinimizerSource = {
+    val inner = minimizers.toOption match {
+      case Some(path) => Path(path)
+      case _ => if (allMinimizers()) {
+        All
+      } else {
+        Bundled
+      }
+    }
+    extendMinimizersIfConfigured(inner)
+  }
+
+  val allMinimizers = toggle(name="allMinimizers", descrYes = "Use all m-mers as minimizers",
+    descrNo = "Use a provided or internal precomputed minimizer set", default = Some(defaultAllMinimizers))
+
+  val minimizers = opt[String](
+    descr = "File containing a set of minimizers to use (universal k-mer hitting set), or a directory of such universal hitting sets")
+
+}
+
 /**
  * Main command-line configuration
  *
@@ -48,16 +98,12 @@ private[jnpersson] abstract class RunCmd(title: String) extends Subcommand(title
 class Configuration(args: Seq[String]) extends ScallopConf(args) {
   val k = opt[Int](descr = "Length of each k-mer")
 
-  val normalize = opt[Boolean](descr = "Normalize k-mer orientation (forward/reverse complement)")
-
   val minimizerWidth = opt[Int](name = "m", descr = "Width of minimizers (default 10)",
     default = Some(10))
 
   validate (k) { k =>
     if (minimizerWidth() > k) {
       Left("-m must be <= -k")
-    } else if (normalize() && (k % 2 == 0)) {
-      Left(s"--normalize is only available for odd values of k, but $k was given")
     } else Right(Unit)
   }
 
@@ -72,8 +118,10 @@ class Configuration(args: Seq[String]) extends ScallopConf(args) {
   /** For some minimizer orderings, whether to use canonical orientation */
   protected def canonicalMinimizers = false
 
+  protected def orderingChoices: Seq[SeqTitle] = Seq("frequency", "lexicographic", "given", "signature", "random", "xor")
+
   val ordering: ScallopOption[MinimizerOrdering] =
-    choice(Seq("frequency", "lexicographic", "given", "signature", "random", "xor"),
+    choice(orderingChoices,
     default = Some(defaultOrdering), descr = s"Minimizer ordering (default $defaultOrdering).").
     map {
       case "frequency" => Frequency(frequencyBySequence)
@@ -93,46 +141,15 @@ class Configuration(args: Seq[String]) extends ScallopConf(args) {
   }
 
   def defaultAllMinimizers = false
-  val allMinimizers = toggle(name="allMinimizers", descrYes = "Use all m-mers as minimizers",
-    descrNo = "Use a provided or internal precomputed minimizer set", default = Some(defaultAllMinimizers))
-
-  val minimizers = opt[String](
-    descr = "File containing a set of minimizers to use (universal k-mer hitting set), or a directory of such universal hitting sets")
 
   protected def defaultMaxSequenceLength = 10000000 //10M bps
   val maxSequenceLength = opt[Int](name = "maxlen",
     descr = s"Maximum length of a single sequence/read (default $defaultMaxSequenceLength)",
     default = Some(defaultMaxSequenceLength))
 
-  val extendMinimizers = opt[Int](descr = "Extended width of minimizers")
 
-  protected def extendedWithSuffix: Boolean = false
-
-  validate (extendMinimizers) { e =>
-    if (minimizerWidth() >= e) {
-      Left ("--extendMinimizers must be > m")
-    } else if (k() < e) {
-      Left("--extendMinimizers must be <= k")
-    } else Right(Unit)
-  }
-
-  def parseMinimizerSource: MinimizerSource = {
-    val inner = minimizers.toOption match {
-      case Some(path) => Path(path)
-      case _ => if (allMinimizers()) {
-        All
-      } else {
-        Bundled
-      }
-    }
-    extendMinimizersIfConfigured(inner)
-  }
-
-  protected def extendMinimizersIfConfigured(inner: MinimizerSource): MinimizerSource =
-    extendMinimizers.toOption match {
-      case Some(e) => Extended(inner, e, canonicalMinimizers, extendedWithSuffix)
-      case _ => inner
-    }
+  def parseMinimizerSource: MinimizerSource =
+    All
 
   def requireSuppliedK(): Unit = {
     if (!k.isSupplied) {

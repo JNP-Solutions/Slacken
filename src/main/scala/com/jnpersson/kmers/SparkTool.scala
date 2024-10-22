@@ -53,7 +53,7 @@ class SparkConfiguration(args: Array[String])(implicit val spark: SparkSession) 
 
   def minimizerConfig(): MinimizerConfig = {
     requireSuppliedK()
-    new MinimizerConfig(k(), parseMinimizerSource, minimizerWidth(), ordering(), sample(), maxSequenceLength(), normalize())
+    new MinimizerConfig(k(), parseMinimizerSource, minimizerWidth(), ordering(), sample(), maxSequenceLength())
   }
 
   def finishSetup(): this.type = {
