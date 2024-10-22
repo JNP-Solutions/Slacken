@@ -125,12 +125,11 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
         default = Some(List(0.0)), short = 'c')
       val sampleRegex = opt[String](descr = "Regular expression for extracting sample ID from read header (e.g. \"@(.*):\")")
 
-      val dynamic = opt[String](descr = "Library location for dynamic classification (if desired)")
+      val dynamic = opt[String](descr = "Genomic library location for dynamic classification (if desired). Enables dynamic classification.")
 
       val dynamicRank = choice(descr = "Rank for initial classification in dynamic mode (default species)",
         default = Some(Species.title), choices = Taxonomy.rankTitles).map(Taxonomy.rankOrNull)
 
-//      val dynamicMinFraction = opt[Double](descr = "Min fraction for taxon inclusion in dynamic mode")
       val dynamicMinCount = opt[Int](descr = "Minimizer count for taxon inclusion in dynamic mode (default 100)")
       val dynamicMinDistinct = opt[Int](descr = "Minimizer distinct count for taxon inclusion in dynamic mode")
       val dynamicMinReads = opt[Int](descr = "Min read count classified for taxon inclusion in dynamic mode")
@@ -156,6 +155,11 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
           case None => Right(Unit)
         }
       }
+      validate(dynamicReadConfidence) { c =>
+        if (c < 0 || c > 1)
+          Left(s"--dynamic-read-confidence must be >=0 and <= 1 ($c was given)")
+        else Right(Unit)
+      }
 
       validate(sampleRegex) { reg =>
         try {
@@ -177,7 +181,8 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
         dynamic.toOption match {
           case Some(library) =>
             val genomes = findGenomes(library, Some(i.params.k))
-            val goldStandardOpt = goldStandardTaxonSet.toOption.map(x => (x, classifyWithGoldStandard(), promoteGoldSet.toOption))
+            val goldStandardOpt = goldStandardTaxonSet.toOption.map(x =>
+              DynamicGoldTaxonSet(x, promoteGoldSet.toOption, classifyWithGoldStandard()))
             val taxonCriteria = dynamicMinCount.map(MinimizerTotalCount).
               orElse(dynamicMinReads.map(ClassifiedReadCount(_, dynamicReadConfidence())).toOption).
               orElse(dynamicMinDistinct.map(MinimizerDistinctCount).toOption).
