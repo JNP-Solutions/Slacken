@@ -17,22 +17,20 @@ import java.util.regex.PatternSyntaxException
 /** Command line parameters for Slacken */
 //noinspection TypeAnnotation
 class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends SparkConfiguration(args) {
-  version(s"Slacken ${getClass.getPackage.getImplementationVersion} beta (c) 2019-2024 Johan Nyström-Persson")
+  version(s"Slacken ${getClass.getPackage.getImplementationVersion} (c) 2019-2024 Johan Nyström-Persson")
   banner("Usage:")
 
   val taxonomy = opt[String](descr = "Path to taxonomy directory (nodes.dmp and names.dmp)")
 
+  override def defaultK: Int = 35
+  override def defaultMinimizerWidth: Int = 31
   override def defaultMinimizerSpaces: Int = 7
   override def defaultOrdering: String = "xor"
-  override def defaultAllMinimizers: Boolean = true
   override def defaultMaxSequenceLength: Int = 100000000 //100M bps
 
   override def defaultXORMask: Long = DEFAULT_TOGGLE_MASK
   override def canonicalMinimizers: Boolean = true
   override def frequencyBySequence: Boolean = true
-
-  override protected def orderingChoices: Seq[String] =
-    Seq("frequency", "lexicographic", "xor")
 
   /** Get the Taxonomy from the default location or from the user-overridden location */
   def getTaxonomy(indexLocation: String) = taxonomy.toOption match {
