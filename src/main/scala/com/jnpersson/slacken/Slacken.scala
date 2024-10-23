@@ -20,7 +20,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
   version(s"Slacken ${getClass.getPackage.getImplementationVersion} (c) 2019-2024 Johan Nyström-Persson")
   banner("Usage:")
 
-  val taxonomy = opt[String](descr = "Path to taxonomy directory (nodes.dmp and names.dmp)")
+  val taxonomy = opt[String](descr = "Path to taxonomy directory (nodes.dmp, merged.dmp and names.dmp)")
 
   override def defaultK: Int = 35
   override def defaultMinimizerWidth: Int = 31
