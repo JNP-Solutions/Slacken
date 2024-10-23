@@ -262,8 +262,8 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
     val allTaxa = records.groupBy("taxon").agg(count("taxon")).as[(Taxon, Long)].collect()
     val leafTaxa = allTaxa.filter(x => taxonomy.isLeafNode(x._1))
     val treeSize = taxonomy.countDistinctTaxaWithAncestors(allTaxa.map(_._1))
-    println(s"Tree size: $treeSize taxa, stored taxa: ${allTaxa.size}, of which ${leafTaxa.size} " +
-      s"leaf taxa (${formatPerc(leafTaxa.size.toDouble/allTaxa.size)})")
+    println(s"Tree size: $treeSize taxa, stored taxa: ${allTaxa.length}, of which ${leafTaxa.length} " +
+      s"leaf taxa (${formatPerc(leafTaxa.length.toDouble/ allTaxa.length)})")
 
     val recTotal = allTaxa.map(_._2).sum
     val leafTotal = leafTaxa.map(_._2).sum

@@ -62,7 +62,7 @@ object Taxonomy {
    * Construct a Taxonomy from parsed NCBI style input data.
    * @param nodes triples of (taxid, parent taxid, rank (long name))
    * @param names tuples of (taxid, scientific name)
-   * @parma merged tuples of (secondary ID, primary ID)
+   * @param merged tuples of (secondary ID, primary ID)
    */
   def fromNodesAndNames(nodes: Iterable[(Taxon, Taxon, String)], names: Iterator[(Taxon, String)],
                         merged: Iterable[(Taxon, Taxon)]): Taxonomy = {
