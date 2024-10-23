@@ -285,19 +285,6 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
   }
   addSubcommand(compare)
 
-  val inputCheck = new RunCmd("inputCheck") {
-    banner("Inspect input data")
-    val labels = opt[String](descr = "Path to sequence taxonomic label file")
-
-    def run(): Unit = {
-      val t = getTaxonomy(taxonomy())
-      for { l <- labels } {
-        GenomeLibrary.inputStats (l, t)
-      }
-    }
-  }
-  addSubcommand(inputCheck)
-
   verify()
 }
 
