@@ -20,7 +20,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
   version(s"Slacken ${getClass.getPackage.getImplementationVersion} (c) 2019-2024 Johan Nyström-Persson")
   banner("Usage:")
 
-  val taxonomy = opt[String](descr = "Path to taxonomy directory (nodes.dmp and names.dmp)")
+  val taxonomy = opt[String](descr = "Path to taxonomy directory (nodes.dmp, merged.dmp and names.dmp)")
 
   override def defaultK: Int = 35
   override def defaultMinimizerWidth: Int = 31
@@ -105,28 +105,6 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
         default = Some(List(0.0)), short = 'c')
       val sampleRegex = opt[String](descr = "Regular expression for extracting sample ID from read header (e.g. \"@(.*):\")")
 
-      val dynamic = opt[String](descr = "Genomic library location for dynamic classification (if desired). Enables dynamic classification.")
-
-      val dynamicRank = choice(descr = "Rank for initial classification in dynamic mode (default species)",
-        default = Some(Species.title), choices = Taxonomy.rankTitles).map(Taxonomy.rankOrNull)
-
-      val dynamicMinCount = opt[Int](descr = "Minimizer count for taxon inclusion in dynamic mode (default 100)")
-      val dynamicMinDistinct = opt[Int](descr = "Minimizer distinct count for taxon inclusion in dynamic mode")
-      val dynamicMinReads = opt[Int](descr = "Min read count classified for taxon inclusion in dynamic mode")
-      val dynamicReadConfidence = opt[Double](descr = "Confidence threshold for initial read classification in dynamic mode (default 0.15)",
-        default = Some(0.15))
-
-      val dynamicBrackenLength = opt[Int](descr =
-        "Read length for bracken weights for the dynamic index")
-
-      val reportDynamicIndex = opt[Boolean](descr = "Report statistics on the dynamic index", default = Some(false))
-
-      val classifyWithGoldStandard = opt[Boolean](descr = "whether to classify with the gold taxon set or just get " +
-        "statistics wrt gold standard", default = Some(false), short = 'C')
-      val goldStandardTaxonSet = opt[String](descr = "Location of gold standard reference taxon set in dynamic mode")
-      val promoteGoldSet = choice(descr = "Attempt to promote taxa with no minimizers from the gold set to this rank (at the highest)",
-        choices = Taxonomy.rankTitles).map(Taxonomy.rankOrNull)
-
       def cpar = ClassifyParams(minHitGroups(), unclassified(), confidence(), sampleRegex.toOption)
 
       validate (confidence) { cs =>
@@ -134,11 +112,6 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
           case Some(c) => Left(s"--confidence values must be >= 0 and <= 1 ($c was given)")
           case None => Right(Unit)
         }
-      }
-      validate(dynamicReadConfidence) { c =>
-        if (c < 0 || c > 1)
-          Left(s"--dynamic-read-confidence must be >=0 and <= 1 ($c was given)")
-        else Right(Unit)
       }
 
       validate(sampleRegex) { reg =>
@@ -152,34 +125,65 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
         }
       }
 
-      mutuallyExclusive(dynamicMinCount, dynamicMinDistinct, dynamicMinReads)
+      val dynamic = new RunCmd("dynamic") {
+        banner("Two-step classification with dynamic index")
+        val dynLibrary = trailArg[String](descr = "Genome library location for dynamic classification")
+
+        val rank = choice(descr = "Cutoff rank for library construction in dynamic mode (default species)",
+          default = Some(Species.title), choices = Taxonomy.rankTitles).map(Taxonomy.rankOrNull)
+
+        val minCount = opt[Int](descr = "Minimizer count for taxon inclusion in dynamic mode (default 100)")
+        val minDistinct = opt[Int](descr = "Minimizer distinct count for taxon inclusion in dynamic mode")
+        val minReads = opt[Int](descr = "Min read count classified for taxon inclusion in dynamic mode")
+        val readConfidence = opt[Double](descr = "Confidence threshold for initial read classification in dynamic mode (default 0.15)",
+          default = Some(0.15))
+
+        val brackenLength = opt[Int](descr =
+          "Read length for building bracken weights")
+
+        val reportIndex = opt[Boolean](descr = "Report statistics on the created index", default = Some(false))
+
+        val classifyWithGold = opt[Boolean](descr = "whether to classify with the gold taxon set or just get " +
+          "statistics wrt gold standard", default = Some(false), short = 'C')
+        val goldSet = opt[String](descr = "Location of gold standard reference taxon set in dynamic mode")
+        val promoteGoldSet = choice(descr = "Attempt to promote taxa with no minimizers from the gold set to this rank (at the highest)",
+          choices = Taxonomy.rankTitles).map(Taxonomy.rankOrNull)
+
+        validate(readConfidence) { c =>
+          if (c < 0 || c > 1)
+            Left(s"--dynamic-read-confidence must be >=0 and <= 1 ($c was given)")
+          else Right(Unit)
+        }
+        mutuallyExclusive(minCount, minDistinct, minReads)
+
+        override def run(): Unit = {
+          val i = index()
+          val genomes = findGenomes(dynLibrary(), Some(i.params.k))
+          val goldStandardOpt = goldSet.toOption.map(x =>
+            DynamicGoldTaxonSet(x, promoteGoldSet.toOption, classifyWithGold()))
+          val taxonCriteria = minCount.map(MinimizerTotalCount).
+            orElse(minReads.map(ClassifiedReadCount(_, readConfidence())).toOption).
+            orElse(minDistinct.map(MinimizerDistinctCount).toOption).
+            getOrElse(MinimizerTotalCount(100))
+
+          val dyn = new Dynamic(i, genomes, rank(),
+            taxonCriteria,
+            cpar,
+            brackenLength.toOption, goldStandardOpt,
+            reportIndex(),
+            output())
+
+          val inputs = inputReader(inFiles(), i.params.k, paired())
+          dyn.twoStepClassifyAndWrite(inputs, partitions())
+        }
+      }
+      addSubcommand(dynamic)
 
       def run(): Unit = {
         val i = index()
         val inputs = inputReader(inFiles(), i.params.k, paired())
-
-        dynamic.toOption match {
-          case Some(library) =>
-            val genomes = findGenomes(library, Some(i.params.k))
-            val goldStandardOpt = goldStandardTaxonSet.toOption.map(x =>
-              DynamicGoldTaxonSet(x, promoteGoldSet.toOption, classifyWithGoldStandard()))
-            val taxonCriteria = dynamicMinCount.map(MinimizerTotalCount).
-              orElse(dynamicMinReads.map(ClassifiedReadCount(_, dynamicReadConfidence())).toOption).
-              orElse(dynamicMinDistinct.map(MinimizerDistinctCount).toOption).
-              getOrElse(MinimizerTotalCount(100))
-
-            val dyn = new Dynamic(i, genomes, dynamicRank(),
-              taxonCriteria,
-              cpar,
-              dynamicBrackenLength.toOption, goldStandardOpt,
-              reportDynamicIndex(),
-              output())
-
-            dyn.twoStepClassifyAndWrite(inputs, partitions())
-          case None =>
-            val cls = new Classifier(i)
-            cls.classifyAndWrite(inputs, output(), cpar)
-        }
+        val cls = new Classifier(i)
+        cls.classifyAndWrite(inputs, output(), cpar)
       }
     }
     addSubcommand(classify)
