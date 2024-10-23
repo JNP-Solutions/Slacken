@@ -39,6 +39,77 @@ private[jnpersson] abstract class RunCmd(title: String) extends Subcommand(title
   def run(): Unit
 }
 
+/**
+ * Main command-line configuration
+ *
+ * @param args command-line arguments
+ */
+//noinspection TypeAnnotation
+class Configuration(args: Seq[String]) extends ScallopConf(args) {
+  protected def defaultK = 35
+  val k = opt[Int](descr = s"Length of each k-mer (default $defaultK)", default = Some(defaultK))
+
+  protected def defaultMinimizerWidth = 10
+  val minimizerWidth = opt[Int](name = "m", descr = s"Width of minimizers (default $defaultMinimizerWidth)",
+    default = Some(defaultMinimizerWidth))
+
+  validate (k) { k =>
+    if (minimizerWidth() > k) {
+      Left("-m must be <= -k")
+    } else Right(Unit)
+  }
+
+  def defaultOrdering: String = "lexicographic"
+
+  val ordering: ScallopOption[MinimizerOrdering] =
+    choice(Seq("lexicographic", "random", "xor"),
+      default = Some(defaultOrdering), hidden = true).
+      map {
+        case "lexicographic" => Lexicographic
+        case "xor" | "random" => XORMask(defaultXORMask, canonicalMinimizers)
+      }
+
+  /** For the frequency ordering, whether to sample by sequence */
+  protected def frequencyBySequence: Boolean = false
+
+  /** For the XOR ordering, which mask to use */
+  protected def defaultXORMask: Long = Random.nextLong()
+
+  /** For some minimizer orderings, whether to use canonical orientation */
+  protected def canonicalMinimizers = false
+
+  protected def defaultMaxSequenceLength = 10000000 //10M bps
+  val maxSequenceLength = opt[Int](name = "maxlen",
+    descr = s"Maximum length of a single sequence/read (default $defaultMaxSequenceLength)",
+    default = Some(defaultMaxSequenceLength))
+
+
+  def parseMinimizerSource: MinimizerSource =
+    All
+
+  def requireSuppliedK(): Unit = {
+    if (!k.isSupplied) {
+      throw new Exception("This command requires -k to be supplied")
+    }
+  }
+
+  def defaultMinimizerSpaces: Int = 0
+
+  val minimizerSpaces = opt[Int](name = "spaces",
+    descr = s"Number of masked out nucleotides in minimizer (spaced seed, default $defaultMinimizerSpaces)",
+    default = Some(defaultMinimizerSpaces))
+
+  def seedMask(inner: MinimizerPriorities): MinimizerPriorities = {
+    minimizerSpaces.toOption match {
+      case None | Some(0) => inner
+      case Some(s) => SpacedSeed(s, inner)
+    }
+  }
+
+  val sample = opt[Double](descr = "Fraction of reads to sample for minimizer frequency (default 0.01)",
+    required = true, default = Some(0.01), hidden = true)
+}
+
 /** Extra configuration options relating to advanced minimizer orderings */
 trait AdvancedMinimizerOrderingsConfiguration {
   this: SparkConfiguration =>
@@ -81,57 +152,15 @@ trait AdvancedMinimizerOrderingsConfiguration {
     extendMinimizersIfConfigured(inner)
   }
 
+  def defaultAllMinimizers = false
+
   val allMinimizers = toggle(name="allMinimizers", descrYes = "Use all m-mers as minimizers",
     descrNo = "Use a provided or internal precomputed minimizer set", default = Some(defaultAllMinimizers))
 
   val minimizers = opt[String](
     descr = "File containing a set of minimizers to use (universal k-mer hitting set), or a directory of such universal hitting sets")
 
-}
-
-/**
- * Main command-line configuration
- *
- * @param args command-line arguments
- */
-//noinspection TypeAnnotation
-class Configuration(args: Seq[String]) extends ScallopConf(args) {
-  val k = opt[Int](descr = "Length of each k-mer")
-
-  val minimizerWidth = opt[Int](name = "m", descr = "Width of minimizers (default 10)",
-    default = Some(10))
-
-  validate (k) { k =>
-    if (minimizerWidth() > k) {
-      Left("-m must be <= -k")
-    } else Right(Unit)
-  }
-
-  def defaultOrdering: String = "frequency"
-
-  /** For the frequency ordering, whether to sample by sequence */
-  protected def frequencyBySequence: Boolean = false
-
-  /** For the XOR ordering, which mask to use */
-  protected def defaultXORMask: Long = Random.nextLong()
-
-  /** For some minimizer orderings, whether to use canonical orientation */
-  protected def canonicalMinimizers = false
-
-  protected def orderingChoices: Seq[SeqTitle] = Seq("frequency", "lexicographic", "given", "signature", "random", "xor")
-
-  val ordering: ScallopOption[MinimizerOrdering] =
-    choice(orderingChoices,
-    default = Some(defaultOrdering), descr = s"Minimizer ordering (default $defaultOrdering).").
-    map {
-      case "frequency" => Frequency(frequencyBySequence)
-      case "lexicographic" => Lexicographic
-      case "given" => Given
-      case "signature" => Signature
-      case "xor" | "random" => XORMask(defaultXORMask, canonicalMinimizers)
-    }
-
-  val sample = opt[Double](descr = "Fraction of reads to sample for minimizer frequency (default 0.01)",
+  override val sample = opt[Double](descr = "Fraction of reads to sample for minimizer frequency (default 0.01)",
     required = true, default = Some(0.01))
 
   validate (sample) { s =>
@@ -140,33 +169,14 @@ class Configuration(args: Seq[String]) extends ScallopConf(args) {
     } else Right(Unit)
   }
 
-  def defaultAllMinimizers = false
-
-  protected def defaultMaxSequenceLength = 10000000 //10M bps
-  val maxSequenceLength = opt[Int](name = "maxlen",
-    descr = s"Maximum length of a single sequence/read (default $defaultMaxSequenceLength)",
-    default = Some(defaultMaxSequenceLength))
-
-
-  def parseMinimizerSource: MinimizerSource =
-    All
-
-  def requireSuppliedK(): Unit = {
-    if (!k.isSupplied) {
-      throw new Exception("This command requires -k to be supplied")
-    }
-  }
-
-  def defaultMinimizerSpaces: Int = 0
-
-  val minimizerSpaces = opt[Int](name = "spaces",
-    descr = s"Number of masked out nucleotides in minimizer (spaced seed, default $defaultMinimizerSpaces)",
-    default = Some(defaultMinimizerSpaces))
-
-  def seedMask(inner: MinimizerPriorities): MinimizerPriorities = {
-    minimizerSpaces.toOption match {
-      case None | Some(0) => inner
-      case Some(s) => SpacedSeed(s, inner)
-    }
-  }
+  override val ordering: ScallopOption[MinimizerOrdering] =
+    choice(Seq("frequency", "lexicographic", "given", "signature", "random", "xor"),
+      default = Some(defaultOrdering), descr = s"Minimizer ordering (default $defaultOrdering).").
+      map {
+        case "frequency" => Frequency(frequencyBySequence)
+        case "lexicographic" => Lexicographic
+        case "given" => Given
+        case "signature" => Signature
+        case "xor" | "random" => XORMask(defaultXORMask, canonicalMinimizers)
+      }
 }
