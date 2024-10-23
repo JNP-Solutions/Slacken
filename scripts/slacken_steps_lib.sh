@@ -37,30 +37,29 @@ function classify {
 function classifyGS {
   LIB=$1
   LNAME=$2
-  #--report-dynamic-index
+  #--report-index
   #-p 3000
   CLASS_OUT=$ROOT/scratch/classified/$FAMILY/$LNAME
-  ./slacken-aws.sh -p 3000 taxonIndex $DATA/$LIB classify --classify-with-gold-standard -g $SPATH/${LABEL}_gold.txt \
-      --dynamic-bracken-length 150 \
-     -d $K2 --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" -o $CLASS_OUT \
+  ./slacken-aws.sh -p 3000 taxonIndex $DATA/$LIB classify --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" \
+      dynamic $K2 --classify-with-gold -g $SPATH/${LABEL}_gold.txt \
+      --bracken-length 150 -o $CLASS_OUT \
   "${SAMPLES[@]}"
 }
 
 #2-step classify with dynamic library.
-#Enabled by -d
 function classifyDynamic {
   LIB=$1
   LNAME=$2
-  #--classify-with-gold-standard
   #--report-dynamic-index
-  #--dynamic-min-count
-  #--dynamic-min-fraction
-  #--report-dynamic-index
+  #--min-count
+  #--min-reads
+  #--min-distinct
+  #--report-index
 
   CLASS_OUT=$ROOT/scratch/classified/$FAMILY/$LNAME
-  ./slacken-aws.sh -p 3000 taxonIndex $DATA/$LIB classify -g $SPATH/${LABEL}_gold.txt \
-    --dynamic-bracken-length 150 \
-    --dynamic-min-fraction 1e-5 -d $K2 --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" -o $CLASS_OUT \
+  ./slacken-aws.sh -p 3000 taxonIndex $DATA/$LIB classify --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" \
+    dynamic $K2 -g $SPATH/${LABEL}_gold.txt \
+    --bracken-length 150 --min-reads 100 -o $CLASS_OUT \
   "${SAMPLES[@]}"
 }
 
