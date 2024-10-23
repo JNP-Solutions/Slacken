@@ -28,14 +28,11 @@ import org.apache.spark.sql.SparkSession
  * @param ordering          minimizer ordering. See [[MinimizerOrdering]]
  * @param sample            sample fraction for frequency orderings
  * @param maxSequenceLength max length of a single sequence (for short reads)
- * @param normalize         whether to normalize k-mer orientation during counting. Causes every sequence to be scanned
- *                          in both forward and reverse, after which only forward orientation k-mers are kept.
  * @param spark             the SparkSession
  */
 class MinimizerConfig(k: Int, minimizers: MinimizerSource = Bundled, m: Int = 10,
                            ordering: MinimizerOrdering = Frequency(), sample: Double = 0.01,
-                           maxSequenceLength: Int = 1000000,
-                           normalize: Boolean = false)(implicit spark: SparkSession)  {
+                           maxSequenceLength: Int = 1000000)(implicit spark: SparkSession)  {
 
   //Validate configuration
   if (m > k) {
@@ -57,7 +54,7 @@ class MinimizerConfig(k: Int, minimizers: MinimizerSource = Bundled, m: Int = 10
                                 bySequence: Boolean = false): MinTable = {
     val inputReader = new Inputs(inFiles, k, maxSequenceLength, false)
     val input = inputReader.
-      getInputFragments(normalize, withAmbiguous = true, Some(sample))
+      getInputFragments(false, withAmbiguous = true, Some(sample))
     sampling.createSampledTable(input, MinTable.usingRaw(validMotifs, width), sample, persistHashLocation, bySequence)
   }
 

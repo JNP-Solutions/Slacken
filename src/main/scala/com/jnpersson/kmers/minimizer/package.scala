@@ -32,7 +32,6 @@ package object minimizer {
   //from mmscanner.h in kraken2
   val DEFAULT_TOGGLE_MASK = 0xe37e28c4271b5a2dL
 
-
   /** A type of ordering of a minimizer set */
   sealed trait MinimizerOrdering
 
