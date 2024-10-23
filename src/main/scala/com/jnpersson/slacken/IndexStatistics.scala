@@ -152,7 +152,7 @@ class TotalKmerSizeAggregator(taxonomy: Taxonomy, genomeSizes: Array[(Taxon, Lon
 
   /**
    * Average kmer count among all children of that taxon.
-   * (present in the report under the column header "TKC3-AllChildren ")
+   * (present in the report under the column header "TKC3-AllChildren")
    * @param taxon
    * @return
    */

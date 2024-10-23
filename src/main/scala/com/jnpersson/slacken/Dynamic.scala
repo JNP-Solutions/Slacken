@@ -107,7 +107,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   def minimizerFractionPerTaxon(subjects: Dataset[InputFragment]): Array[(Taxon, Double)] = {
     val inSample = distinctMinimizersPerTaxon(subjects).
       toMap
-    val inRecords = base.distinctMinimizersPerTaxon(inSample.map(_._1).toSeq).
+    val inRecords = base.distinctMinimizersPerTaxon(inSample.keys.toSeq).
       toMap
 
     inSample.keys.toArray.map(t => (t, inSample(t).toDouble / inRecords(t).toDouble))
@@ -310,7 +310,6 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   /** Perform two-step classification, writing the final results to a location.
    *
    * @param inputs         Subjects to classify (reads)
-   * @param outputLocation Directory to write reports and classifications in
    * @param partitions     Number of partitions for the dynamically generated index in step 2
    */
   def twoStepClassifyAndWrite(inputs: Inputs, partitions: Int): Unit = {

@@ -154,7 +154,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
   /** Generate all TaxonHits from the fragment by combining the LCA taxa with the minimizers,
    * building super-mers. */
   def taxonHits(minimizers: Array[Array[Long]], lcas: Array[Taxon],
-                splitter: AnyMinSplitter) = {
+                splitter: AnyMinSplitter): Iterator[TaxonHit] = {
 
     // this map will contain a subset of the lca to taxon index
     val lcaLookup = new Object2IntOpenCustomHashMap[Array[Long]](minimizers.length, HASH_STRATEGY)
@@ -393,7 +393,7 @@ class BrackenWeights(keyValueIndex: KeyValueIndex, readLen: Int)(implicit val sp
    * @param gradual        If true, weights will be computed gradually and appended to a temporary table,
    *                       making the job more resilient to interrupted nodes
    */
-  def buildAndWriteWeights(library: GenomeLibrary, taxa: BitSet, outputLocation: String, gradual: Boolean = false) = {
+  def buildAndWriteWeights(library: GenomeLibrary, taxa: BitSet, outputLocation: String, gradual: Boolean = false): Unit = {
     val tempLocation = outputLocation + "_tmp"
     val reads =
       if (gradual) buildWeightsGradually(library, taxa, tempLocation) else buildWeights(library, taxa)
@@ -420,9 +420,8 @@ class BrackenWeights(keyValueIndex: KeyValueIndex, readLen: Int)(implicit val sp
       val headers = "mapped_taxid\tgenome_taxids:kmers_mapped:total_genome_kmers"
       output.println(headers)
 
-      for {(dest, bLine) <- data} {
+      for {(dest, bLine) <- data}
         output.println(s"${dest}\t${bLine}")
-      }
     })
   }
 }
