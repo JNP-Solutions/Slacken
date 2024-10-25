@@ -153,12 +153,10 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     val bcTax = base.bcTaxonomy
     val rank = reclassifyRank
 
-    val passDepth = udf((t: Taxon) => {
-      if (t == AMBIGUOUS_SPAN || t == MATE_PAIR_BORDER)
-        false
-      else
+    val passDepth = udf((t: Taxon) =>
+      t != AMBIGUOUS_SPAN && t != MATE_PAIR_BORDER &&
         bcTax.value.depth(t) >= rank.depth
-    })
+    )
     val grouped = foundHits.where(passDepth($"taxon")).select($"taxon", $"count", $"minimizer")
       .toDF("taxon", "kmerCount", "distinctMinimizer").groupBy("taxon")
 
@@ -175,18 +173,12 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
 
     /** The identified taxa */
     def taxa: mutable.BitSet
-
-    /** A report with all taxa, even non-included, and supporting information that was used to select the set */
-    def report: KrakenReport
   }
 
   /** Simple count filter that finds a taxon set by capping at a minimum count threshold.
    */
   class CountFilter(counts: Array[(Taxon, Long)], threshold: Int) extends TaxonSetFinder {
     val hitMinimizers = new TreeAggregator(taxonomy, counts)
-
-    def report: KrakenReport =
-      new KrakenReport(taxonomy, counts)
 
     def taxa: mutable.BitSet =
       mutable.BitSet.empty ++
@@ -210,12 +202,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
       case MinimizerDistinctCount(threshold) => new CountFilter(distinctMinimizersPerTaxon(subjects), threshold)
     }
 
-      //    lcaDepths
-      //    minimizerCountAtDepth
-      //    minimizerCoverage
-
       if (reportDynamicIndex) {
-
         val statCollection = multiStatsPerTaxon(subjects)
         val totalKmerCounter = new KrakenReport(taxonomy,statCollection._1
           .select("taxon","totalKmerCount").as[(Taxon,Long)].collect())
