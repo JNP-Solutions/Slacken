@@ -114,7 +114,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
       banner("Classify genomic sequences")
 
       val minHitGroups = opt[Int](name = "minHits", descr = "Minimum hit groups (default 2)", default = Some(2))
-      val inFiles = trailArg[List[String]](required = true, descr = "Input sequence files")
+      val inFiles = trailArg[List[String]](descr = "Sequences to be classified")
       val paired = opt[Boolean](descr = "Inputs are paired-end reads", default = Some(false))
       val unclassified = toggle(descrYes = "Output unclassified reads", default = Some(true))
       val output = opt[String](descr = "Output location", required = true)
@@ -145,53 +145,56 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 
       val dynamic = new RunCmd("dynamic") {
         banner("Two-step classification with dynamic index")
-        val dynLibrary = trailArg[String](descr = "Genome library location for dynamic classification")
+        val genomes = opt[String](required = true, short ='G',
+          descr = "Genome library location for dynamic classification")
 
         val rank = choice(descr = "Cutoff rank for library construction in dynamic mode (default species)",
           default = Some(Species.title), choices = Taxonomy.rankTitles).map(Taxonomy.rankOrNull)
 
-        val minCount = opt[Int](descr = "Minimizer count for taxon inclusion in dynamic mode (default 100)")
+        val minCount = opt[Int](descr = "Minimizer count for taxon inclusion in dynamic mode")
         val minDistinct = opt[Int](descr = "Minimizer distinct count for taxon inclusion in dynamic mode")
-        val minReads = opt[Int](descr = "Min read count classified for taxon inclusion in dynamic mode")
+        val reads = opt[Int](descr = "Min read count classified for taxon inclusion in dynamic mode (default 100)")
         val readConfidence = opt[Double](descr = "Confidence threshold for initial read classification in dynamic mode (default 0.15)",
           default = Some(0.15))
 
-        val brackenLength = opt[Int](descr =
-          "Read length for building bracken weights")
+        val brackenLength = opt[Int](descr = "Read length for building bracken weights")
 
         val reportIndex = opt[Boolean](descr = "Report statistics on the created index", default = Some(false))
 
-        val classifyWithGold = opt[Boolean](descr = "whether to classify with the gold taxon set or just get " +
-          "statistics wrt gold standard", default = Some(false), short = 'C')
-        val goldSet = opt[String](descr = "Location of gold standard reference taxon set in dynamic mode")
+        val classifyWithGold = opt[Boolean](descr = "Classify based on the gold taxon set, instead of just " +
+          "displaying statistics", default = Some(false), short = 'C')
+        val goldSet = opt[String](descr = "Location of gold standard reference taxon set in dynamic mode",
+          short = 'g')
         val promoteGoldSet = choice(descr = "Attempt to promote taxa with no minimizers from the gold set to this rank (at the highest)",
           choices = Taxonomy.rankTitles).map(Taxonomy.rankOrNull)
+
+        val dynInFiles = trailArg[List[String]](descr = "Sequences to be classified")
 
         validate(readConfidence) { c =>
           if (c < 0 || c > 1)
             Left(s"--dynamic-read-confidence must be >=0 and <= 1 ($c was given)")
           else Right(Unit)
         }
-        mutuallyExclusive(minCount, minDistinct, minReads)
+        mutuallyExclusive(minCount, minDistinct, reads)
 
         override def run(): Unit = {
           val i = index()
-          val genomes = findGenomes(dynLibrary(), Some(i.params.k))
+          val genomeLib = findGenomes(genomes(), Some(i.params.k))
           val goldStandardOpt = goldSet.toOption.map(x =>
             DynamicGoldTaxonSet(x, promoteGoldSet.toOption, classifyWithGold()))
           val taxonCriteria = minCount.map(MinimizerTotalCount).
-            orElse(minReads.map(ClassifiedReadCount(_, readConfidence())).toOption).
+            orElse(reads.map(ClassifiedReadCount(_, readConfidence())).toOption).
             orElse(minDistinct.map(MinimizerDistinctCount).toOption).
-            getOrElse(MinimizerTotalCount(100))
+            getOrElse(ClassifiedReadCount(100, readConfidence()))
 
-          val dyn = new Dynamic(i, genomes, rank(),
+          val dyn = new Dynamic(i, genomeLib, rank(),
             taxonCriteria,
             cpar,
             brackenLength.toOption, goldStandardOpt,
             reportIndex(),
             output())
 
-          val inputs = inputReader(inFiles(), i.params.k, paired())
+          val inputs = inputReader(inFiles() ++ dynInFiles(), i.params.k, paired())
           dyn.twoStepClassifyAndWrite(inputs, partitions())
         }
       }
