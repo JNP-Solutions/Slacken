@@ -148,7 +148,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
         val genomes = opt[String](required = true, short ='G',
           descr = "Genome library location for dynamic classification")
 
-        val rank = choice(descr = "Cutoff rank for library construction in dynamic mode (default species)",
+        val rank = choice(descr = "Granularity for library construction in dynamic mode (default species)",
           default = Some(Species.title), choices = Taxonomy.rankTitles).map(Taxonomy.rankOrNull)
 
         val minCount = opt[Int](descr = "Minimizer count for taxon inclusion in dynamic mode")
