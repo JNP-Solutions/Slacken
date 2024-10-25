@@ -114,7 +114,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
       banner("Classify genomic sequences")
 
       val minHitGroups = opt[Int](name = "minHits", descr = "Minimum hit groups (default 2)", default = Some(2))
-      val inFiles = trailArg[List[String]](descr = "Sequences to be classified")
+      val inFiles = trailArg[List[String]](descr = "Sequences to be classified", default = Some(List()))
       val paired = opt[Boolean](descr = "Inputs are paired-end reads", default = Some(false))
       val unclassified = toggle(descrYes = "Output unclassified reads", default = Some(true))
       val output = opt[String](descr = "Output location", required = true)
