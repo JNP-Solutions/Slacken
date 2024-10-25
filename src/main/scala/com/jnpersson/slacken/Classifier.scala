@@ -135,7 +135,7 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     val outputRows = keepLines.map(r => (r.outputLine, r.sampleId)).
       toDF("classification", "sample")
 
-    //These tables will be relatively small and we coalesce to avoid generating a lot of small files
+    //These tables will be relatively small. We coalesce to avoid generating a lot of small files
     //in the case of an index with many partitions
     outputRows.coalesce(1000).write.mode(SaveMode.Overwrite).
       partitionBy("sample").

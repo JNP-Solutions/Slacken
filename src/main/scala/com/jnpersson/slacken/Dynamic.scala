@@ -30,7 +30,7 @@ final case class Timer(task: String, start: Long) {
     val s = elapsed / 1000
     val min = s / 60
     val rem = s % 60
-    println(s"$task completed in $min min $rem s")
+    println(s"Finish task: $task [$min min $rem s]")
   }
 }
 
@@ -41,7 +41,6 @@ final case class Timer(task: String, start: Long) {
  * @param classifyWithGoldSet whether to classify using the gold set library, or just compare a detected taxon set with it
  */
 case class DynamicGoldTaxonSet(taxonFile: String, promoteRank: Option[Rank], classifyWithGoldSet: Boolean)
-
 
 /** Two-step classification of reads with dynamically generated indexes,
  * starting from a base index.
@@ -107,7 +106,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   def minimizerFractionPerTaxon(subjects: Dataset[InputFragment]): Array[(Taxon, Double)] = {
     val inSample = distinctMinimizersPerTaxon(subjects).
       toMap
-    val inRecords = base.distinctMinimizersPerTaxon(inSample.map(_._1).toSeq).
+    val inRecords = base.distinctMinimizersPerTaxon(inSample.keys.toSeq).
       toMap
 
     inSample.keys.toArray.map(t => (t, inSample(t).toDouble / inRecords(t).toDouble))
@@ -310,7 +309,6 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   /** Perform two-step classification, writing the final results to a location.
    *
    * @param inputs         Subjects to classify (reads)
-   * @param outputLocation Directory to write reports and classifications in
    * @param partitions     Number of partitions for the dynamically generated index in step 2
    */
   def twoStepClassifyAndWrite(inputs: Inputs, partitions: Int): Unit = {
@@ -330,13 +328,13 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
         dynamicIndex.report(None, outputLocation + "_dynamic")
 
       for {brackenLength <- dynamicBrackenReadLength} {
-        val t = startTimer("Build Bracken weights")
+        val t = startTimer("Build library and Bracken weights")
         new BrackenWeights(dynamicIndex, brackenLength).
           buildAndWriteWeights(genomes, usedTaxa, outputLocation + s"/database${brackenLength}mers.kmer_distrib")
         t.finish()
       }
 
-      val t = startTimer("Classify reads (final)")
+      val t = startTimer("Classify reads")
       val hits = dynamicIndex.collectHitsBySequence(reads)
       val cls = new Classifier(dynamicIndex)
       cls.classifyHitsAndWrite(hits, outputLocation, cpar)

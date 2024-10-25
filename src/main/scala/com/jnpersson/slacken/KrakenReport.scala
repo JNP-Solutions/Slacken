@@ -12,7 +12,7 @@ import scala.collection.mutable.{Map => MMap}
 
 /** Helper for aggregating per-taxon counts in the taxonomic tree */
 class TreeAggregator(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
-  def keys = taxonCounts.keys.toSeq
+  def keys = taxonCounts.keys
 
   val taxonCounts = (MMap.empty ++ counts).withDefaultValue(0L)
 
@@ -40,7 +40,7 @@ class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], compatibleF
     "#Perc\tAggregate\tIn taxon"
 
   def headers: String =
-    s"${dataColumnHeaders}\tRank\tTaxon\tName"
+    s"$dataColumnHeaders\tRank\tTaxon\tName"
 
   /** Data columns for each line in the report. This method can be overridden to add
    * additional columns. */

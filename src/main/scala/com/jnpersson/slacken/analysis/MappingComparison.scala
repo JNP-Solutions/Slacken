@@ -281,7 +281,7 @@ object MappingComparison {
 
   /** Not classified, but should have been */
   case object FalseNeg extends HitCategory("FalseNeg") {
-    def hitIndex: Option[Int] = None
+    def hitIndex: Option[Int] = Some(9)
   }
 
   /** Incorrectly classified */
