@@ -37,7 +37,7 @@ function classify {
 function classifyGS {
   LIB=$1
   LNAME=$2
-  #--report-index
+  #--index-reports
   #-p 3000
   CLASS_OUT=$ROOT/scratch/classified/$FAMILY/$LNAME
   ./slacken-aws.sh -p 3000 taxonIndex $DATA/$LIB classify --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" \
@@ -51,7 +51,7 @@ function classifyGS {
 function classifyDynamic {
   LIB=$1
   LNAME=$2
-  #--report-index
+  #--index-reports
   #--min-count
   #--min-distinct
   #--reads
