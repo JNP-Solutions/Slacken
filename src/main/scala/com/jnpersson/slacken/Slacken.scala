@@ -159,7 +159,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 
         val brackenLength = opt[Int](descr = "Read length for building bracken weights")
 
-        val reportIndex = opt[Boolean](descr = "Report statistics on the created index", default = Some(false))
+        val indexReports = opt[Boolean](descr = "Create reports on the dynamic index and the inputs' taxon support", default = Some(false))
 
         val classifyWithGold = opt[Boolean](descr = "Classify based on the gold taxon set, instead of just " +
           "displaying statistics", default = Some(false), short = 'C')
@@ -191,7 +191,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
             taxonCriteria,
             cpar,
             brackenLength.toOption, goldStandardOpt,
-            reportIndex(),
+            indexReports(),
             output())
 
           val inputs = inputReader(inFiles() ++ dynInFiles(), i.params.k, paired())
