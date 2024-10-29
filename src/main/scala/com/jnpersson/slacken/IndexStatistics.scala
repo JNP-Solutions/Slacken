@@ -4,7 +4,6 @@ import com.jnpersson.slacken.Taxonomy.ROOT
 import org.apache.spark.sql.functions.{collect_list, count, lit, sum, udf, when}
 
 import scala.collection.mutable
-import scala.collection.mutable.ListBuffer
 import org.apache.spark.sql._
 
 /** Various reports that describe the contents of an LCA to minimizer index. */
