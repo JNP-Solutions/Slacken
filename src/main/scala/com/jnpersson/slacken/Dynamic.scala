@@ -45,17 +45,17 @@ case class DynamicGoldTaxonSet(taxonFile: String, promoteRank: Option[Rank], cla
 /** Two-step classification of reads with dynamically generated indexes,
  * starting from a base index.
  * First, a set of taxa will be identified from the sample (reads). Then these taxa will be used
- * to construct a taxonomic index for classifying the reads.
- * A bracken-style weights file describing the second index will optionally also be generated.
+ * to construct a second (dynamic) taxonomic index for classifying the reads.
+ * A bracken-style weights file describing the dynamic index will optionally also be generated.
  *
- * @param base initial index for identifying taxa by minimizer
- * @param genomes genomic library for construction of new indexes on the fly
- * @param reclassifyRank rank for the initial classification. Taxa at this level will be used to construct the second index
- * @param taxonCriteria criteria for selecting taxa for inclusion in the second index
- * @param cpar parameters for classification
+ * @param base                     initial index for identifying taxa by minimizer
+ * @param genomes                  genomic library for construction of new indexes on the fly
+ * @param reclassifyRank           rank for the initial classification. Taxa at this level will be used to construct the second index
+ * @param taxonCriteria            criteria for selecting taxa for inclusion in the dynamic index
+ * @param cpar                     parameters for classification
  * @param dynamicBrackenReadLength read length for generating bracken weights for the second index (if any)
- * @param goldSet                 parameters for deciding whether to get stats or classify wrt gold standard
- * @param reportDynamicIndex       whether to generate reports describing the second index
+ * @param goldSet                  parameters for deciding whether to get stats or classify wrt gold standard
+ * @param dynamicReports           whether to generate reports describing the dynamic index
  * @param outputLocation           prefix location for output files
  */
 class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
@@ -64,7 +64,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
               cpar: ClassifyParams,
               dynamicBrackenReadLength: Option[Int],
               goldSet: Option[DynamicGoldTaxonSet],
-              reportDynamicIndex: Boolean,
+              dynamicReports: Boolean,
               outputLocation: String)(implicit spark: SparkSession) {
 
   import spark.sqlContext.implicits._
@@ -138,8 +138,16 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
       collect()
   }
 
-  def multiStatsPerTaxon(subjects: Dataset[InputFragment])
-  : (Dataset[(Taxon, Long, Long, Long)], Dataset[(Taxon, Long)], Dataset[(Taxon, String, String)]) = {
+  /** Calculate per-taxon statistics for the index support report
+   *
+   * @param subjects reads to collect stats from
+   * @return For each taxon, a set of aggregated statistics:
+   *         1. total k-mer and minimizer counts,
+   *         2. classified read counts,
+   *         3. taxon minimizer depth distribution stats
+   */
+  private def multiStatsPerTaxon(subjects: Dataset[InputFragment]): (Dataset[(Taxon, Long, Long, Long)],
+    Dataset[(Taxon, Long)], Dataset[(Taxon, String, String)]) = {
     val initThreshold = 0.0
     val indexStats = new IndexStatistics(base)
     val coveragePerTaxon = indexStats.showTaxonFullCoverageStats(genomes)
@@ -153,12 +161,10 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     val bcTax = base.bcTaxonomy
     val rank = reclassifyRank
 
-    val passDepth = udf((t: Taxon) => {
-      if (t == AMBIGUOUS_SPAN || t == MATE_PAIR_BORDER)
-        false
-      else
+    val passDepth = udf((t: Taxon) =>
+      t != AMBIGUOUS_SPAN && t != MATE_PAIR_BORDER &&
         bcTax.value.depth(t) >= rank.depth
-    })
+    )
     val grouped = foundHits.where(passDepth($"taxon")).select($"taxon", $"count", $"minimizer")
       .toDF("taxon", "kmerCount", "distinctMinimizer").groupBy("taxon")
 
@@ -175,18 +181,12 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
 
     /** The identified taxa */
     def taxa: mutable.BitSet
-
-    /** A report with all taxa, even non-included, and supporting information that was used to select the set */
-    def report: KrakenReport
   }
 
   /** Simple count filter that finds a taxon set by capping at a minimum count threshold.
    */
   class CountFilter(counts: Array[(Taxon, Long)], threshold: Int) extends TaxonSetFinder {
     val hitMinimizers = new TreeAggregator(taxonomy, counts)
-
-    def report: KrakenReport =
-      new KrakenReport(taxonomy, counts)
 
     def taxa: mutable.BitSet =
       mutable.BitSet.empty ++
@@ -195,6 +195,50 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
               if hitMinimizers.cladeTotals(taxon) >= threshold
               }
         yield taxon)
+  }
+
+  /**
+   * For a given set of reads, report various per-taxon statistics (which would be used to support
+   * taxon selection for dynamic index construction).
+   * Reports are written to various files and directories prefixed by the output location.
+   * Slow.
+   * @param subjects reads
+   */
+  def reportDynamicIndexSupport(subjects: Dataset[InputFragment]): Unit = {
+    val statCollection = multiStatsPerTaxon(subjects)
+    val totalKmerCounter = new KrakenReport(taxonomy,statCollection._1
+      .select("taxon","totalKmerCount").as[(Taxon,Long)].collect())
+    val distinctMinimizerCounter = new KrakenReport(taxonomy, statCollection._1
+      .select("taxon","distinctMinimizerCount").as[(Taxon,Long)].collect())
+    val totalMinimizerCounter = new KrakenReport(taxonomy, statCollection._1
+      .select("taxon","totalMinimizerCount").as[(Taxon,Long)].collect())
+    val classifiedReadCounter = new KrakenReport(taxonomy, statCollection._2
+      .select("taxon","classifiedReadCount").as[(Taxon,Long)].collect())
+
+    HDFSUtil.usingWriter(outputLocation + "_support_report_totalKmerCount.txt",
+      wr => totalKmerCounter.print(wr))
+    HDFSUtil.usingWriter(outputLocation + "_support_report_distinctMinimizerCount.txt",
+      wr => distinctMinimizerCounter.print(wr))
+    HDFSUtil.usingWriter(outputLocation + "_support_report_totalMinimizerCount.txt",
+      wr => totalMinimizerCounter.print(wr))
+    HDFSUtil.usingWriter(outputLocation + "_support_report_classifiedReadCount.txt",
+      wr => classifiedReadCounter.print(wr))
+
+    val minimizerCoverage = statCollection._3.cache
+
+    try {
+      minimizerCoverage
+        .select(concat_ws("  ", $"taxon".cast("string"), $"minimizerCoverage"))
+        .write.format("text").mode(SaveMode.Overwrite)
+        .save(outputLocation + "_support_report_minimizerCoverage")
+
+      minimizerCoverage
+        .select(concat_ws("  ", $"taxon".cast("string"), $"distinctMinimizerCoverage"))
+        .write.format("text").mode(SaveMode.Overwrite)
+        .save(outputLocation + "_support_report_minimizerDistinctCoverage")
+    } finally {
+      minimizerCoverage.unpersist()
+    }
   }
 
   /** Find an estimated taxon set in the given reads (to be classified),
@@ -209,48 +253,6 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
       case ClassifiedReadCount(threshold, confidence) => new CountFilter(classifiedReadsPerTaxon(subjects, confidence), threshold)
       case MinimizerDistinctCount(threshold) => new CountFilter(distinctMinimizersPerTaxon(subjects), threshold)
     }
-
-      //    lcaDepths
-      //    minimizerCountAtDepth
-      //    minimizerCoverage
-
-      if (reportDynamicIndex) {
-
-        val statCollection = multiStatsPerTaxon(subjects)
-        val totalKmerCounter = new KrakenReport(taxonomy,statCollection._1
-          .select("taxon","totalKmerCount").as[(Taxon,Long)].collect())
-        val distinctMinimizerCounter = new KrakenReport(taxonomy, statCollection._1
-          .select("taxon","distinctMinimizerCount").as[(Taxon,Long)].collect())
-        val totalMinimizerCounter = new KrakenReport(taxonomy, statCollection._1
-          .select("taxon","totalMinimizerCount").as[(Taxon,Long)].collect())
-        val classifiedReadCounter = new KrakenReport(taxonomy, statCollection._2
-          .select("taxon","classifiedReadCount").as[(Taxon,Long)].collect())
-
-        HDFSUtil.usingWriter(outputLocation + "_support_report_totalKmerCount.txt",
-          wr => totalKmerCounter.print(wr))
-        HDFSUtil.usingWriter(outputLocation + "_support_report_distinctMinimizerCount.txt",
-          wr => distinctMinimizerCounter.print(wr))
-        HDFSUtil.usingWriter(outputLocation + "_support_report_totalMinimizerCount.txt",
-          wr => totalMinimizerCounter.print(wr))
-        HDFSUtil.usingWriter(outputLocation + "_support_report_classifiedReadCount.txt",
-          wr => classifiedReadCounter.print(wr))
-
-        val minimizerCoverage = statCollection._3.cache
-
-        try {
-          minimizerCoverage
-            .select(concat_ws("  ", $"taxon".cast("string"), $"minimizerCoverage"))
-            .write.format("text").mode(SaveMode.Overwrite)
-            .save(outputLocation + "_support_report_minimizerCoverage")
-
-          minimizerCoverage
-            .select(concat_ws("  ", $"taxon".cast("string"), $"distinctMinimizerCoverage"))
-            .write.format("text").mode(SaveMode.Overwrite)
-            .save(outputLocation + "_support_report_minimizerDistinctCoverage")
-        } finally {
-          minimizerCoverage.unpersist()
-        }
-      }
 
     val keepTaxa = finder.taxa
 
@@ -315,7 +317,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     val reads = inputs.getInputFragments(withRC = false, withAmbiguous = true).
       coalesce(partitions)
     val (records, usedTaxa) = makeRecords(reads, Some(outputLocation + "_taxonSet.txt"))
-    if (reportDynamicIndex || dynamicBrackenReadLength.nonEmpty) {
+    if (dynamicReports || dynamicBrackenReadLength.nonEmpty) {
       records.cache()
     }
 
@@ -323,9 +325,10 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
 
     try {
       //Write genome and minimizer reports for the dynamic index
-      //Inefficient but simple (could be caching records), intended for debugging purposes
-      if (reportDynamicIndex)
+      if (dynamicReports) {
+        reportDynamicIndexSupport(reads)
         dynamicIndex.report(None, outputLocation + "_dynamic")
+      }
 
       for {brackenLength <- dynamicBrackenReadLength} {
         val t = startTimer("Build library and Bracken weights")
