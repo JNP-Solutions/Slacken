@@ -1,8 +1,8 @@
 ## Overview
 
 Slacken implements metagenomic classification based on k-mers and minimizers. It can emulate the behaviour of 
-[Kraken 2](https://github.com/DerrickWood/kraken2), while also supporting a wider parameter space and additional algorithms. In particular,
-it supports sample-tailored libraries, where the minimizer library is built on the fly as part of read classification.
+[Kraken 2](https://github.com/DerrickWood/kraken2), while also supporting a wider parameter space and additional algorithms. 
+In particular, it supports sample-tailored libraries, where the minimizer library is built on the fly as part of read classification.
 
 
 Copyright (c) Johan Nystrom-Persson 2019-2024.
@@ -17,8 +17,8 @@ Copyright (c) Johan Nystrom-Persson 2019-2024.
   - [Classifying reads (2-step/dynamic)](#classifying-reads-2-stepdynamic-library)
   - [License and support](#license-and-support)
 2. [Technical details](#technical-details)
-  - [Differences between Kraken 2 and Slacken](#differences)
-  - [Compiling Discount](#compiling)
+  - [Differences between Slacken and Kraken 2](#differences-between-slacken-and-kraken-2)
+  - [Compiling Slacken](#compiling)
   - [Citation](#citation)
 3. [References](#references)
 
@@ -157,9 +157,31 @@ They can be used directly with Bracken. (Bracken is an external tool developed b
 
 ### Classifying reads (2-step/dynamic library)
 
+In dynamic mode, first, a static minimizer library must be built, following the instructions above. This library is used
+to sketch the taxon set in the sample/samples being classified. Next, a second minimizer library is built on the fly
+and used to classify the reads for the final result. Using a library specifically tailored for the samples in this way
+usually leads to more precise classifications.
+
 ### Heuristics
 
+`--reads N`
+
+This heuristic selects a taxon for inclusion using the regular Kraken 2 classification method. For example, 
+with `--reads 100`, at least 100 reads have to classify as a given taxon for it to be included. The confidence score
+for this heuristic can be set using `--read-confidence`.
+
+`--min-count N`
+
+This heuristic selects a taxon for inclusion if at least N minimizers from the taxon are present.
+
+`--min-distinct N`
+
+This heuristic selects a taxon for inclusion if at least N distinct minimizers from the taxon are present.
+
+
 #### Bracken weights
+
+Bracken weights for a dynamic library are automatically computed when the `--bracken-length` (read length) parameter is added.
 
 ### License and support
 
@@ -170,6 +192,20 @@ Discount is currently released under a dual GPL/commercial license. For a commer
 commercial support please contact us at the email above.
 
 ## Technical details
+
+### Discrepancies between Slacken and Kraken 2
+
+Given the same values of k and m, and given the same genomic library and taxonomy, Slacken classifies reads identically 
+to Kraken 2. However, there are two sources of potential divergence between the two:
+
+* We have found that Kraken 2 indexes extra minimizers after ambiguous regions in a genome. This means that the true value of k,
+for Kraken 2, is between k and (k-1). Such extra minimizers give Kraken 2 a slightly larger minimizer database for the same parameters.
+For the K2 standard library, we found that the difference is about 1% of the total minimizer count. If this is a concern, 
+using (k-1) instead of k for Slacken is guaranteed to index at least as many minimizers as K2.
+
+* Kraken 2 uses a probabilistic data structure called a compact hash table (CHT) which sometimes can lose information. 
+Slacken does not have this and instead stores each record in full. This means that Slacken records, particularly when
+the database contains a very large number of taxa, may be more precise.
 
 ### Compiling
 
@@ -183,5 +219,7 @@ To build the jar file: `sbt assembly`. The output will be in `target/scala-2.12/
 To just compile class files: `sbt compile`
 
 To run tests: `sbt test`
+
+### Citation
 
 ## References
