@@ -20,6 +20,7 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.kmers.{Inputs, NTSeq}
+import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.functions.{count, udf}
 import org.apache.spark.sql.{Dataset, SparkSession}
 
@@ -58,8 +59,9 @@ final case class GenomeLibrary(inputs: Inputs, labelFile: String) {
 }
 
 object GenomeLibrary {
-  val rankStrUdf = udf((x: Int) =>
-    Taxonomy.rankValues.find(_.depth == x).map(_.title).getOrElse("???"))
+  val rankStrUdf: UserDefinedFunction =
+    udf((x: Int) =>
+      Taxonomy.rankValues.find(_.depth == x).map(_.title).getOrElse("???"))
 
   /**
    * Read a taxon label file (TSV format)

@@ -22,7 +22,7 @@ package com.jnpersson.slacken.analysis
 import com.jnpersson.slacken.Taxonomy.Rank
 import com.jnpersson.slacken.{KrakenReport, Taxon, Taxonomy}
 import org.apache.spark.sql
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{Dataset, SparkSession}
 
 import java.io.{FileWriter, PrintWriter}
 
@@ -68,7 +68,7 @@ class CAMIToKrakenReport(mappingLocation: String, tax: Taxonomy, minRank: Option
   val bcTax = spark.sparkContext.broadcast(tax)
 
   /** Mappings for only reads at or below the taxonomic cutoff level */
-  val filteredMapping = {
+  private val filteredMapping = {
     val bcTax = this.bcTax
     val minDepth = minRank.map(_.depth)
 
@@ -79,7 +79,7 @@ class CAMIToKrakenReport(mappingLocation: String, tax: Taxonomy, minRank: Option
       })
   }
 
-  def filteredIDs =
+  def filteredIDs: Dataset[String] =
     filteredMapping.map(_.getString(0))
 
   /** Write filtered read IDs to a local file */

@@ -27,11 +27,14 @@ import scala.collection.mutable.{Map => MMap}
 
 /** Helper for aggregating per-taxon counts in the taxonomic tree */
 class TreeAggregator(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
-  def keys = taxonCounts.keys
+  def keys: Iterable[Taxon] = taxonCounts.keys
 
-  val taxonCounts = (MMap.empty ++ counts).withDefaultValue(0L)
+  val taxonCounts: MMap[Taxon, Long] =
+    (MMap.empty ++ counts).withDefaultValue(0L)
 
-  val cladeTotals = MMap[Taxon, Long]().withDefaultValue(0L)
+  val cladeTotals: MMap[Taxon, Long] =
+    MMap.empty.withDefaultValue(0L)
+
   for {
     (taxid, count) <- counts } {
     for {p <- taxonomy.pathToRoot(taxid)} cladeTotals(p) += count
@@ -46,10 +49,10 @@ class TreeAggregator(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
  * @param compatibleFormat Traditional output format (no headers, identical to Kraken/Kraken 2 reports)
  */
 class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], compatibleFormat: Boolean = false) {
-  lazy val agg = new TreeAggregator(taxonomy, counts)
-  lazy val cladeTotals = agg.cladeTotals
-  lazy val taxonCounts = agg.taxonCounts
-  lazy val totalSequences = counts.iterator.map(_._2).sum
+  val agg = new TreeAggregator(taxonomy, counts)
+  private val cladeTotals = agg.cladeTotals
+  private val taxonCounts = agg.taxonCounts
+  private val totalSequences = counts.iterator.map(_._2).sum
 
   def dataColumnHeaders: String =
     "#Perc\tAggregate\tIn taxon"
