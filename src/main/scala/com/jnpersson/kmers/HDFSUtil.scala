@@ -53,7 +53,7 @@ object HDFSUtil {
 
   private def localIterator[T](rit: RemoteIterator[T]): Iterator[T] =
     new Iterator[T] {
-      def hasNext = rit.hasNext
+      def hasNext: Boolean = rit.hasNext
 
       def next: T = rit.next
     }

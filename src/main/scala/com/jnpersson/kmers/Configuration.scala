@@ -113,6 +113,7 @@ class Configuration(args: Seq[String]) extends ScallopConf(args) {
 }
 
 /** Extra configuration options relating to advanced minimizer orderings */
+//noinspection TypeAnnotation
 trait AdvancedMinimizerOrderingsConfiguration {
   this: SparkConfiguration =>
 
