@@ -49,10 +49,10 @@ class TreeAggregator(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
  * @param compatibleFormat Traditional output format (no headers, identical to Kraken/Kraken 2 reports)
  */
 class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], compatibleFormat: Boolean = false) {
-  val agg = new TreeAggregator(taxonomy, counts)
-  private val cladeTotals = agg.cladeTotals
-  private val taxonCounts = agg.taxonCounts
-  private val totalSequences = counts.iterator.map(_._2).sum
+  private val agg = new TreeAggregator(taxonomy, counts)
+  private[slacken] val cladeTotals = agg.cladeTotals
+  private[slacken] val taxonCounts = agg.taxonCounts
+  private[slacken] val totalSequences = counts.iterator.map(_._2).sum
 
   def dataColumnHeaders: String =
     "#Perc\tAggregate\tIn taxon"
