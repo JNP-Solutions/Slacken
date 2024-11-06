@@ -1,29 +1,39 @@
 ## Overview
 
 Slacken implements metagenomic classification based on k-mers and minimizers. It can emulate the behaviour of 
-Kraken 2, while also supporting a wider parameter space and additional algorithms.
+[Kraken 2](https://github.com/DerrickWood/kraken2), while also supporting a wider parameter space and additional algorithms. 
+In particular, it supports sample-tailored libraries, where the minimizer library is built on the fly as part of read classification.
+
 
 Copyright (c) Johan Nystrom-Persson 2019-2024.
 
-## Compiling
+## Contents
+1. [Basics](#basics)
+  - [How it works](#how-it-works)
+  - [Running Slacken](#running-slacken)
+  - [Building a library](#building-a-library)
+  - [Classifying reads (1-step)](#classifying-reads-1-step)
+  - [Bracken weights](#bracken-weights)
+  - [Classifying reads (2-step/dynamic)](#classifying-reads-2-stepdynamic-library)
+  - [License and support](#license-and-support)
+2. [Technical details](#technical-details)
+  - [Differences between Slacken and Kraken 2](#differences-between-slacken-and-kraken-2)
+  - [Compiling Slacken](#compiling)
+  - [Citation](#citation)
+3. [References](#references)
 
-Prerequisites:
 
-* Java 17 or later
-* The [sbt](https://www.scala-sbt.org/) build tool.
+## Basics
 
-To build the jar file: `sbt assembly`. The output will be in `target/scala-2.12/Slacken-assembly-0.1.0.jar`.
+### How it works
 
-To just compile class files: `sbt compile`
+Slacken basically classifies sequences according to k-mers and minimizers using the same algorithm as
+Kraken 2. However, Slacken is based on Apache Spark and is thus a distributed application,
+rather than run on a single machine as Kraken 2 does. Slacken can run on a single machine but it can
+also scale to a cluster with hundreds or thousands of machines. It also does not keep all data in RAM but 
+uses a combination of RAM and disk.
 
-To run tests: `sbt test`
-
-Also useful: `sbt clean`
-
-As a development environment, [IntelliJ](https://www.jetbrains.com/idea/) community edition with Scala support is 
-recommended (but any decent Scala IDE should do).
-
-## Running
+### Running Slacken
 
 Prerequisites: 
 * [Spark](https://spark.apache.org/downloads.html) 3.5.0 or later (pre-built, for Scala 2.12 (i.e. not the Scala 2.13 version).) 
@@ -37,9 +47,9 @@ Change any other flags that may be necessary.
 Check that it works: 
 `./submit-slacken2.sh --help`
 
-## Building a library
+### Building a library
 
-### Obtaining reference genomes
+#### Obtaining reference genomes
 
 Genomes compatible with the NCBI taxonomy are expected.
 
@@ -82,7 +92,7 @@ locally.
 
 More help: `./submit-slacken2.sh --help`
 
-### Minimal demo data
+#### Minimal demo data
 
 For testing purposes, as an alternative to using kraken2-build above, a minimal demo library is available in Amazon S3 at `s3://jnp-public/slackenTestLib`.
 This is a small random selection of bacterial genomes.
@@ -94,7 +104,7 @@ To build the demo library in the location `/tmp/library`:
     build -l slackenTestLib 
 ```
 
-## Classifying reads
+### Classifying reads (1-step)
 
 
 ```
@@ -120,3 +130,96 @@ locally.
 
 More help: `./submit-slacken2.sh --help`
 
+### Multi-sample mode
+
+With multi-sample mode, Slacken can classify multiple samples at once. Separate outputs will be generated for each
+distinct sample identified. This mode is more efficient than single sample classification and recommended whenever possible.
+
+Samples are identified by means of a regular expression that needs to match each sequence (read) ID.
+
+For example:
+
+`--sample-regex "(S[0-9]+)"`
+
+With this regular expression, a read with the ID `@S0R10/1` in a fastq file would be assigned to sample `S0`,
+the ID `@S10R10/1` would be assigned to sample `S10`, and so on.
+
+File structure is ignored as all reads from all files are pooled together during classification. The regular expression is the
+only way that reads are mapped to samples.
+
+
+
+### Computing bracken weights
+
+Slacken can produce [Bracken](https://github.com/jenniferlu717/Bracken) weights, like those produced by `bracken-build`. 
+They can be used directly with Bracken. (Bracken is an external tool developed by Jennifer Lu et al.)
+
+
+### Classifying reads (2-step/dynamic library)
+
+In dynamic mode, first, a static minimizer library must be built, following the instructions above. This library is used
+to sketch the taxon set in the sample/samples being classified. Next, a second minimizer library is built on the fly
+and used to classify the reads for the final result. Using a library specifically tailored for the samples in this way
+usually leads to more precise classifications.
+
+### Heuristics
+
+`--reads N`
+
+This heuristic selects a taxon for inclusion using the regular Kraken 2 classification method. For example, 
+with `--reads 100`, at least 100 reads have to classify as a given taxon for it to be included. The confidence score
+for this heuristic can be set using `--read-confidence`.
+
+`--min-count N`
+
+This heuristic selects a taxon for inclusion if at least N minimizers from the taxon are present.
+
+`--min-distinct N`
+
+This heuristic selects a taxon for inclusion if at least N distinct minimizers from the taxon are present.
+
+
+#### Bracken weights
+
+Bracken weights for a dynamic library are automatically computed when the `--bracken-length` (read length) parameter is added.
+
+### License and support
+
+For any inquiries, please contact JNP Solutions at [info@jnpsolutions.io](mailto:info@jnpsolutions.io). We will do our
+best to help. Alternatively, feel free to open issues and/or PRs in the GitHub repo if you find a problem.
+
+Discount is currently released under a dual GPL/commercial license. For a commercial license, custom development, or
+commercial support please contact us at the email above.
+
+## Technical details
+
+### Discrepancies between Slacken and Kraken 2
+
+Given the same values of k and m, and given the same genomic library and taxonomy, Slacken classifies reads identically 
+to Kraken 2. However, there are two sources of potential divergence between the two:
+
+* We have found that Kraken 2 indexes extra minimizers after ambiguous regions in a genome. This means that the true value of k,
+for Kraken 2, is between k and (k-1). Such extra minimizers give Kraken 2 a slightly larger minimizer database for the same parameters.
+For the K2 standard library, we found that the difference is about 1% of the total minimizer count. If this is a concern, 
+using (k-1) instead of k for Slacken is guaranteed to index at least as many minimizers as K2.
+
+* Kraken 2 uses a probabilistic data structure called a compact hash table (CHT) which sometimes can lose information. 
+Slacken does not have this and instead stores each record in full. This means that Slacken records, particularly when
+the database contains a very large number of taxa, may be more precise.
+
+### Compiling
+
+Prerequisites:
+
+* Java 17 or later
+* The [sbt](https://www.scala-sbt.org/) build tool.
+
+To build the jar file: `sbt assembly`. The output will be in `target/scala-2.12/Slacken-assembly-0.1.0.jar`.
+
+To just compile class files: `sbt compile`
+
+To run tests: `sbt test`
+
+### Citation
+
+## References
