@@ -1,5 +1,5 @@
 #!/bin/bash
-#Script to submit Slacken as an Amazon AWS EMR step. Copy this file to aws-discount.sh and 
+#Script to submit Slacken as an Amazon AWS EMR step. Copy this file to slacken-aws.sh and
 #edit variables accordingly.
 
 #For this script to work, it is necessary to install and configure the AWS CLI.
@@ -13,17 +13,15 @@ fi
 #Bucket to store Slacken jars and data files
 BUCKET=s3://path/to/slacken
 
+#Try to figure out where this script is located
 SLACKEN_HOME="$(dirname -- "$(readlink -f "${BASH_SOURCE}")")"
 
-#Copy jars and data files the first time only, after which the following lines can safely be commented out
+#Copy jars and data files the first time only, after which the following line can safely be commented out
 aws s3 cp $SLACKEN_HOME/target/scala-2.12/Slacken-assembly-1.0.0.jar $BUCKET/
-#aws s3 sync $SLACKEN_HOME/PASHA $BUCKET/PASHA/
 
 #Max size of input splits in bytes. A smaller number reduces memory usage but increases the number of 
 #partitions for the first stage. If this variable is unset, Spark's default of 128 MB will be used.
 #SPLIT="spark.hadoop.mapreduce.input.fileinputformat.split.maxsize=$((64 * 1024 * 1024))"
-
-#To run slacken 1, change the main class to ...slacken.Slacken
 
 #To set SPLIT, uncomment below.
 #Usually, the default values are fine.
