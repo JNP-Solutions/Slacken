@@ -1,6 +1,6 @@
 ## Overview
 
-Slacken implements metagenomic classification based on k-mers and minimizers. It can emulate the behaviour of 
+Slacken implements metagenomic classification based on k-mers and minimizers. It can closely mimic the behaviour of 
 [Kraken 2](https://github.com/DerrickWood/kraken2), while also supporting a wider parameter space and additional algorithms. 
 In particular, it supports sample-tailored libraries, where the minimizer library is built on the fly as part of read classification.
 
@@ -15,6 +15,7 @@ Copyright (c) Johan Nystrom-Persson 2019-2024.
   - [Classifying reads (1-step)](#classifying-reads-1-step)
   - [Bracken weights](#bracken-weights)
   - [Classifying reads (2-step/dynamic)](#classifying-reads-2-stepdynamic-library)
+  - [Running on AWS EMR](#running-on-aws-emr)
   - [License and support](#license-and-support)
 2. [Technical details](#technical-details)
   - [Differences between Slacken and Kraken 2](#differences-between-slacken-and-kraken-2)
@@ -27,25 +28,30 @@ Copyright (c) Johan Nystrom-Persson 2019-2024.
 
 ### How it works
 
-Slacken basically classifies sequences according to k-mers and minimizers using the same algorithm as
-Kraken 2. However, Slacken is based on Apache Spark and is thus a distributed application,
+Slacken classifies sequences (reads) according to k-mers and minimizers using the same algorithm as
+Kraken 2. The end result is a classification for each read, as well as a summary report that shows the number of reads
+and the fraction of reads assigned to each taxon. However, Slacken is based on Apache Spark and is thus a distributed application,
 rather than run on a single machine as Kraken 2 does. Slacken can run on a single machine but it can
 also scale to a cluster with hundreds or thousands of machines. It also does not keep all data in RAM but 
 uses a combination of RAM and disk.
 
 ### Running Slacken
 
-Prerequisites: 
+Minimal single-machine prerequisites: 
 * [Spark](https://spark.apache.org/downloads.html) 3.5.0 or later (pre-built, for Scala 2.12 (i.e. not the Scala 2.13 version).) 
 * 16 GB or more of RAM (32 GB or more recommended).
 * A fast SSD drive is very helpful if running locally. The amount of space required depends on the size of the libraries.
 
-Copy `submit-slacken.sh.template` to `submit-slacken2.sh`. Edit this file. Set the path to the unzipped Spark installation.
-Set the path to temporary disk space (e.g. an SSD drive and the maximum allowed memory). 
-Change any other flags that may be necessary.
+The following environment variables should now be set:
+
+* `SPARK_HOME` should point to the unzipped Spark download
+* `SLACKEN_TMP` should point to a location for scratch space on a fast hard drive (SSD drives are essential to get good performance). Optionally,
+* `SLACKEN_MEMORY`, which defaults to `16g`, may optionally be configured.
 
 Check that it works: 
-`./submit-slacken2.sh --help`
+`./slacken.sh --help`
+
+These options may also be permanently configured by editing `slacken.sh`.
 
 ### Building a library
 
@@ -190,6 +196,27 @@ best to help. Alternatively, feel free to open issues and/or PRs in the GitHub r
 
 Discount is currently released under a dual GPL/commercial license. For a commercial license, custom development, or
 commercial support please contact us at the email above.
+
+### Running on AWS EMR or large clusters
+
+Slacken can run on AWS EMR (Elastic MapReduce) and should also work similarly on other commercial cloud providers 
+that support Apache Spark. In this scenario, data can be stored on AWS S3 and the computation can run on a mix of 
+on-demand and spot (interruptible) instances. We refer the reader to the AWS EMR documentation for more details.
+ 
+The cluster configuration we generally recommend is 4 GB RAM per CPU (but 2 GB per CPU may be enough for small workloads).
+For large workloads, the worker nodes should have fast physical hard drives, such as NVMe. On EMR Spark will automatically use
+these drives for temporary space. Suitable machine types may be e.g. the m7gd and m6gd families. We recommend at least 16 CPUs
+per machine.
+
+To run on AWS EMR, first, install the AWS CLI. 
+Copy `slacken-aws.sh.template` to a new file, e.g. `slacken-aws.sh` and edit the file to configure
+some settings such as the S3 bucket to use for the Slacken jar. Then, create the AWS EMR cluster, and set its ID using
+the `AWS_EMR_CLUSTER` environment variable. `slacken-aws.sh` may then be invoked in the same way as `slacken.sh` in the 
+examples above.
+
+The files [scripts/slacken_pipeline.sh](scripts/slacken_pipeline.sh) and 
+[scripts/slacken_steps_lib.sh](scripts/slacken_steps_lib.sh) contain preconfigured AWS pipelines and EMR steps, 
+respectively.
 
 ## Technical details
 
