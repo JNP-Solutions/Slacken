@@ -150,13 +150,14 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     val outputRows = keepLines.map(r => (r.outputLine, r.sampleId)).
       toDF("classification", "sample")
 
+    val classOutputLoc = s"${location}_classified"
     //These tables will be relatively small. We coalesce to avoid generating a lot of small files
     //in the case of an index with many partitions
     outputRows.coalesce(1000).write.mode(SaveMode.Overwrite).
       partitionBy("sample").
       option("compression", "gzip").
-      text(s"${location}_classified")
-    makeReportsFromClassifications(s"${location}_classified")
+      text(classOutputLoc)
+    makeReportsFromClassifications(classOutputLoc)
   }
 
   /** For each subdirectory (corresponding to a sample), read back written classifications
