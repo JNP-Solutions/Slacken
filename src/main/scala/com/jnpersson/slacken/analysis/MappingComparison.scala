@@ -52,7 +52,7 @@ object PerReadMetrics {
 /** A single result line (per taxon and per read) */
 final case class Metrics(title: String, rank: Option[Rank], perTaxon: PerTaxonMetrics, perRead: PerReadMetrics) {
   //Extract some variables from expected filename patterns
-  val pattern1 = """(.*)/(.*)/(.+)_(\d+)_(\d+)_s(\d+)_c([\d.]+)_classified/sample=(.*)""".r
+  private val pattern1 = """(.*)/(.*)/(.+)_(\d+)_(\d+)_s(\d+)_c([\d.]+)_classified/sample=(.*)""".r
 
   def toTSVString: Option[String] = title match {
     case pattern1(family, group, library, k, m, s, c, sample) =>
@@ -107,7 +107,8 @@ class MappingComparison(tax: Broadcast[Taxonomy],
       Iterator(Metrics.header) ++ allFilesMetrics.flatMap(_.toTSVString))
   }
 
-  def unfilteredRefData(file: String) = readCustomFormat(file, refIdCol, refTaxonCol).
+  def unfilteredRefData(file: String): DataFrame =
+    readCustomFormat(file, refIdCol, refTaxonCol).
     toDF("id", "refTaxon")
 
   def readReferenceData(file: String): DataFrame = {

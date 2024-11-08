@@ -42,7 +42,7 @@ function classifyGS {
   CLASS_OUT=$ROOT/scratch/classified/$FAMILY/$LNAME
   ./slacken-aws.sh -p 3000 taxonIndex $DATA/$LIB classify --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" \
   -o $CLASS_OUT \
-  dynamic -G $K2 --classify-with-gold -g $SPATH/${LABEL}_gold.txt \
+  dynamic -l $K2 --classify-with-gold -g $SPATH/${LABEL}_gold.txt \
       --bracken-length 150 \
       "${SAMPLES[@]}"
 }
@@ -59,7 +59,7 @@ function classifyDynamic {
   CLASS_OUT=$ROOT/scratch/classified/$FAMILY/$LNAME
   ./slacken-aws.sh -p 3000 taxonIndex $DATA/$LIB classify --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" \
   -o $CLASS_OUT \
-    dynamic -G $K2 -g $SPATH/${LABEL}_gold.txt \
+    dynamic -l $K2 -g $SPATH/${LABEL}_gold.txt \
     --bracken-length 150 --reads 100 \
     "${SAMPLES[@]}"
 }

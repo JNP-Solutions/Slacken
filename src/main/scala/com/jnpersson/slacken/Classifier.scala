@@ -150,13 +150,14 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     val outputRows = keepLines.map(r => (r.outputLine, r.sampleId)).
       toDF("classification", "sample")
 
+    val classOutputLoc = s"${location}_classified"
     //These tables will be relatively small. We coalesce to avoid generating a lot of small files
     //in the case of an index with many partitions
     outputRows.coalesce(1000).write.mode(SaveMode.Overwrite).
       partitionBy("sample").
       option("compression", "gzip").
-      text(s"${location}_classified")
-    makeReportsFromClassifications(s"${location}_classified")
+      text(classOutputLoc)
+    makeReportsFromClassifications(classOutputLoc)
   }
 
   /** For each subdirectory (corresponding to a sample), read back written classifications
@@ -209,17 +210,20 @@ object Classifier {
   }
 
   /** For the given set of sorted hits, was there a sufficient number of hit groups wrt the given minimum? */
-  def sufficientHitGroups(sortedHits: Seq[TaxonHit], minimum: Int): Boolean = {
+  def sufficientHitGroups(sortedHits: Array[TaxonHit], minimum: Int): Boolean = {
     var hitCount = 0
     var lastMin = sortedHits(0).minimizer
 
     //count separate hit groups (adjacent but with different minimizers) for each sequence, imitating kraken2 classify.cc
-    for { hit <- sortedHits } {
+    var h = 0
+    while (h < sortedHits.length) {
+      val hit = sortedHits(h)
       if (hit.taxon != AMBIGUOUS_SPAN && hit.taxon != Taxonomy.NONE && hit.taxon != MATE_PAIR_BORDER &&
         (hitCount == 0 || !util.Arrays.equals(hit.minimizer, lastMin))) {
         hitCount += 1
       }
       lastMin = hit.minimizer
+      h += 1
     }
     hitCount >= minimum
   }

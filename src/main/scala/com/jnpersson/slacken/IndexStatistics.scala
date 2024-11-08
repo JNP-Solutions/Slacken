@@ -27,7 +27,7 @@ import org.apache.spark.sql._
 
 /** Various reports that describe the contents of an LCA to minimizer index. */
 class IndexStatistics(index: KeyValueIndex)(implicit spark: SparkSession) {
-  val taxonomy = index.taxonomy
+  private val taxonomy = index.taxonomy
 
   import spark.sqlContext.implicits._
 
@@ -102,8 +102,8 @@ class TotalKmerCountReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], val
 }
 
 class TotalKmerSizeAggregator(taxonomy: Taxonomy, genomeSizes: Array[(Taxon, Long)]) {
-  val genomeSizesMap = genomeSizes.toMap
-  val computedTreeMap: mutable.Map[Taxon, (Long, Long)] = computeFullTree()
+  private val genomeSizesMap = genomeSizes.toMap
+  private val computedTreeMap: mutable.Map[Taxon, (Long, Long)] = computeFullTree()
 
   /**
    * Average kmer count among all leaf-children of that taxon.

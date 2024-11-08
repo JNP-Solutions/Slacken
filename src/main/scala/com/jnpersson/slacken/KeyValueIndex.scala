@@ -43,11 +43,12 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
 
   def bcSplit: Broadcast[AnyMinSplitter] = params.bcSplit
   def split: AnyMinSplitter = bcSplit.value
-  lazy val bcTaxonomy = spark.sparkContext.broadcast(taxonomy)
+  lazy val bcTaxonomy: Broadcast[Taxonomy] =
+    spark.sparkContext.broadcast(taxonomy)
 
-  lazy val recordColumnNames: Seq[String] = idColumnNames :+ "taxon"
+  val idLongs = NTBitArray.longsForSize(params.m)
+  private val recordColumnNames: Seq[String] = idColumnNames :+ "taxon"
 
-  lazy val idLongs = NTBitArray.longsForSize(params.m)
 
   def findMinimizers(seqTaxa: Dataset[(Taxon, NTSeq)]): DataFrame = {
     val bcSplit = this.bcSplit
@@ -139,7 +140,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
     records.
       write.mode(SaveMode.Overwrite).
       option("path", location).
-      bucketBy(params.buckets, idColumnNames(0), idColumnNames.drop(1): _*).
+      bucketBy(params.buckets, idColumnNames.head, idColumnNames.tail: _*).
       saveAsTable(tableName)
   }
 
