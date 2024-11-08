@@ -88,7 +88,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
 
   import spark.sqlContext.implicits._
 
-  def taxonomy = base.taxonomy
+  def taxonomy: Taxonomy = base.taxonomy
 
   /** Report the time taken by subtasks. */
   def startTimer(task: String): Timer = {
@@ -295,7 +295,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     withDescendants
   }
 
-  lazy val taxonSetInLibrary = genomes.taxonSet(taxonomy)
+  private lazy val taxonSetInLibrary = genomes.taxonSet(taxonomy)
 
   def readGoldSet(goldSetOpts: DynamicGoldTaxonSet): mutable.BitSet = {
     val bcTax = base.bcTaxonomy

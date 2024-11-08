@@ -440,7 +440,7 @@ class BrackenWeights(keyValueIndex: KeyValueIndex, readLen: Int)(implicit val sp
       output.println(headers)
 
       for {(dest, bLine) <- data}
-        output.println(s"${dest}\t${bLine}")
+        output.println(s"$dest\t$bLine")
     })
   }
 }

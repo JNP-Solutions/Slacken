@@ -142,8 +142,8 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 
       val dynamic = new RunCmd("dynamic") {
         banner("Two-step classification with dynamic index")
-        val genomes = opt[String](required = true, short ='G',
-          descr = "Genome library location for dynamic classification")
+        val library = opt[String](required = true,
+          descr = "Genome library location for dynamic classification (directory containing library/)")
 
         val rank = choice(descr = "Granularity for library construction in dynamic mode (default species)",
           default = Some(Species.title), choices = Taxonomy.rankTitles).map(Taxonomy.rankOrNull)
@@ -176,7 +176,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 
         override def run(): Unit = {
           val i = index()
-          val genomeLib = findGenomes(genomes(), Some(i.params.k))
+          val genomeLib = findGenomes(library(), Some(i.params.k))
           val goldStandardOpt = goldSet.toOption.map(x =>
             DynamicGoldTaxonSet(x, promoteGoldSet.toOption, classifyWithGold()))
           val taxonCriteria = minCount.map(MinimizerTotalCount).
@@ -224,7 +224,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
     addSubcommand(brackenWeights)
 
     val stats = new RunCmd("stats") {
-      banner("Get index statistics (optionally referencing input sequences)")
+      banner("Get index statistics, optionally checking a genome library for coverage")
 
       val library = opt[String](descr = "Location of sequence files (directory containing library/) for coverage check")
 

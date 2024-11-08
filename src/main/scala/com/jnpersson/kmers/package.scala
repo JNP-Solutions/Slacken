@@ -77,12 +77,12 @@ package object kmers {
       s"discount_$useRnd"
     }
 
-    private var formatsById = Map[String, SplitterFormat[_]](
+    private val formatsById = Map[String, SplitterFormat[_]](
       "standard" -> new StandardFormat(),
       "randomXOR" -> new RandomXORFormat(),
       "extended" -> new ExtendedFormat())
 
-    private var formatsByCls = Map[Class[_], SplitterFormat[_]](
+    private val formatsByCls = Map[Class[_], SplitterFormat[_]](
       classOf[MinTable] -> new StandardFormat(),
       classOf[RandomXOR] -> new RandomXORFormat(),
       classOf[ExtendedTable] -> new ExtendedFormat())
