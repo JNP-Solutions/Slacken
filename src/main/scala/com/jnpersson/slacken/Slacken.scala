@@ -143,15 +143,16 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
       val dynamic = new RunCmd("dynamic") {
         banner("Two-step classification with dynamic index")
         val library = opt[String](required = true,
-          descr = "Genome library location for dynamic classification (directory containing library/)")
+          descr = "Genome library location for index construction (directory containing library/)")
 
-        val rank = choice(descr = "Granularity for library construction in dynamic mode (default species)",
+        val rank = choice(descr = "Granularity for index construction (default species)",
           default = Some(Species.title), choices = Taxonomy.rankTitles).map(Taxonomy.rankOrNull)
 
-        val minCount = opt[Int](descr = "Minimizer count for taxon inclusion in dynamic mode")
-        val minDistinct = opt[Int](descr = "Minimizer distinct count for taxon inclusion in dynamic mode")
-        val reads = opt[Int](descr = "Min read count classified for taxon inclusion in dynamic mode (default 100)")
-        val readConfidence = opt[Double](descr = "Confidence threshold for initial read classification in dynamic mode (default 0.15)",
+        val minCount = opt[Int](descr = "Minimizer count for taxon inclusion in dynamic index", short = 'C')
+        val minDistinct = opt[Int](descr = "Minimizer distinct count for taxon inclusion in dynamic index", short = 'D')
+        val reads = opt[Int](descr = "Min initial read count classified for taxon inclusion in dynamic index (default 100)",
+          short = 'R')
+        val readConfidence = opt[Double](descr = "Confidence threshold for initial read classification (default 0.15)",
           default = Some(0.15))
 
         val brackenLength = opt[Int](descr = "Read length for building bracken weights")
@@ -159,8 +160,8 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
         val indexReports = opt[Boolean](descr = "Create reports on the dynamic index and the inputs' taxon support", default = Some(false))
 
         val classifyWithGold = opt[Boolean](descr = "Classify based on the gold taxon set, instead of just " +
-          "displaying statistics", default = Some(false), short = 'C')
-        val goldSet = opt[String](descr = "Location of gold standard reference taxon set in dynamic mode",
+          "displaying statistics", default = Some(false))
+        val goldSet = opt[String](descr = "Location of gold standard reference taxon set",
           short = 'g')
         val promoteGoldSet = choice(descr = "Attempt to promote taxa with no minimizers from the gold set to this rank (at the highest)",
           choices = Taxonomy.rankTitles).map(Taxonomy.rankOrNull)
@@ -169,7 +170,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 
         validate(readConfidence) { c =>
           if (c < 0 || c > 1)
-            Left(s"--dynamic-read-confidence must be >=0 and <= 1 ($c was given)")
+            Left(s"--read-confidence must be >=0 and <= 1 ($c was given)")
           else Right(Unit)
         }
         mutuallyExclusive(minCount, minDistinct, reads)
@@ -289,7 +290,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
     val idCol = opt[Int](descr = "Read ID column in reference", default = Some(2))
     val taxonCol = opt[Int](descr = "Taxon column in reference", short = 'T', default = Some(3))
     val output = opt[String](descr = "Output location")
-    val skipHeader = toggle(name = "header", descrYes = "Skip header in reference data", default = Some(false))
+    val header = toggle(name = "header", descrYes = "Reference mapping has a header line", default = Some(false))
 
     val multiDirs = opt[List[String]](descr = "Directories of multi-sample mapping data to compare")
     val testFiles = opt[List[String]](descr = "Mapping files to compare")
@@ -297,7 +298,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 
     def run(): Unit = {
       val t = spark.sparkContext.broadcast(Taxonomy.load(taxonomy()))
-      val mc = new MappingComparison(t, idCol(), taxonCol(), skipHeader(), 10, multiDirs.isDefined)
+      val mc = new MappingComparison(t, idCol(), taxonCol(), header(), 10, multiDirs.isDefined)
       if (testFiles.isDefined) {
         mc.processFiles(testFiles(), output(), reference())
       } else {
