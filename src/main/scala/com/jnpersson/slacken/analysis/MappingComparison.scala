@@ -72,7 +72,7 @@ object Metrics {
 
 /** Compare a set of classifications against a reference. */
 class MappingComparison(tax: Broadcast[Taxonomy],
-                        refIdCol: Int, refTaxonCol: Int, skipHeader: Boolean,
+                        refIdCol: Int, refTaxonCol: Int, withHeader: Boolean,
                         minCountTaxon: Long,
                         multiSample: Boolean)(implicit spark: SparkSession) {
   import MappingComparison._
@@ -261,7 +261,7 @@ class MappingComparison(tax: Broadcast[Taxonomy],
   def readCustomFormat(location: String, idCol: Int, taxonCol: Int):
     Dataset[(SeqTitle, Taxon)] = {
     val bcTax = this.tax
-    spark.read.option("sep", "\t").option("header", skipHeader.toString).csv(location).
+    spark.read.option("sep", "\t").option("header", withHeader.toString).csv(location).
       filter(x => !x.getString(idCol -1).contains("/2")). //paired end
       map(x => (
         x.getString(idCol - 1).replaceAll("/1", ""),  //remove /1 in paired end reads
