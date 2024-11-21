@@ -171,7 +171,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
         val reads = opt[Int](descr = "Min initial read count classified for taxon inclusion in dynamic index (default 100)",
           short = 'R')
         val readConfidence = opt[Double](descr = "Confidence threshold for initial read classification (default 0.15)",
-          default = Some(0.15))
+          default = Some(0.15), short = 'c')
 
         val brackenLength = opt[Int](descr = "Read length for building bracken weights")
 
