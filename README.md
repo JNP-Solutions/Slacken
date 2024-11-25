@@ -113,10 +113,10 @@ More help: `./slacken.sh --help`
 For technical testing purposes, as an alternative to using kraken2-build above, a minimal demo library is available in Amazon S3 at `s3://jnp-public/slackenTestLib`.
 This is a small random selection of bacterial genomes.
 
-To build the demo library in the location `/tmp/library`:
+To build the demo library in the location `/tmp/mySlackenLib`, after downloading the genomes to `slackenTestLib`:
 
 ```
-./slacken.sh -k 35 -m 31 -t slackenTestLib/taxonomy taxonIndex /tmp/library \                                     
+./slacken.sh -k 35 -m 31 -t slackenTestLib/taxonomy taxonIndex /tmp/mySlackenLib \                                     
     build -l slackenTestLib 
 ```
 
