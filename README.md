@@ -122,6 +122,7 @@ To build the demo library in the location `/tmp/library`:
 
 ### Classifying reads (1-step)
 
+The "1-step" classification corresponds to the standard Kraken 2 method. It classifies reads based on the pre-built library only.
 
 ```
 ./slacken.sh taxonIndex mySlackenLib classify testData/SRR094926_10k.fasta \
@@ -132,7 +133,8 @@ Where
 
 * `mySlackenLib` is the location where the library was built in the previous step
 * `SRR094926_10k.fasta` is the file with reads to be classified. Any number of files may be supplied.
-* `-o test_class` is the directory where the output will be stored. A file `test_class_kreport.txt` will also be created.
+* `test_class` is the directory where the output will be stored. Individual read classifications and a file 
+`test_class_kreport.txt` will be created.
 
 To classify mate pairs, the `-p` flag may be used. Input files are then expected to be in alternating order:
 
@@ -161,11 +163,11 @@ For example:
 ```
 
 With this regular expression, a read with the ID `@S0R10/1` in a fastq file would be assigned to sample `S0`,
-the ID `@S10R10/1` would be assigned to sample `S10`, and so on.
+the ID `@S10R10/1` would be assigned to sample `S10`, and so on. The first group in the regex, indicated by `(...)`, 
+identifies the sample.
 
-All reads from all files are pooled together during classification. The regular expression is the
-sole way that reads are mapped to samples. Thus, for example, it would be fine for one fastq file to contain reads from 
-a variety of samples.
+All reads from all files are pooled together during classification. The regex is the
+sole way that reads are mapped to samples and the file of origin for each read is ignored.
 
 ### Computing bracken weights
 
