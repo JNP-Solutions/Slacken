@@ -175,13 +175,16 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 
         val brackenLength = opt[Int](descr = "Read length for building bracken weights")
 
-        val indexReports = opt[Boolean](descr = "Create reports on the dynamic index and the inputs' taxon support", default = Some(false))
+        val indexReports = opt[Boolean](descr = "Create reports on the dynamic index and the inputs' taxon support",
+          default = Some(false))
 
-        val classifyWithGold = opt[Boolean](descr = "Classify based on the gold taxon set, instead of just " +
-          "displaying statistics", default = Some(false))
+        val classifyWithGold = opt[Boolean](
+          descr = "Instead of detecting taxa, construct a dynamic library using the gold taxon set ",
+          default = Some(false))
         val goldSet = opt[String](descr = "Location of gold standard reference taxon set",
           short = 'g')
-        val promoteGoldSet = choice(descr = "Attempt to promote taxa with no minimizers from the gold set to this rank (at the highest)",
+        val promoteGoldSet = choice(
+          descr = "Attempt to promote taxa with no minimizers from the gold set to this rank (at the highest)",
           choices = Taxonomy.rankTitles).map(Taxonomy.rankOrNull)
 
         val dynInFiles = trailArg[List[String]](descr = "Sequences to be classified")

@@ -21,9 +21,9 @@ function classifyGS {
   #--report-dynamic-index
   #-p 3000
   CLASS_OUT=$ROOT/scratch/classified/$FAMILY/$LNAME
-  ./slacken2-aws.sh -p 3000 taxonIndex $DATA/$LIB classify --classify-with-gold-standard -g $SPATH/${LABEL}_gold.txt \
-      --dynamic-bracken-length 150 \
-     -d $K2 --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" -o $CLASS_OUT \
+  ./slacken2-aws.sh -p 3000 taxonIndex $DATA/$LIB classify \
+  --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" -o $CLASS_OUT \
+  dynamic --classify-with-gold -g $SPATH/${LABEL}_gold.txt --bracken-length 150 -l $K2 \
   "${SAMPLES[@]}"
 }
 
@@ -35,9 +35,9 @@ function classifyDynamic {
   RVALUE=$3
 
   CLASS_OUT=$ROOT/scratch/classified/$FAMILY/$LNAME
-  ./slacken2-aws.sh -p 10000 taxonIndex $DATA/$LIB classify -g $SPATH/${LABEL}_gold.txt \
-    --dynamic-bracken-length 150 \
-    --dynamic-min-reads $RVALUE -d $K2 --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" -o $CLASS_OUT \
+  ./slacken2-aws.sh -p 10000 taxonIndex $DATA/$LIB classify \
+  --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" -o $CLASS_OUT \
+  dynamic -g $SPATH/${LABEL}_gold.txt --bracken-length 150 --reads $RVALUE -l $K2 \
   "${SAMPLES[@]}"
 }
 
