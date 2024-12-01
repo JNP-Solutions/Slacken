@@ -9,16 +9,17 @@ Copyright (c) Johan Nyström-Persson 2019-2024.
 
 ## Contents
 1. [Basics](#basics)
-  - [How it works](#how-it-works)
+  - [Introduction](#introduction)
   - [Running Slacken](#running-slacken)
   - [Building a library](#building-a-library)
   - [Classifying reads (1-step)](#classifying-reads-1-step)
-  - [Bracken weights](#bracken-weights)
-  - [Classifying reads (2-step/dynamic)](#classifying-reads-2-stepdynamic-library)
-  - [Running on AWS EMR](#running-on-aws-emr)
+  - [Multi-sample mode](#multi-sample-mode)
+  - [Use with Bracken](#Use with Bracken)
+  - [Classifying reads (2-step/dynamic)](#classifying-reads-using-a-dynamic-index-2-step-method)
+  - [Running on AWS EMR](#running-on-aws-emr-or-large-clusters)
 2. [Technical details](#technical-details)
-  - [Differences between Slacken and Kraken 2](#differences-between-slacken-and-kraken-2)
-  - [Compiling Slacken](#compiling)
+  - [Discrepancies between Slacken and Kraken 2](#discrepancies-between-slacken-and-kraken-2)
+  - [Compiling](#compiling)
   - [Citation](#citation)
 3. [References](#references)
 
@@ -159,7 +160,7 @@ identifies the sample.
 All reads from all files are pooled together during classification. The regex is the
 sole way that reads are mapped to samples and the file of origin for each read is ignored.
 
-### Computing bracken weights
+### Use with Bracken
 
 Slacken can produce [Bracken](https://github.com/jenniferlu717/Bracken)[2] weights, like those produced by `bracken-build`. 
 They can be used directly with Bracken to re-estimate taxon abundances in a taxon profiles and correct for database bias.
