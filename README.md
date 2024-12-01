@@ -56,11 +56,15 @@ Check that it works:
 
 These options may also be permanently configured by editing `slacken.sh`.
 
+While Slacken is running, the Spark UI may be inspected at [http://localhost:4040](http://localhost:4040) if the process is running
+locally. We refer users to the Spark documentation for more details.
+
 ### Building a library
 
-#### Obtaining reference genomes
+#### Obtaining genomes with Kraken2-build
 
-Genomes compatible with the NCBI taxonomy are expected.
+Slacken is compatible with the Kraken 2 build process. Genomes downloaded for Kraken 2 can also be used to
+build a Slacken database, as long as `.fai` index files have also been generated (see below).
 
 The build scripts from [Kraken 2](https://github.com/DerrickWood/kraken2) can automatically download the taxonomy and 
 genomes. For example, after installing kraken 2:
@@ -81,13 +85,14 @@ This generates the index file `library.fna.fai`, which Slacken needs. This step 
 that will be indexed.
 
 Unlike with Kraken 2, genome sequence files may be needed even after index construction, for example during dynamic 
-classification. Deleting them to save space is not recommended.
+classification. Deleting them to save space is not recommended (i.e., avoid running `kraken2-build --clean`).
 
-As an alternative build process, we have included modified and optimised versions of the Kraken 2 build scripts in `scripts/k2`.
-Please refer to README.txt in that directory for more details.
+#### Obtaining genomes with the provided build scripts
 
+As a hopefully faster and more reliable alternative to kraken2-build, we have included modified and optimised versions of the Kraken 2 build scripts in `scripts/k2` for 
+downloading genomes and the taxonomy. Please refer to README.txt in that directory for more details.
 
-### Building the index
+#### Building the index
 
 ```
 ./slacken.sh  -p 2000 -k 35 -m 31 -t k2/taxonomy  taxonIndex mySlackenLib \
@@ -95,30 +100,15 @@ Please refer to README.txt in that directory for more details.
 ```
 
 Where: 
-* `-p 2000` is the number of partitions (should be larger for larger libraries, the aim is 50-100 MB per output file)
+* `-p 2000` is the number of partitions (should be larger for larger libraries. When tuning this, the aim is 50-100 MB per output file)
 * `-k 35` is the k-mer (window) size
 * `-m 31` is the minimizer size
 * `mySlackenLib` is the location where the built library will be stored (a directory will be created or overwritten)
-* `-t` is the directory where the taxonomy is stored (names.dmp and nodes.dmp, see above)
+* `-t` is the directory where the NCBI taxonomy is stored (names.dmp, nodes.dmp, and merged.dmp, see above)
 * `k2` is a directory containing seqid2taxid.map, which maps sequence IDs to taxa, and the subdirectory 
-  `library/` which will be scanned recursively for `*.fna` sequence files
-
-While the build process is running, the Spark UI may be inspected at [http://localhost:4040](http://localhost:4040) if the process is running 
-locally.
+  `library/` which will be scanned recursively for `*.fna` sequence files and their corresponding `*.fna.fai` index files
 
 More help: `./slacken.sh --help`
-
-#### Minimal demo data
-
-For technical testing purposes, as an alternative to using kraken2-build above, a minimal demo library is available in Amazon S3 at `s3://jnp-public/slackenTestLib`.
-This is a small random selection of bacterial genomes.
-
-To build the demo library in the location `/tmp/library`:
-
-```
-./slacken.sh -k 35 -m 31 -t slackenTestLib/taxonomy taxonIndex /tmp/library \                                     
-    build -l slackenTestLib 
-```
 
 ### Classifying reads (1-step)
 
