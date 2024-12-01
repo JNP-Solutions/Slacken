@@ -14,7 +14,7 @@ Copyright (c) Johan Nyström-Persson 2019-2024.
   - [Building a library](#building-a-library)
   - [Classifying reads (1-step)](#classifying-reads-1-step)
   - [Multi-sample mode](#multi-sample-mode)
-  - [Use with Bracken](#Use with Bracken)
+  - [Use with Bracken](#use-with-bracken)
   - [Classifying reads (2-step/dynamic)](#classifying-reads-using-a-dynamic-index-2-step-method)
   - [Running on AWS EMR](#running-on-aws-emr-or-large-clusters)
 2. [Technical details](#technical-details)
