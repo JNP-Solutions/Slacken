@@ -199,7 +199,7 @@ object Classifier {
                confidenceThreshold: Double, k: Int, cpar: ClassifyParams): ClassifiedRead = {
     val lca = new LowestCommonAncestor(taxonomy)
 
-    val totalSummary = TaxonCounts.concatenate(sortedHits.map(_.summary))
+    val totalSummary = TaxonCounts.fromHits(sortedHits)
 
     val taxon = lca.resolveTree(totalSummary, confidenceThreshold)
     val classified = taxon != Taxonomy.NONE && sufficientHitGroups(sortedHits, cpar.minHitGroups)
