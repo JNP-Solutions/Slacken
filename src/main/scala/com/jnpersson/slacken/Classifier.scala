@@ -191,7 +191,7 @@ object Classifier {
    * @param taxonomy Parent map for taxa
    * @param title Sequence title/ID
    * @param sortedHits Taxon hits (minimizers) in order
-   * @param confidenceThreshold Minimum fraction of k-mers/minimizers that must be in the match (KeyValueIndex only)
+   * @param confidenceThreshold Minimum fraction of k-mers/minimizers that must be in the match
    * @param k Length of k-mers
    * @param cpar Classify parameters
    */
