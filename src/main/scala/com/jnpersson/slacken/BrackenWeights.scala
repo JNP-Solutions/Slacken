@@ -64,6 +64,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
    * Returns all distinct minimizers in the nucleotide sequence
    *
    * @param splitter the minimizer scheme
+   * @param defaultValue pseudo-minimizer to return when the fragment has no true minimizers
    * @return
    */
   def distinctMinimizers(splitter: AnyMinSplitter, defaultValue: Array[Long]): Iterator[Array[Long]] = {
@@ -340,8 +341,8 @@ class BrackenWeights(keyValueIndex: KeyValueIndex, readLen: Int)(implicit val sp
     val fragments = idSeqDF.join(titlesTaxa, List("header")).
       select($"taxon", noWhitespace($"nucleotides").as("nucleotides"), $"header", $"location").
       where(presentTaxon($"taxon")).
-      as[(Taxon, NTSeq, String, SeqLocation)].
-      flatMap(x => TaxonFragment(x._1, x._2, x._3, x._4).splitToMaxLength(FRAGMENT_MAX, readLen))
+      as[TaxonFragment].
+      flatMap(_.splitToMaxLength(FRAGMENT_MAX, readLen))
 
     val bcSplit = keyValueIndex.bcSplit
     val bcTaxonomy = keyValueIndex.bcTaxonomy
@@ -359,7 +360,6 @@ class BrackenWeights(keyValueIndex: KeyValueIndex, readLen: Int)(implicit val sp
         collect_list(ifnull($"taxon", lit(NONE)))
       ).
       toDF("header", "location", "minimizers", "taxa")
-
 
     //Re-join with fragments again and classify all possible reads
     idMins.join(fragments, List("header", "location")).
