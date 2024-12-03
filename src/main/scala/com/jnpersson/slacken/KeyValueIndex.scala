@@ -462,9 +462,6 @@ object KeyValueIndex {
  * @param count the number of k-mer hits
  * */
 final case class TaxonHit(minimizer: Array[Long], ordinal: Int, taxon: Taxon, count: Int) {
-  def summary: TaxonCounts =
-    TaxonCounts(Array(taxon), Array(count))
-
   def trueTaxon: Option[Taxon] = taxon match {
     case AMBIGUOUS_SPAN | MATE_PAIR_BORDER => None
     case _ => Some(taxon)

@@ -27,36 +27,23 @@ import scala.collection.mutable.ArrayBuffer
 
 object TaxonCounts {
 
-  /** Construct a TaxonCounts object from an ordinal and (taxon, count) pairs */
-  def fromPairs(pairs: Iterable[(Taxon, Int)]): TaxonCounts = {
-    val (taxa, counts) = pairs.toArray.unzip
-    TaxonCounts(taxa, counts)
-  }
-
-  /** Concatenate adjacent TaxonCounts (in order corresponding to the subject sequence)
+  /** Concatenate adjacent TaxonHits (in order corresponding to the subject sequence)
    * into a single TaxonCounts object
    */
-  def concatenate(summaries: Iterable[TaxonCounts]): TaxonCounts = {
-    val maxSize = summaries.map(_.counts.size).sum
+  def fromHits(hits: Array[TaxonHit]): TaxonCounts = {
+    val maxSize = hits.length
     val taxonRet = new ArrayBuffer[Taxon]()
     taxonRet.sizeHint(maxSize)
     val countRet = new ArrayBuffer[Int]()
     countRet.sizeHint(maxSize)
 
-    for {
-      s <- summaries
-      if s.taxa.nonEmpty
-    } {
-      if (taxonRet.nonEmpty && taxonRet(taxonRet.size - 1) == s.taxa(0)) {
-        //Overlap between two TaxonCounts
-        countRet(countRet.size - 1) += s.counts(0)
+    for { h <- hits } {
+      if (taxonRet.nonEmpty && taxonRet(taxonRet.size - 1) == h.taxon) {
+        //Overlap between two TaxonHits
+        countRet(countRet.size - 1) += h.count
       } else {
-        taxonRet += s.taxa(0)
-        countRet += s.counts(0)
-      }
-      for (i <- 1 until s.taxa.length) {
-        taxonRet += s.taxa(i)
-        countRet += s.counts(i)
+        taxonRet += h.taxon
+        countRet += h.count
       }
     }
     new TaxonCounts(taxonRet, countRet)
