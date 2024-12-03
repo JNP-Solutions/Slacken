@@ -31,13 +31,8 @@ import scala.util.matching.Regex
 final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializable {
   val k = splitter.k
 
-  def randomMinimizer: Array[BucketId] = {
-    val r = Array.fill(idLongs)(0L)
-    //leave the tail longs at zero to increase compressibility in the case of narrow m
-    //(fewer values in the redundant columns)
-    r(0) = Random.nextLong()
-    r
-  }
+  private def randomMinimizer: Array[BucketId] =
+    Array.fill(idLongs)(Random.nextLong())
 
   /**
     * Splits reads by hash (minimizer), including an ordinal, so that the ordering inside a read can be reconstructed
@@ -71,8 +66,8 @@ final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializab
 
   /**
    * Split a fragment into super-mers (by minimizer).
-   * Ambiguous segments get a random minimizer. They will not be processed during classification,
-   * but are needed at the end to create complete output
+   * Ambiguous segments get a random minimizer (to distribute them well). They will not be processed during classification,
+   * but are needed at the end to create complete output.
    * The array length of minimizers will be standardised.
    * @param sequence the fragment to split.
    * @return Pairs of (segment, flag) where flag indicates whether the segment was ambiguous.
@@ -91,7 +86,8 @@ final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializab
       }
     } yield sm
 
-  private val nonAmbiguousRegex = s"[actguACTGU]{$k,}".r
+  private val nonAmbiguousRegex =
+    Supermers.nonAmbiguousRegex(k)
 
   /**
    * Split a sequence into maximally long segments that are either unambiguous or ambiguous.
@@ -99,7 +95,7 @@ final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializab
    * @param sequence the sequence to split.
    * @return Tuples of fragments, their sequence flag, and their position
    *         ([[AMBIGUOUS_FLAG]] if the fragment contains ambiguous nucleotides or is shorter than k,
-   *         otherwise [[SEQUENCE_FLAG]]). The fragments will be returned in order.
+   *         otherwise [[SEQUENCE_FLAG]]).
    */
   def splitByAmbiguity(sequence: NTSeq): Iterator[(NTSeq, SegmentFlag, Int)] =
     Supermers.splitByAmbiguity(sequence, nonAmbiguousRegex)
@@ -109,6 +105,14 @@ final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializab
 object Supermers {
   def nonAmbiguousRegex(k: Int) = s"[actguACTGU]{$k,}".r
 
+  /**
+   * Split a sequence into maximally long segments that are either unambiguous or ambiguous.
+   *
+   * @param sequence the sequence to split.
+   * @param regex Regular expression to use for detecting non-ambiguous segments
+   * @return Tuples of fragments, their sequence flag, and their position
+   *         ([[AMBIGUOUS_FLAG]] for ambiguous segments, otherwise [[SEQUENCE_FLAG]]).
+   */
   def splitByAmbiguity(sequence: NTSeq, regex: Regex): Iterator[(NTSeq, SegmentFlag, Int)] = {
 
     new Iterator[(NTSeq, SegmentFlag, Int)]  {
