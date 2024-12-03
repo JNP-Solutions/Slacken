@@ -39,7 +39,7 @@ object TaxonCounts {
 
     for { h <- hits } {
       if (taxonRet.nonEmpty && taxonRet(taxonRet.size - 1) == h.taxon) {
-        //Overlap between two TaxonHits
+        //Merge two TaxonHits for the same taxon
         countRet(countRet.size - 1) += h.count
       } else {
         taxonRet += h.taxon
@@ -51,10 +51,11 @@ object TaxonCounts {
 }
 
 /**
- * Information about classified k-mers for a consecutive segment of a subject sequence.
+ * Taxon counts of classified k-mers, in order, for a segment of a subject sequence.
  *
- * @param taxa taxa for each classified region (may be repeated, but two consecutive taxa should not be the same)
- * @param counts k-mer counts for each taxon in the taxa array
+ * @param taxa taxa for each classified super-mer or sequence of super-mers
+ *             (some taxa may be repeated, but two consecutive taxa should not be the same)
+ * @param counts corresponding k-mer counts for each taxon in the taxa array
  *
  */
 final case class TaxonCounts(taxa: mutable.IndexedSeq[Taxon], counts: mutable.IndexedSeq[Int]) {
