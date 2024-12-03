@@ -191,7 +191,7 @@ object Classifier {
    * @param taxonomy Parent map for taxa
    * @param title Sequence title/ID
    * @param sortedHits Taxon hits (minimizers) in order
-   * @param confidenceThreshold Minimum fraction of k-mers/minimizers that must be in the match (KeyValueIndex only)
+   * @param confidenceThreshold Minimum fraction of k-mers/minimizers that must be in the match
    * @param k Length of k-mers
    * @param cpar Classify parameters
    */
@@ -199,7 +199,7 @@ object Classifier {
                confidenceThreshold: Double, k: Int, cpar: ClassifyParams): ClassifiedRead = {
     val lca = new LowestCommonAncestor(taxonomy)
 
-    val totalSummary = TaxonCounts.concatenate(sortedHits.map(_.summary))
+    val totalSummary = TaxonCounts.fromHits(sortedHits)
 
     val taxon = lca.resolveTree(totalSummary, confidenceThreshold)
     val classified = taxon != Taxonomy.NONE && sufficientHitGroups(sortedHits, cpar.minHitGroups)

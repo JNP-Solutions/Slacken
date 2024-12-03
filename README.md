@@ -252,7 +252,7 @@ these drives for temporary space. We have found the m7gd and m6gd machine famili
 
 To run on AWS EMR, first, install the AWS CLI. 
 Copy `slacken-aws.sh.template` to a new file, e.g. `slacken-aws.sh` and edit the file to configure
-some settings such as the S3 bucket to use for thie Slacken jar. Then, create the AWS EMR cluster, and set its ID using
+some settings such as the S3 bucket to use for the Slacken jar. Then, create the AWS EMR cluster, and set its ID using
 the `AWS_EMR_CLUSTER` environment variable. `slacken-aws.sh` may then be invoked in the same way as `slacken.sh` in the 
 examples above.
 
