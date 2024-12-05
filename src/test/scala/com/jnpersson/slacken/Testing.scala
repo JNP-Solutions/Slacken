@@ -94,6 +94,10 @@ object Testing {
     }
   }
 
+  def taxonHits(taxa: Array[Taxon], kmers: Int): Gen[TaxonHit] = {
+    Gen.oneOf(taxa).map( t => TaxonHit(Array(0), 0, t, kmers))
+  }
+
 }
 
 object TestData {
