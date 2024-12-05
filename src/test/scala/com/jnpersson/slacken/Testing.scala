@@ -53,20 +53,20 @@ object Testing {
       yield (n, parent, rank.title)
 
   /** Generator for taxonomies of a given size (number of nodes).
-   * An equal number of nodes at every taxonomic rank will be generated.
-   * Nodes at higher levels will have lower IDs than at lower levels.
+   * An equal number of nodes at every taxonomic rank will be generated (except Root,
+   * which will have one node).
+   * @param size Approximate number of nodes in the taxonomy (at least this many is guaranteed)
    */
   def taxonomies(size: Int): Gen[Taxonomy] = {
     import org.scalacheck.util.Buildable.buildableSeq
 
     // Guarantee at least size number of nodes in the taxonomy
-    val levelSize = (size-1) / Taxonomy.rankValues.size + 1
+    val levelSize = size / (Taxonomy.rankValues.size - 1) + 1
     //Generate data for every level (rank) in the tree and then compose them
     val levelGenerators: Gen[Seq[(Taxon, Taxon, String)]] =
       Gen.sequence(for {
       rank <- Taxonomy.rankValues
       if rank != Taxonomy.Root
-      subLevel <- Seq(1, 2) //simulate e.g. S1, S2
       maxParent = (rank.depth - 1) * levelSize + 1 //each level has a fixed ID range
       id <- ((rank.depth - 1) * levelSize + 2) until (rank.depth * levelSize + 2)
     } yield taxonAtLevel(id, rank, maxParent))
