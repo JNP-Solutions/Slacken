@@ -22,7 +22,7 @@ class ClassifierProps extends AnyFunSuite with ScalaCheckPropertyChecks with Mat
 
   test("resolveTree") {
     forAll(taxonomies(100), Gen.choose(10, 100), Gen.choose(1, 99)) { (t, k, taxon) =>
-      whenever(taxon > 0) {
+      whenever(taxon > 0 && taxon < t.size) {
         val lca = new LowestCommonAncestor(t)
         forAll(readHits(taxon, k)) { hits =>
           val r = lca.resolveTree(TaxonCounts.fromHits(hits), 0)
@@ -38,7 +38,7 @@ class ClassifierProps extends AnyFunSuite with ScalaCheckPropertyChecks with Mat
   test("resolveTree lineage") {
     forAll(taxonomies(100), Gen.choose(10, 100), Gen.choose(1, 99)) { (t, k, taxon) =>
       // prevent taxon from shrinking below 1
-      whenever(taxon > 0) {
+      whenever(taxon > 0 && taxon < t.size) {
         val lca = new LowestCommonAncestor(t)
         forAll(readHitsLineage(t, taxon, k)) { hits =>
           val lowestHit = hits.sortBy(hit => t.depth(hit.taxon)).last.taxon
