@@ -41,12 +41,13 @@ class ClassifierProps extends AnyFunSuite with ScalaCheckPropertyChecks with Mat
       whenever(taxon > 0 && taxon < t.size) {
         val lca = new LowestCommonAncestor(t)
         forAll(readHitsLineage(t, taxon, k)) { hits =>
-          val lowestHit = hits.sortBy(hit => t.depth(hit.taxon)).last.taxon
           val r = lca.resolveTree(TaxonCounts.fromHits(hits), 0)
           if (hits.size == 0)
             r should equal(Taxonomy.NONE)
-          else
+          else {
+            val lowestHit = hits.sortBy(hit => t.depth(hit.taxon)).last.taxon
             r should equal(lowestHit)
+          }
         }
       }
     }
