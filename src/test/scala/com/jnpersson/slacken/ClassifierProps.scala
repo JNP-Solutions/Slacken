@@ -45,7 +45,7 @@ class ClassifierProps extends AnyFunSuite with ScalaCheckPropertyChecks with Mat
           if (hits.size == 0)
             r should equal(Taxonomy.NONE)
           else {
-            val lowestHit = hits.sortBy(hit => t.depth(hit.taxon)).last.taxon
+            val lowestHit = hits.map(_.taxon).maxBy(t.depth)
             r should equal(lowestHit)
           }
         }
