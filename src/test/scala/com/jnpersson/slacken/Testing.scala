@@ -59,7 +59,8 @@ object Testing {
   def taxonomies(size: Int): Gen[Taxonomy] = {
     import org.scalacheck.util.Buildable.buildableSeq
 
-    val levelSize = size / 10
+    // Guarantee at least size number of nodes in the taxonomy
+    val levelSize = (size-1) / Taxonomy.rankValues.size + 1
     //Generate data for every level (rank) in the tree and then compose them
     val levelGenerators: Gen[Seq[(Taxon, Taxon, String)]] =
       Gen.sequence(for {
