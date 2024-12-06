@@ -42,15 +42,23 @@ Slacken has its own database format and can not use pre-built Kraken 2 databases
 ### Running Slacken
 
 Minimal single-machine prerequisites: 
-* [Spark](https://spark.apache.org/downloads.html) 3.5.0 or later (pre-built, for Scala 2.12. The Scala 2.13 version is not compatible.) 
+* [Spark](https://spark.apache.org/downloads.html) 3.5.0 or later (pre-built, for Scala 2.12. The Scala 2.13 version is not compatible.) It is sufficient to download and extract the Spark distribution somewhere.
 * 16 GB or more of RAM (32 GB or more recommended).
 * A fast SSD drive for temporary space is very helpful. The amount of space required depends on the size of the libraries.
 
-The following environment variables should now be set:
+Set up the environment:
 
-* `SPARK_HOME` should point to the unzipped Spark download
-* `SLACKEN_TMP` should point to a location for scratch space on a fast hard drive
-* `SLACKEN_MEMORY`, which defaults to `16g`, may optionally be configured.
+```commandline
+#path to the Spark distribution
+export SPARK_HOME=SPARK_HOME=/usr/local/spark-3.5.1-bin-hadoop3  
+
+#a location for scratch space on a fast hard drive
+export SLACKEN_TMP=/tmp
+
+#Optional memory limit. The default is 16g, which we recommend as the minimum 
+#for single-machine use. More is better.
+export SLACKEN_MEMORY=32g
+```
 
 Check that it works: 
 `./slacken.sh --help`
@@ -60,7 +68,36 @@ These options may also be permanently configured by editing `slacken.sh`.
 While Slacken is running, the Spark UI may be inspected at [http://localhost:4040](http://localhost:4040) if the process is running
 locally. We refer users to the Spark documentation for more details.
 
-### Building a library
+### Obtaining a pre-built genomic library
+
+We provide pre-built libraries in a public S3 bucket at s3://onr-emr. The current version is based on
+RefSeq release 224.
+
+They may be obtained from:
+
+RSPC (RefSeq prefer complete):
+
+* Slacken index (1.8 TB): s3://onr-emr/keep/rspc_35_31_s7/
+* Bracken weights: s3://onr-emr/keep/std_35_31_s7_bracken/
+* Genomes location for dynamic libraries (1.8 TB): s3://onr-emr/refseq-224pc/
+* Taxonomy: s3://onr-emr/keep/rspc_35_31_s7_taxonomy/
+
+Standard (corresponds to Kraken 2 standard library):
+
+* Slacken index (276 GB): s3://onr-emr/keep/std_35_31_s7/
+* Bracken weights: s3://onr-emr/keep/std_35_31_s7_bracken/
+* Genomes location for dynamic libraries: s3://onr-emr/standard-224c/
+* Taxonomy: s3://onr-emr/keep/std_35_31_s7_taxonomy/
+
+The libraries are hosted in the us-east-1 region of AWS, and when running AWS EMR in that region,
+these libraries may be accessed directly from the public S3 bucket without downloading.
+
+TODO: properties file/directory structure
+
+TODO: step by step instructions for using
+
+
+### Building a custom library
 
 #### Obtaining genomes with Kraken2-build
 
