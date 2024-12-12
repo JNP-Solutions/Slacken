@@ -1,6 +1,6 @@
 ## Quality metrics for Slacken (and Kraken 2) classification experiments 
 
-These files (`All_metrics.tsv` and `All_bmetrics.tsv`) contain experimental results for Slacken and Kraken 2. 
+The files `All_metrics.tsv` and `All_bmetrics.tsv` contain experimental results for Slacken and Kraken 2. 
 Each line in the files corresponds to the classification of a single metagenomic sample with a given set of parameters, 
 and then comparing with the known ground truth. For bmetrics, Bracken has also been applied after running either Slacken or Kraken 2.
 
@@ -13,10 +13,11 @@ A total of 160 samples from six sample groups were classified.
 
 ### Common columns in both files
 
-* Library: genomic library (std or rspc)
+* Library: genomic library: "std" or "rspc" in the case of Slacken, or "kraken2" to indicate that Kraken 2 was used with the std library.
 * Group: sample family (e.g. CAMI2 strain/plant_associated/marine, or the noise model for in silico samples). 
-Samples in the same group were classified together in multisample mode.
-* Sample: unique sample identifier within the group
+When using Slacken, samples in the same group were classified together in multisample mode. For strain samples, samples 0-50 
+and samples 51-99 were classified as two separate groups for technical reasons.
+* Sample: unique sample identifier within the group. For CAMI2 samples, this corresponds to the CAMI2 sample ID.
 * c: confidence score for Slacken/Kraken 2 classification. We evaluated c=0.15, 0.10, 0.05 and 0.00.
 
 ### All_metrics.tsv (read binning results, pre-Bracken)
@@ -41,9 +42,9 @@ assigned to it. This test has no relation to the 2-step heuristic threshold (R10
 * read_vp: number of reads vaguely classified (in the lineage above the true taxon)
 * read_fp: number of reads incorrectly classified
 * read_fn: number of reads not classified (but that had a ground truth mapping)
-* read_ppv: precision of read classifications (|tp|/|tp + fp|)
+* read_ppv: precision of read classifications (|tp|/|classified|)
 * read_sensitivity sensitivity of read classifications (|tp|/|total|)
-* read_index: hard index (see our paper for details)
+* read_index: index (see our paper for details)
 
 #### Read fractions of total metrics
 
@@ -72,9 +73,29 @@ sample is represented as a vector with entries in the range [0,1].
 * TP: number of true positive taxa
 * FP: number of false positive taxa
 * FN: number of false negative taxa
-* Precision: precision of the taxon set (|tp|/|tp + fp|)
+* Precision: precision of the taxon set (|tp|/|classified|)
 * Recall: recall of the taxon set (|tp|/|reference|)
 
 #### Other
 
 * Added reads: fraction of reads added by Bracken
+
+## Taxon detection heuristic metrics for Slacken
+
+### heuristicTaxa.tsv
+
+The file `heuristicTaxa.tsv` contains details about the taxon sets detected by the various heuristics (R1, R10, R100) 
+during 2-step classification. Each line corresponds to one run of Slacken with a given sample family, genomic library, and heuristic.
+
+* Type: in silico or CAMI2 samples
+* Dataset: sample family, e.g. strain/marine/plant_associated for CAMI2, or the noise model for in silico samples.
+Strain samples 0-50 and 51-99 were run separately, so that family has twice as many datasets as the others.
+* Classifier: library and heuristic used, e.g. std_R10 for the standard library with the R10 heuristic.
+* Detected taxa: Number of species-level taxa detected
+* Expanded taxa: Number of taxa in the detected set after adding descendants, such as strain taxa
+* Gold set size: Number of species-level (and below) taxa in the gold set for this sample family
+* TP: Number of true positive taxa detected (members of the gold set)
+* FP: Number of false positives detected
+* FN: Number of false negatives (members of the gold set not detected)
+* Precision: Precision of the detected taxon set (|tp|/|detected|)
+* Recall: Recall of the detected taxon set (|tp|/|gold set|)
