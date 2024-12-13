@@ -9,10 +9,15 @@ The following changes were made:
  * Multiple filter levels supported (instead of just complete/incomplete genomes)
  * Performance improvements
 
-Slacken does not yet support protein (AA) databases.
+Slacken does not yet support protein (AA) databases. These scripts can only download nucleotide sequences.
 
-For the download process to work, the kraken2 binaries must be installed and available in the path (in particular,
-k2mask). Other dependencies: seqkit (https://bioinf.shenwei.me/seqkit/download/), curl, Scala 2.12, perl.
+Dependencies that must be available in $PATH:
+
+* the kraken2 binaries (in particular, k2mask)
+* seqkit (https://bioinf.shenwei.me/seqkit/download/)
+* curl
+* Scala 2.12 (https://www.scala-lang.org/download/all.html)
+* perl
 
 The directory $KRAKEN2_DB_NAME/library will be created and genomes will be stored there.
 The taxonomy will be downloaded to $KRAKEN2_DB_NAME/taxonomy.
