@@ -1,8 +1,9 @@
 ## Overview
 
-Slacken implements metagenomic classification based on k-mers and minimizers. It can closely mimic the behaviour of 
-[Kraken 2](https://github.com/DerrickWood/kraken2)[1], while also supporting a wider parameter space and additional algorithms. 
-In particular, it supports sample-tailored libraries, where the minimizer library is built on the fly as part of read classification.
+Slacken implements metagenomic classification based on k-mers and minimizers. It implements the
+[Kraken 2](https://github.com/DerrickWood/kraken2)[1] algorithm, while also supporting a wider parameter space and additional 
+algorithms. In particular, it supports sample-tailored libraries, where the minimizer library is built on the fly as part 
+of read classification.
 
 
 Copyright (c) Johan Nyström-Persson 2019-2024.
@@ -250,9 +251,9 @@ respectively.
 ## Technical details
 
 
-### Building a custom library
+### Building a library
 
-#### Obtaining genomes with Kraken2-build
+#### Building from a new or existing Kraken 2 library
 
 Slacken is compatible with the Kraken 2 build process. Genomes downloaded for Kraken 2 can also be used to
 build a Slacken database, as long as `.fai` index files have also been generated (see below).
@@ -267,15 +268,16 @@ archaea, human, fungi, are also available.
 
 For more help, see `kraken2-build --help`.
 
-After the genomes have been downloaded, it is necessary to generate faidx index files. This can be done using e.g.
-[seqkit](https://bioinf.shenwei.me/seqkit/):
+After the genomes have been downloaded and masked in this way, and `seqid2taxid.map` has been generated, it is necessary 
+to generate faidx index files. This can be done using e.g. [seqkit](https://bioinf.shenwei.me/seqkit/):
 
 `seqkit faidx k2/library/bacteria/library.fna`
 
 This generates the index file `library.fna.fai`, which Slacken needs. This step must be repeated for every fasta/fna file
-that will be indexed.
+that will be indexed. If you already have a pre-existing Kraken 2 library with genomes, generating the faidx files is 
+sufficient preparation.
 
-Unlike with Kraken 2, genome sequence files may be needed even after index construction, for example during dynamic
+Unlike with Kraken 2, the sequence files (`.fna`) may be needed even after building the index to enable dynamic
 classification. Deleting them to save space is not recommended (i.e., avoid running `kraken2-build --clean`).
 
 #### Obtaining genomes with the provided build scripts
@@ -285,6 +287,8 @@ of the Kraken 2 build scripts in `scripts/k2` for downloading genomes and the ta
 that directory for more details.
 
 #### Building the index
+
+After the input files have been prepared as above, the index may be built:
 
 ```
 ./slacken.sh  -p 2000 -k 35 -m 31 -t k2/taxonomy  taxonIndex mySlackenLib \
