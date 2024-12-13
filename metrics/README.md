@@ -85,7 +85,7 @@ sample is represented as a vector with entries in the range [0,1].
 ### heuristicTaxa.tsv
 
 The file `heuristicTaxa.tsv` contains details about the taxon sets detected by the various heuristics (R1, R10, R100) 
-during 2-step classification. Each line corresponds to one run of Slacken with a given sample family, genomic library, and heuristic.
+during 2-step classification. Each line corresponds to one multi-sample run of Slacken with a given sample family, genomic library, and heuristic.
 
 * Type: in silico or CAMI2 samples
 * Dataset: sample family, e.g. strain/marine/plant_associated for CAMI2, or the noise model for in silico samples.
@@ -93,7 +93,9 @@ Strain samples 0-50 and 51-99 were run separately, so that family has twice as m
 * Classifier: library and heuristic used, e.g. std_R10 for the standard library with the R10 heuristic.
 * Detected taxa: Number of species-level taxa detected
 * Expanded taxa: Number of taxa in the detected set after adding descendants, such as strain taxa
-* Gold set size: Number of species-level (and below) taxa in the gold set for this sample family
+* Gold set size: Number of species-level (and below) taxa in the gold set for this sample family. 
+This is the set of taxa from the union of the ground truth mappings for all the samples in this run, promoted to a higher
+level if necessary (e.g. strain to species) to match the genomic library being used.
 * TP: Number of true positive taxa detected (members of the gold set)
 * FP: Number of false positives detected
 * FN: Number of false negatives (members of the gold set not detected)
