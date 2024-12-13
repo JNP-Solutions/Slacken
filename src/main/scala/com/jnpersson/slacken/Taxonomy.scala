@@ -157,7 +157,8 @@ object Taxonomy {
  * @param scientificNames Lookup array mapping taxon ID to scientific names. May be null.
  * @param primary Lookup array mapping taxon ID (offset) to standard taxon ID. Reflects NCBI merged.dmp .
  */
-final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificNames: Array[String], primary: Array[Taxon]) {
+final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificNames: Array[String],
+                          primary: Array[Taxon]) {
   import Taxonomy._
 
   //Size of the range of this taxonomy, including unused taxa.

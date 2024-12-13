@@ -11,13 +11,14 @@ Copyright (c) Johan Nyström-Persson 2019-2024.
 1. [Basics](#basics)
   - [Introduction](#introduction)
   - [Running Slacken](#running-slacken)
-  - [Building a library](#building-a-library)
+  - [Pre-built genomic libraries](#obtaining-a-pre-built-genomic-library)
   - [Classifying reads (1-step)](#classifying-reads-1-step)
   - [Multi-sample mode](#multi-sample-mode)
   - [Use with Bracken](#use-with-bracken)
   - [Classifying reads (2-step/dynamic)](#classifying-reads-using-a-dynamic-index-2-step-method)
   - [Running on AWS EMR](#running-on-aws-emr-or-large-clusters)
 2. [Technical details](#technical-details)
+  - [Building a library](#building-a-library)
   - [Discrepancies between Slacken and Kraken 2](#discrepancies-between-slacken-and-kraken-2)
   - [Compiling](#compiling)
   - [Citation](#citation)
@@ -42,15 +43,23 @@ Slacken has its own database format and can not use pre-built Kraken 2 databases
 ### Running Slacken
 
 Minimal single-machine prerequisites: 
-* [Spark](https://spark.apache.org/downloads.html) 3.5.0 or later (pre-built, for Scala 2.12. The Scala 2.13 version is not compatible.) 
+* [Spark](https://spark.apache.org/downloads.html) 3.5.0 or later (pre-built, for Scala 2.12. The Scala 2.13 version is not compatible.) It is sufficient to download and extract the Spark distribution somewhere.
 * 16 GB or more of RAM (32 GB or more recommended).
 * A fast SSD drive for temporary space is very helpful. The amount of space required depends on the size of the libraries.
 
-The following environment variables should now be set:
+Set up the environment:
 
-* `SPARK_HOME` should point to the unzipped Spark download
-* `SLACKEN_TMP` should point to a location for scratch space on a fast hard drive
-* `SLACKEN_MEMORY`, which defaults to `16g`, may optionally be configured.
+```commandline
+#path to the Spark distribution
+export SPARK_HOME=SPARK_HOME=/usr/local/spark-3.5.1-bin-hadoop3  
+
+#a location for scratch space on a fast hard drive
+export SLACKEN_TMP=/tmp
+
+#Optional memory limit. The default is 16g, which we recommend as the minimum 
+#for single-machine use. More is better.
+export SLACKEN_MEMORY=32g
+```
 
 Check that it works: 
 `./slacken.sh --help`
@@ -60,56 +69,34 @@ These options may also be permanently configured by editing `slacken.sh`.
 While Slacken is running, the Spark UI may be inspected at [http://localhost:4040](http://localhost:4040) if the process is running
 locally. We refer users to the Spark documentation for more details.
 
-### Building a library
+### Obtaining a pre-built genomic library
 
-#### Obtaining genomes with Kraken2-build
+We provide pre-built libraries in a public S3 bucket at s3://onr-emr. The current version is based on
+RefSeq release 224.
 
-Slacken is compatible with the Kraken 2 build process. Genomes downloaded for Kraken 2 can also be used to
-build a Slacken database, as long as `.fai` index files have also been generated (see below).
+They may be obtained from:
 
-The build scripts from [Kraken 2](https://github.com/DerrickWood/kraken2) can automatically download the taxonomy and 
-genomes. For example, after installing kraken 2:
+RSPC (RefSeq prefer complete):
 
-`kraken2-build --db k2 --download-taxonomy` downloads the taxonomy into the directory `k2/taxonomy`.
+* Slacken index (1.8 TB): s3://onr-emr/keep/rspc_35_31_s7/
+* Bracken weights: s3://onr-emr/keep/std_35_31_s7_bracken/
+* Genomes location for dynamic libraries (1.8 TB): s3://onr-emr/refseq-224pc/
+* Taxonomy: s3://onr-emr/keep/rspc_35_31_s7_taxonomy/
 
-`kraken2-build --db k2 --download-library bacteria` downloads the bacterial library (large). Other libraries, e.g. 
-archaea, human, fungi, are also available.
+Standard (corresponds to Kraken 2 standard library):
 
-For more help, see `kraken2-build --help`.
+* Slacken index (276 GB): s3://onr-emr/keep/std_35_31_s7/
+* Bracken weights: s3://onr-emr/keep/std_35_31_s7_bracken/
+* Genomes location for dynamic libraries: s3://onr-emr/standard-224c/
+* Taxonomy: s3://onr-emr/keep/std_35_31_s7_taxonomy/
 
-After the genomes have been downloaded, it is necessary to generate faidx index files. This can be done using e.g.
-[seqkit](https://bioinf.shenwei.me/seqkit/):
+The libraries are hosted in the us-east-1 region of AWS, and when running AWS EMR in that region,
+these libraries may be accessed directly from the public S3 bucket without downloading them.
 
-`seqkit faidx k2/library/bacteria/library.fna`
+TODO: properties file/directory structure
 
-This generates the index file `library.fna.fai`, which Slacken needs. This step must be repeated for every fasta/fna file
-that will be indexed.
+TODO: step by step instructions for using
 
-Unlike with Kraken 2, genome sequence files may be needed even after index construction, for example during dynamic 
-classification. Deleting them to save space is not recommended (i.e., avoid running `kraken2-build --clean`).
-
-#### Obtaining genomes with the provided build scripts
-
-As a hopefully faster and more reliable alternative to kraken2-build, we have included modified and optimised versions of the Kraken 2 build scripts in `scripts/k2` for 
-downloading genomes and the taxonomy. Please refer to README.txt in that directory for more details.
-
-#### Building the index
-
-```
-./slacken.sh  -p 2000 -k 35 -m 31 -t k2/taxonomy  taxonIndex mySlackenLib \
-  build -l k2 
-```
-
-Where: 
-* `-p 2000` is the number of partitions (should be larger for larger libraries. When tuning this, the aim is 50-100 MB per output file)
-* `-k 35` is the k-mer (window) size
-* `-m 31` is the minimizer size
-* `mySlackenLib` is the location where the built library will be stored (a directory will be created or overwritten)
-* `-t` is the directory where the NCBI taxonomy is stored (names.dmp, nodes.dmp, and merged.dmp, see above)
-* `k2` is a directory containing seqid2taxid.map, which maps sequence IDs to taxa, and the subdirectory 
-  `library/` which will be scanned recursively for `*.fna` sequence files and their corresponding `*.fna.fai` index files
-
-More help: `./slacken.sh --help`
 
 ### Classifying reads (1-step)
 
@@ -261,6 +248,63 @@ The files [scripts/slacken_pipeline.sh](scripts/slacken_pipeline.sh) and
 respectively.
 
 ## Technical details
+
+
+### Building a custom library
+
+#### Obtaining genomes with Kraken2-build
+
+Slacken is compatible with the Kraken 2 build process. Genomes downloaded for Kraken 2 can also be used to
+build a Slacken database, as long as `.fai` index files have also been generated (see below).
+
+The build scripts from [Kraken 2](https://github.com/DerrickWood/kraken2) can automatically download the taxonomy and
+genomes. For example, after installing kraken 2:
+
+`kraken2-build --db k2 --download-taxonomy` downloads the taxonomy into the directory `k2/taxonomy`.
+
+`kraken2-build --db k2 --download-library bacteria` downloads the bacterial library (large). Other libraries, e.g.
+archaea, human, fungi, are also available.
+
+For more help, see `kraken2-build --help`.
+
+After the genomes have been downloaded, it is necessary to generate faidx index files. This can be done using e.g.
+[seqkit](https://bioinf.shenwei.me/seqkit/):
+
+`seqkit faidx k2/library/bacteria/library.fna`
+
+This generates the index file `library.fna.fai`, which Slacken needs. This step must be repeated for every fasta/fna file
+that will be indexed.
+
+Unlike with Kraken 2, genome sequence files may be needed even after index construction, for example during dynamic
+classification. Deleting them to save space is not recommended (i.e., avoid running `kraken2-build --clean`).
+
+#### Obtaining genomes with the provided build scripts
+
+As a hopefully faster and more reliable alternative to kraken2-build, we have included modified and optimised versions 
+of the Kraken 2 build scripts in `scripts/k2` for downloading genomes and the taxonomy. Please refer to README.txt in 
+that directory for more details.
+
+#### Building the index
+
+```
+./slacken.sh  -p 2000 -k 35 -m 31 -t k2/taxonomy  taxonIndex mySlackenLib \
+  build -l k2 
+```
+
+Where:
+* `-p 2000` is the number of partitions (should be larger for larger libraries. When tuning this, the aim is 50-100 MB 
+per output file)
+* `-k 35` is the k-mer (window) size
+* `-m 31` is the minimizer size
+* `mySlackenLib` is the location where the built library will be stored (a directory will be created or overwritten)
+* `-t` is the directory where the NCBI taxonomy is stored (names.dmp, nodes.dmp, and merged.dmp, see above)
+* `k2` is a directory containing seqid2taxid.map, which maps sequence IDs to taxa, and the subdirectory
+  `library/` which will be scanned recursively for `*.fna` sequence files and their corresponding `*.fna.fai` index files
+
+We have found that 2000 partitions is suitable for the standard library, and 30,000 is reasonable for a large library 
+with 1.8 TB of FASTA input sequences.
+
+More help: `./slacken.sh --help`
 
 ### Discrepancies between Slacken and Kraken 2
 
