@@ -95,7 +95,7 @@ def aggkreports(datasetPathsDict,classifierDict,classifiers,ds_name):
 
 def saveplot(result, dName, figName):
     pivot_df = result.pivot(index='classifier', columns='Group', values='ratio').fillna(0)
-    print(pivot_df)
+    #print(pivot_df)
     group_order = ['U', 'H', 'F', 'G', 'S']
     group_labels = {'S': 'Species', 'G': 'Genus', 'F': 'Family', 'H': 'Above Family', 'U': 'Unclassified'}
     colors = ['#B7B7B7', '#F8333C', '#FCAB10', '#2B9EB3', '#44AF69']
@@ -114,11 +114,11 @@ def saveplot(result, dName, figName):
     ax.set_title(f'{dName}', fontsize=14)
 
     handles, labels = ax.get_legend_handles_labels()
-    print(handles, labels)
+    #print(handles, labels)
     new_label_order = ['S', 'G', 'F', 'H', 'U']
     new_labels = [group_labels[label] for label in new_label_order]
     new_handles = [handles[labels.index(label)] for label in new_label_order]
-    print(handles, new_handles)
+    #print(handles, new_handles)
     ax.legend(new_handles, new_labels, title='Classifications', bbox_to_anchor=(1.01, 1), loc='upper left', fontsize=12)
 
 
@@ -142,7 +142,7 @@ def saveplot(result, dName, figName):
     # Save the plot as an image file with the legend included
     #plt.savefig(f'/Users/n-dawg/Nextcloud/SBIshared/Slacken_graphs/All/multilevel_stacked_barcharts/{dName}.jpg',
     #            bbox_inches="tight", dpi=400)
-    plt.savefig(f'/Users/n-dawg/IdeaProjects/Slacken-SBI/scripts/paper_figures/Figures/multilevel_stacked_barcharts/'+figName+".jpg",bbox_inches="tight", dpi=400)
+    plt.savefig(f'../Figures/'+figName+".jpg",bbox_inches="tight", dpi=400)
     #plt.show()
 
 def saveplot4(result_list, dNames, figName):
@@ -199,7 +199,7 @@ def saveplot4(result_list, dNames, figName):
         fig.tight_layout()
 
     #plt.savefig('/Users/n-dawg/Nextcloud/SBIshared/Slacken_graphs/All/multilevel_stacked_barcharts/multiple_datasets.jpg', bbox_inches="tight", dpi=400)
-    plt.savefig(f'/Users/n-dawg/IdeaProjects/Slacken-SBI/scripts/paper_figures/Figures/multilevel_stacked_barcharts/'+figName+".jpg",bbox_inches="tight", dpi=400)
+    plt.savefig(f'../Figures/'+figName+".jpg",bbox_inches="tight", dpi=400)
 
 
 #classifiers=['rspc_1-step','rspc_R100','rspc_R10','rspc_R1']
@@ -214,14 +214,14 @@ dataset_list=list(names.keys())
 #     saveplot(resultDf,dataset)
 
 result_list_1 = [aggkreports(names, name_classifier, ['rspc_1-step','rspc_R100','rspc_R10','rspc_R1','std_1-step','std_R100','std_R10','std_R1'], dataset) for dataset in dataset_list[:4]]  # Limit to 4 datasets
-saveplot4(result_list_1, dataset_list[:4],'multiple_datasets')
+saveplot4(result_list_1, dataset_list[:4],'multilevel_stacked_barcharts/multiple_datasets')
 df_result1= aggResultDf(result_list_1,dataset_list[:4])
-df_result1[''.to_csv("/Users/n-dawg/IdeaProjects/Slacken-SBI/scripts/paper_figures/FigureData/multiple_datasets.csv",index=False)
+df_result1.to_csv("../FigureData/multiple_datasets.csv",index=False)
 
 
 result_list_2 = [aggkreports(names, name_classifier, ['rspc_1-step','rspc_R100','std_1-step','std_R100', 'rspc_gold', 'std_gold'], dataset) for dataset in dataset_list[:4]]  # Limit to 4 datasets
-saveplot4(result_list_2, dataset_list[:4],'multiple_datasets_gold')
-df_result2= aggResultDf(result_list_2,dataset_list[:4])
-df_result2.to_csv("/Users/n-dawg/IdeaProjects/Slacken-SBI/scripts/paper_figures/FigureData/multiple_datasets_gold.csv",index=False)
+saveplot4(result_list_2, dataset_list[:4],'multilevel_stacked_barcharts/multiple_datasets_gold')
+df_result2 = aggResultDf(result_list_2,dataset_list[:4])
+df_result2.to_csv("../FigureData/multiple_datasets_gold.csv",index=False)
 
 
