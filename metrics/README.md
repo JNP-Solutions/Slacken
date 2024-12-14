@@ -42,9 +42,12 @@ assigned to it. This test has no relation to the 2-step heuristic threshold (R10
 * read_vp: number of reads vaguely classified (in the lineage above the true taxon)
 * read_fp: number of reads incorrectly classified
 * read_fn: number of reads not classified (but that had a ground truth mapping)
-* read_ppv: precision of read classifications (|tp|/|classified|)
-* read_sensitivity sensitivity of read classifications (|tp|/|total|)
-* read_index: index (see our paper for details)
+* read_ppv: precision of read classifications (|tp|/(|tp| + |fp|))
+* read_sensitivity: sensitivity of read classifications (|tp|/|total|)
+* read_recall: recall of read classifications (|tp|/(|tp| + |fn|))
+* read_index: index -- a weighted average of the specificity of each read (see our paper for details)
+* read_softIndex: soft index -- a weighted average of specificity that also penalises false negatives 
+(see our paper for details)
 
 #### Read fractions of total metrics
 
@@ -58,7 +61,10 @@ absolute counts.
 
 ### All_bmetrics.tsv (read profiling results, post-Bracken)
 
-This file was computed by `scripts/comparison/compare_bracken_kraken.scala`.
+This file was computed by `scripts/comparison/compare_bracken_kraken.scala`. The ground truth was for the CAMI2 samples
+obtained from the CAMI2 gold standard mapping, where reads that had no species-level mapping were first filtered out.
+This allowed us to compare with a true read profile for each sample. For In Silico samples, the ground truth was known
+by construction.
 
 #### Ground truth distances
 
