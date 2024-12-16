@@ -10,25 +10,22 @@ then
   exit 1
 fi
 
-#Bucket to store Slacken jars and data files
-BUCKET=s3://path/to/slacken
+#Path to Slacken jar on S3.
+JAR=s3://slacken-sbi/Slacken-assembly-1.0.0.jar
 
 #Try to figure out where this script is located
 SLACKEN_HOME="$(dirname -- "$(readlink -f "${BASH_SOURCE}")")"
 
-#Copy jars and data files the first time only, after which the following line can safely be commented out
-aws s3 cp $SLACKEN_HOME/target/scala-2.12/Slacken-assembly-1.0.0.jar $BUCKET/
-
 #Max size of input splits in bytes. A smaller number reduces memory usage but increases the number of 
-#partitions for the first stage. If this variable is unset, Spark's default of 128 MB will be used.
+#partitions for input files. If this variable is unset, Spark's default of 128 MB will be used.
 #SPLIT="spark.hadoop.mapreduce.input.fileinputformat.split.maxsize=$((64 * 1024 * 1024))"
 
 #To set SPLIT, uncomment below.
-#Usually, the default values are fine.
+#Usually, the default value is fine.
 COMMAND=( \
 #  --conf $SPLIT \
   --conf spark.driver.memory=24g \
-  --class com.jnpersson.slacken.Slacken $BUCKET/Slacken-assembly-1.0.0.jar $*)
+  --class com.jnpersson.slacken.Slacken $JAR $*)
 
 
 #Turn off paging for output
