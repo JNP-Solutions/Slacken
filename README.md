@@ -279,7 +279,7 @@ classification. Deleting them to save space is not recommended (i.e., avoid runn
 #### Obtaining genomes with the provided build scripts
 
 As a hopefully faster and more reliable alternative to kraken2-build, we have included modified and optimised versions 
-of the Kraken 2 build scripts in `scripts/k2` for downloading genomes and the taxonomy. Please refer to README.txt in 
+of the Kraken 2 build scripts in [scripts/k2](scripts/k2) for downloading genomes and the taxonomy. Please refer to README.txt in 
 that directory for more details.
 
 #### Building the index
