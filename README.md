@@ -17,7 +17,7 @@ Copyright (c) Johan Nyström-Persson 2019-2024.
   - [Multi-sample mode](#multi-sample-mode)
   - [Use with Bracken](#use-with-bracken)
   - [Classifying reads (2-step/dynamic)](#classifying-reads-using-a-dynamic-index-2-step-method)
-  - [Running on AWS EMR](#running-on-aws-emr-or-large-clusters)
+  - [Running on AWS Elastic MapReduce or large clusters](#running-on-aws-elastic-mapreduce-or-large-clusters)
 2. [Technical details](#technical-details)
   - [Building a library](#building-a-library)
   - [Discrepancies between Slacken and Kraken 2](#discrepancies-between-slacken-and-kraken-2)
@@ -72,29 +72,19 @@ locally. We refer users to the Spark documentation for more details.
 
 ### Obtaining a pre-built genomic library
 
-We provide pre-built libraries in a public S3 bucket at s3://onr-emr. The current version is based on
+We provide a pre-built library in a public S3 bucket at s3://slacken-sbi. The current version is based on
 RefSeq release 224.
-
-They may be obtained from:
-
-RSPC (RefSeq prefer complete):
-
-* Slacken index (1.8 TB): s3://onr-emr/keep/rspc_35_31_s7/
-* Bracken weights: s3://onr-emr/keep/std_35_31_s7_bracken/
-* Genomes location for dynamic libraries (1.8 TB): s3://onr-emr/refseq-224pc/
-* Taxonomy: s3://onr-emr/keep/rspc_35_31_s7_taxonomy/
 
 Standard (corresponds to Kraken 2 standard library):
 
-* Slacken index (276 GB): s3://onr-emr/keep/std_35_31_s7/
-* Bracken weights: s3://onr-emr/keep/std_35_31_s7_bracken/
-* Genomes location for dynamic libraries: s3://onr-emr/standard-224c/
-* Taxonomy: s3://onr-emr/keep/std_35_31_s7_taxonomy/
+* Compressed bundle for download (164 GB): https://s3.amazonaws.com/slacken-sbi/library/standard-224c.tar.gz
+* Slacken index: s3://slacken-sbi/library/standard-224c/std_35_31_s7/
+* Bracken weights: s3://slacken-sbi/library/standard-224c/std_35_31_s7_bracken/
+* Genomes location for dynamic libraries: s3://slacken-sbi/library/standard-224c/
+* Taxonomy: s3://slacken-sbi/library/standard-224c/std_35_31_s7_taxonomy/
 
 The libraries are hosted in the us-east-1 region of AWS, and when running AWS EMR in that region,
 these libraries may be accessed directly from the public S3 bucket without downloading them.
-
-TODO: properties file/directory structure
 
 TODO: step by step instructions for using
 
@@ -115,17 +105,14 @@ Where
 * `test_class` is the directory where the output will be stored. Individual read classifications and a file 
 `test_class_kreport.txt` will be created.
 
-To classify mate pairs, the `-p` flag may be used. Input files are then expected to be in alternating order:
+To classify mate pairs, the `-p` flag may be used. Input files are then expected to be paired up in sequence:
 
 ```
 ./slacken.sh taxonIndex mySlackenLib classify -p sample01.1.fq sample01.2.fq \
   sample02.1.fq sample02.2.fq -o test_class
 ```
 
-While the process is running, the Spark UI may be inspected at [http://localhost:4040](http://localhost:4040) if the process is running
-locally.
-
-More help: `./slacken.sh --help`
+The accepted input formats for samples are fasta and fastq. Compressed files (gzip, bzip2) are not supported.
 
 ### Multi-sample mode
 
@@ -228,7 +215,7 @@ For example:
 If `-classify-with-gold` is not given but `-g` is, then the detected taxon set will be compared with the gold set.
 
 
-### Running on AWS EMR or large clusters
+### Running on AWS Elastic MapReduce or large clusters
 
 Slacken can run on AWS EMR (Elastic MapReduce) and should also work similarly on other commercial cloud providers 
 that support Apache Spark. In this scenario, data can be stored on AWS S3 and the computation can run on a mix of 
@@ -240,13 +227,22 @@ these drives for temporary space. We have found the m7gd and m6gd machine famili
 
 To run on AWS EMR, first, install the AWS CLI. 
 Copy `slacken-aws.sh.template` to a new file, e.g. `slacken-aws.sh` and edit the file to configure
-some settings such as the S3 bucket to use for the Slacken jar. Then, create the AWS EMR cluster, and set its ID using
-the `AWS_EMR_CLUSTER` environment variable. `slacken-aws.sh` may then be invoked in the same way as `slacken.sh` in the 
-examples above.
+some settings such as the S3 bucket to use for the Slacken jar. Then, create the AWS EMR cluster. You will receive a 
+cluster ID, either from the web GUI or from the CLI. Set the `AWS_EMR_CLUSTER` environment variable to this id:
+
+```export AWS_EMR_CLUSTER=j-abc123...```
+
+`slacken-aws.sh` may then be invoked in the same way as `slacken.sh` in the examples above, with the difference that 
+instead of running locally, it will create a step on your EMR cluster.
 
 The files [scripts/slacken_pipeline.sh](scripts/slacken_pipeline.sh) and 
 [scripts/slacken_steps_lib.sh](scripts/slacken_steps_lib.sh) contain preconfigured AWS pipelines and EMR steps, 
 respectively.
+
+If you are running an AWS EMR cluster in the us-east-1 region, then you can access the pre-built standard library 
+directly at `s3://slacken-sbi/library/standard-224c/std_35_31_s7`. Genomes for 2-step classification are available at
+`s3://slacken-sbi/library/standard-224c`. If you are running in a different region, we recommend that you copy
+these files to your cluster's region first for better performance.
 
 ## Technical details
 
