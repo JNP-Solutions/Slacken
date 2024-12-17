@@ -47,6 +47,7 @@ Minimal single-machine prerequisites:
 * [Spark](https://spark.apache.org/downloads.html) 3.5.0 or later (pre-built, for Scala 2.12. The Scala 2.13 version is not compatible.) It is sufficient to download and extract the Spark distribution somewhere.
 * 16 GB or more of RAM (32 GB or more recommended).
 * A fast SSD drive for temporary space is very helpful. The amount of space required depends on the size of the libraries.
+* As of December 2024, Spark supports Java 8/11/17. Java 23 is unsupported. Please refer to the Spark documentation.
 
 Set up the environment:
 
