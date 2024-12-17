@@ -8,7 +8,7 @@ matplotlib.use('Agg')
 df_metric=pd.read_csv("/Users/n-dawg/IdeaProjects/Slacken-SBI/scripts/benchmark_data/All_paper_metrics.tsv",sep='\t')
 df_bmetric=pd.read_csv("/Users/n-dawg/IdeaProjects/Slacken-SBI/scripts/benchmark_data/All_paper_bmetrics.tsv",sep='\t')
 
-def add_figure_single(rankx,dataSet,var,confd,classifier_list,inputType, figShape, figName):
+def add_figure_single(rankx,dataSet,var,confd,classifier_list,inputType, figShape, figName, rotn=30, addYlabel=True):
     print(rankx,dataSet,var)
     if(inputType=='metrics'):
         df_input=df_metric
@@ -71,8 +71,9 @@ def add_figure_single(rankx,dataSet,var,confd,classifier_list,inputType, figShap
         plt.scatter(x, y, alpha=alphas[i], color=colors_db_valid[col], s=20)
 
     # Customize plot
-    plt.xticks(range(len(df.columns)), df.columns, fontsize=9, rotation=30, fontweight='bold', ha='right')  # Set x-axis labels
-    plt.ylabel(var + " (species)", fontweight='bold', fontsize=8)
+    plt.xticks(range(len(df.columns)), df.columns, fontsize=9, rotation=rotn, fontweight='bold', ha='right')  # Set x-axis labels
+    if(addYlabel==True):
+        plt.ylabel(var + " (species)", fontweight='bold', fontsize=8)
     plt.tick_params(axis='y', labelsize=8)
     #plt.title('Dataset: '+dataSet +' |  Sample Size: ' + str(len(df_input[df_input['group']==dataSet]['sample'].unique())) + ' | Rank: ' + rankx, fontweight='bold', fontsize=8)
     #plt.title('Dataset: '+dataSet +'\n Sample Size: ' + str(len(df_input[df_input['group']==dataSet]['sample'].unique())) + '\nRank: ' + rankx, fontweight='bold', fontsize=7)
@@ -160,7 +161,7 @@ def add_figure(rankx,dataSets,var,confd,classifier_list,inputType, figShape, fig
     plt.savefig(f'../Figures/'+figName+".jpg",bbox_inches="tight", dpi=800)
     #plt.clf()
 
-def add_figure4(rankx, dataSets, var, confd, classifier_list, inputType, figShape, figName):
+def add_figure4(rankx, dataSets, var, confd, classifier_list, inputType, figShape, figName, rotn=30, thicken=0.2, twidth=0.15, addYlabel=True):
     print(rankx, dataSets, var, confd, inputType)
 
     if inputType == 'metrics':
@@ -210,7 +211,7 @@ def add_figure4(rankx, dataSets, var, confd, classifier_list, inputType, figShap
 
         # Plot boxplots with empty fill (transparent) and black boundaries
         for i, col in enumerate(df.columns):
-            box = ax.boxplot(df[col], positions=[i], widths=0.2, patch_artist=True, showfliers=False)
+            box = ax.boxplot(df[col], positions=[i], widths=thicken, patch_artist=True, showfliers=False)
             plt.setp(box['boxes'], facecolor='none', edgecolor='black', linewidth=1.2)  # No fill, black edges
             plt.setp(box['medians'], color='black', linewidth=1.2)
             plt.setp(box['whiskers'], color='black', linestyle='-', linewidth=1.2)
@@ -218,7 +219,7 @@ def add_figure4(rankx, dataSets, var, confd, classifier_list, inputType, figShap
 
             # Calculate the mean and print it next to the boxplot
             median_val = df[col].median()
-            ax.text(i + 0.15, median_val, f'{median_val:.2f}', color='black', fontsize=8, va='center', rotation=90)
+            ax.text(i + twidth, median_val, f'{median_val:.2f}', color='black', fontsize=8, va='center', rotation=90)
 
         # Overlay scatter plots with jitter and custom colors
         for i, col in enumerate(df.columns):
@@ -228,20 +229,21 @@ def add_figure4(rankx, dataSets, var, confd, classifier_list, inputType, figShap
 
         # Customize plot
         ax.set_xticks(range(len(df.columns)))
-        ax.set_xticklabels(df.columns, fontsize=10, rotation=30, ha='right', fontweight='bold')  # Set x-axis labels
+        ax.set_xticklabels(df.columns, fontsize=10, rotation=rotn, ha='right', fontweight='bold')  # Set x-axis labels
         ax.set_title(
             f'{dataSet} |  Size: ' + str(len(df_input[df_input['group']==dataSet]['sample'].unique())),
             fontweight='bold', fontsize=8)
 
-    # Shared y-axis label
-    fig.text(0.04, 0.5, var+" (species)", va='center', rotation='vertical', fontsize=10, fontweight='bold')
+    if(addYlabel==True):
+        # Shared y-axis label
+        fig.text(0.04, 0.5, var+" (species)", va='center', rotation='vertical', fontsize=10, fontweight='bold')
 
     # Tight layout to adjust subplot spacing and make room for the shared y-label
     plt.tight_layout(rect=[0.05,0,1,1])
     plt.savefig(f'../Figures/'+figName+".jpg",bbox_inches="tight", dpi=800)
     #plt.clf()
 
-def add_figure4PairedBox(rankx, dataSets, var1, var2, confd, classifier_list, inputType, figShape, figName, shade=False):
+def add_figure4PairedBox(rankx, dataSets, var1, var2, confd, classifier_list, inputType, figShape, figName, shade=False, rotateR=False, noYlabel=False, thicken=0.2):
     print(rankx, dataSets, var1, var2, confd, inputType)
 
     if inputType == 'metrics':
@@ -302,11 +304,12 @@ def add_figure4PairedBox(rankx, dataSets, var1, var2, confd, classifier_list, in
 
         ax = axes[coordId]  # Get current axis
         coordId += 1
-        shifter=0.3
+        #shifter=0.3
+        shifter=0.25
         bshifter=2
         # Plot boxplots with empty fill (transparent) and black boundaries
         for i, col in enumerate(df1.columns):
-            box1 = ax.boxplot(df1[col], positions=[i*bshifter-shifter], widths=0.2, patch_artist=True, showfliers=False)
+            box1 = ax.boxplot(df1[col], positions=[i*bshifter-shifter], widths=thicken, patch_artist=True, showfliers=False)
             plt.setp(box1['boxes'], facecolor='none', edgecolor='black', linewidth=1.2)  # No fill, black edges
             plt.setp(box1['medians'], color='black', linewidth=1.2)
             plt.setp(box1['whiskers'], color='black', linestyle='-', linewidth=1.2)
@@ -314,11 +317,11 @@ def add_figure4PairedBox(rankx, dataSets, var1, var2, confd, classifier_list, in
 
             # Calculate the mean and print it next to the boxplot
             median_val1 = df1[col].median()
-            ax.text(i*bshifter + 0.2 - shifter, median_val1, f'{median_val1:.2f}', color='black', fontsize=8, va='center',
+            ax.text(i*bshifter + 0.25 - shifter, median_val1, f'{median_val1:.2f}', color='black', fontsize=8, va='center',
                     rotation=90)
 
         for i, col in enumerate(df2.columns):
-            box2 = ax.boxplot(df2[col], positions=[i*bshifter+shifter], widths=0.2, patch_artist=True, showfliers=False)
+            box2 = ax.boxplot(df2[col], positions=[i*bshifter+shifter], widths=thicken, patch_artist=True, showfliers=False)
             plt.setp(box2['boxes'], facecolor='none', edgecolor='black', linewidth=1.2)  # No fill, black edges
             plt.setp(box2['medians'], color='black', linewidth=1.2)
             plt.setp(box2['whiskers'], color='black', linestyle='-', linewidth=1.2)
@@ -328,8 +331,13 @@ def add_figure4PairedBox(rankx, dataSets, var1, var2, confd, classifier_list, in
             ax.text(i*bshifter + 0.2 +shifter, median_val2, f'{median_val2:.2f}', color='black', fontsize=8, va='center', rotation=90)
 
         if(shade==True):
-            ax.axvspan(-0.8, 1, color='#e6e6fa', alpha=0.5, zorder=0)
-            #box2.axvspan(-0.5, 0.5, color='grey', alpha=0.3, zorder=0)
+            ax.set_xlim(-0.8, 5)
+            ax.axvspan(-0.8, 1, color='#e6e6fa', alpha=0.7, zorder=0)
+            ax.axvspan(1, 5, color='#EBEBEB', alpha=0.2, zorder=0)
+            #ax.axvspan(3, 5, color='#FBC9C6', alpha=0.7, zorder=0)
+            ax.axvline(1, color='black', linestyle='--', linewidth=1, label='x=1')
+            #ax.axvline(3, color='black', linestyle=':', linewidth=1, label='x=1')
+
 
         # Overlay scatter plots with jitter and custom colors
         for i, col in enumerate(df1.columns):
@@ -346,25 +354,34 @@ def add_figure4PairedBox(rankx, dataSets, var1, var2, confd, classifier_list, in
         rangeX=[i*bshifter for i in range(len(df1.columns))]
         #ax.set_xticks(range(len(df1.columns)))
         ax.set_xticks(rangeX)
-        ax.set_xticklabels(df1.columns, fontsize=10, rotation=30, ha='right', fontweight='bold')  # Set x-axis labels
+        
+        rotn = 90
+        ha = 'right'
+        if(rotateR == True):
+            rotn = 0
+            ha = 'center'
+
+        ax.set_xticklabels(df1.columns, fontsize=10, rotation=rotn, ha=ha, fontweight='bold')  # Set x-axis labels
         ax.set_title(
             f'{dataSet} |  Size: ' + str(len(df_input[df_input['group'] == dataSet]['sample'].unique())),
             fontweight='bold', fontsize=7)
 
         # Shared y-axis label
-    fig.text(0.04, 0.5, var1 +' & '+var2+ " (species)", va='center', rotation='vertical', fontsize=10, fontweight='bold')
+        if(noYlabel==False):
+            fig.text(0.04, 0.5, var1 +' & '+var2+ " (species)", va='center', rotation='vertical', fontsize=10, fontweight='bold')
 
     # Tight layout to adjust subplot spacing and make room for the shared y-label
     plt.tight_layout(rect=[0.05, 0, 1, 1])
-    plt.savefig(f'../Figures/'+figName+".jpg",bbox_inches="tight", dpi=500)
+    plt.savefig(f'../Figures/'+figName+".jpg",bbox_inches="tight", dpi=600)
     # plt.clf()
 
-add_figure_single('Species','plant_associated','read_softIndex',0.15,["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"],'metrics',(4,4),'metrics/plant_associated_read_softIndex_Species_0.15_std')
-add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_fp_frac', 0.15,["rspc_gold","rspc_R100", "rspc_1-step","std_gold" , "std_R100", "std_1-step"], 'metrics', (10,6), 'metrics/Species_all_read_fp_frac_0.15_gold')
-add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_index', 0.15, ["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics',(10,6),'metrics/Species_all_read_index_0.15')
-add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_softIndex', 0.15,["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics',(10,6),'metrics/Species_all_read_index_0.15')
-add_figure4PairedBox('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_tp_frac','read_fp_frac', 0.15, ["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics', (10,6), 'metrics/Species_all_read_tp_fracread_fp_frac_0.15_pairedBox')
-add_figure4PairedBox('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_tp_frac','read_vp_frac', 0.15, ["rspc_1-step", "std_1-step"], 'metrics', (5,6), 'metrics/Species_all_read_tp_fracread_vp_frac_0.15_pairedBox', True)
-add_figure4PairedBox('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_tp_frac','read_vp_frac', 0.15, ["rspc_R100","rspc_1-step", "std_1-step"], 'metrics', (5,6), 'metrics/Species_all_read_tp_fracread_vp_frac_0.15_pairedBox_r100', True)
-add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'L1', 0.15, ["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'bmetrics', (10,6), 'bmetrics/Species_all_L1_0.15')
-add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'LSE', 0.15, ["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'bmetrics', (10,6), 'bmetrics/Species_all_LSE_0.15')
+# add_figure_single('Species','plant_associated','read_softIndex',0.15,["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"],'metrics',(4,4),'metrics/plant_associated_read_softIndex_Species_0.15_std', 90, addYlabel=False)
+# add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_fp_frac', 0.15,["rspc_gold","rspc_R100", "rspc_1-step","std_gold" , "std_R100", "std_1-step"], 'metrics', (6,6), 'metrics/Species_all_read_fp_frac_0.15_gold', rotn=90, addYlabel=False)
+# add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_index', 0.15, ["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics',(6,6),'metrics/Species_all_read_index_0.15',90, 0.3, 0.19, False)
+add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_softIndex', 0.15, ["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics',(6,6),'metrics/Species_all_read_softIndex_0.15', rotn=90, thicken=0.25, twidth=0.17, addYlabel=False)
+# add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_index', 0.15,["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics',(10,6),'metrics/Species_all_read_index_0.15')
+# add_figure4PairedBox('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_tp_frac','read_fp_frac', 0.15, ["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics', (6,6), 'metrics/Species_all_read_tp_fracread_fp_frac_0.15_pairedBox', False, False, True, 0.4)
+# add_figure4PairedBox('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_tp_frac','read_vp_frac', 0.15, ["rspc_1-step", "std_1-step"], 'metrics', (5,6), 'metrics/Species_all_read_tp_fracread_vp_frac_0.15_pairedBox', False, True)
+# add_figure4PairedBox('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_tp_frac','read_vp_frac', 0.15, ["rspc_R100","rspc_1-step", "std_1-step"], 'metrics', (7,6), 'metrics/Species_all_read_tp_fracread_vp_frac_0.15_pairedBox_r100', True, True, True)
+# add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'L1', 0.15, ["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'bmetrics', (6,6), 'bmetrics/Species_all_L1_0.15', rotn=90, thicken=0.27, twidth=0.17 ,addYlabel=False)
+# add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'LSE', 0.15, ["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'bmetrics', (10,6), 'bmetrics/Species_all_LSE_0.15')
