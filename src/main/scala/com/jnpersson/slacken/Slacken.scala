@@ -76,7 +76,8 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 
   val taxonIndex = new Subcommand("taxonIndex") {
     banner("Taxonomic minimizer-LCA index functions")
-    val location = trailArg[String](required = true, descr = "Path to location where index is stored")
+    val location = trailArg[String](required = true, descr = "Path to location where index is stored").
+      map(l => HDFSUtil.makeQualified(l))
 
     def index() =
       KeyValueIndex.load(location(), getTaxonomy(location()))
