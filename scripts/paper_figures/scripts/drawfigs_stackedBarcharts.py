@@ -167,7 +167,7 @@ def saveplot4(result_list, dNames, figName):
         ax.set_xlabel('Classifier', fontsize=13, fontweight='bold')
         ax.set_xticklabels(ax.get_xticklabels(), rotation=30, fontsize=14, fontweight='bold')
 
-        ax.set_ylabel('Fraction of Total Reads', fontsize=14, fontweight='bold')
+        #ax.set_ylabel('Fraction of Total Reads', fontsize=14, fontweight='bold')
         #ax.set_yticklabels(ax.get_yticks(), fontsize=12, fontweight='bold')
         ax.set_title(f'{dName}', fontsize=15, fontweight='bold')
 
