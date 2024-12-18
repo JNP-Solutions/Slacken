@@ -42,7 +42,7 @@ assembly / assemblyOption ~= {
 //Run tests in a separate JVM
 Test / fork := true
 
-Test / javaOptions += "-Xmx4G -Dfile.encoding=UTF-8"
+Test / javaOptions ++= Seq("-Xmx4G", "-Dfile.encoding=UTF-8")
 
 //These options are required when running tests on Java 17, as of Spark 3.3.0.
 //Can safely be commented out on Java 8 or 11.
