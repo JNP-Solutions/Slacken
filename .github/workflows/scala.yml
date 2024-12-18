@@ -1,34 +1,28 @@
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-
-name: Scala CI
-
-on:
-  push:
-    branches: [ "master", "release" ]
-  pull_request:
-    branches: [ "master", "release" ]
-
+name: Build and test
 permissions:
   contents: read
-
+on:
+  pull_request:
+  push:
 jobs:
-  build:
-
-    runs-on: ubuntu-latest
-
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            java: 17
+    runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up JDK 17
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Setup Java
       uses: actions/setup-java@v3
       with:
-        java-version: '17'
-        distribution: 'temurin'
-        cache: 'sbt'
-    - name: Run tests
-      run: sbt test
-      # Optional: This step uploads information to the GitHub dependency graph and unblocking Dependabot alerts for the repository
-      #- name: Upload dependency graph
-      #  uses: scalacenter/sbt-dependency-submission@ab086b50c947c9774b70f39fc7f6e20ca2706c91
+        distribution: "temurin"
+        java-version: "${{ matrix.java }}"
+        cache: "sbt"
+    - name: Build and Test
+      run: sbt -v -Dfile.encoding=UTF-8 +test
+      shell: bash
+

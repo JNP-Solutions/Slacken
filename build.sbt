@@ -37,7 +37,7 @@ assembly / assemblyOption ~= {
 //Run tests in a separate JVM
 Test / fork := true
 
-Test / javaOptions += "-Xmx4G"
+Test / javaOptions ++= Seq("-Xmx4G")
 
 //These options are required when running tests on Java 17, as of Spark 3.3.0.
 //Can safely be commented out on Java 8 or 11.
