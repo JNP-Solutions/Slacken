@@ -35,14 +35,13 @@ object HDFSUtil {
     p.isAbsolute
   }
 
-  /** Qualify a local file: path (e.g. make it absolute if it is relative) */
+  /** Qualify the path (e.g. make it absolute if it is relative) */
   def makeQualified(path: String)(implicit spark: SparkSession): String = {
-    val r = if (isAbsolutePath(path)) path else {
+    if (isAbsolutePath(path)) path else {
       val p = new HPath(path)
       val fs = p.getFileSystem(spark.sparkContext.hadoopConfiguration)
       fs.makeQualified(p).toString
     }
-    if (r.startsWith("file:")) r else s"file:$r"
   }
 
   /** Does the file exist in HDFS? */
