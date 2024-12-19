@@ -19,6 +19,8 @@
 
 package com.jnpersson.kmers
 
+import com.globalmentor.apache.hadoop.fs.BareLocalFileSystem
+import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.sql.SparkSession
 
 /** A Spark-based tool.
@@ -27,10 +29,17 @@ private[jnpersson] abstract class SparkTool(appName: String) {
 
   /** Create a SparkSession with the default settings */
   def sparkSession(): SparkSession = {
-    SparkSession.builder().appName(appName).
+    val sp = SparkSession.builder().appName(appName).
       enableHiveSupport().
       getOrCreate()
+
+    //BareLocalFileSystem bypasses the need for winutils.exe on Windows and does no harm on other OS's
+    //This affects access to file:/ paths (effectively local files)
+    sp.sparkContext.hadoopConfiguration.
+      setClass("fs.file.impl", classOf[BareLocalFileSystem], classOf[FileSystem])
+    sp
   }
+
 }
 
 object SparkTool {
