@@ -128,7 +128,7 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
 
   test("Insert testData genomes, write to disk, and check index contents") {
     val dir = System.getProperty("user.dir")
-    val location = HDFSUtil.makeQualified(s"file://$dir/testData/slacken/slacken_test_kv")
+    val location = "file://" + HDFSUtil.makeQualified(s"$dir/testData/slacken/slacken_test_kv")
     val k = 35
     val m = 31
     val s = 7
