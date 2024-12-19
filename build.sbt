@@ -25,6 +25,9 @@ libraryDependencies += "org.scalatestplus" %% "scalacheck-1-15" % "latest.integr
 //The "provided" configuration prevents sbt-assembly from including spark in the packaged jar.
 libraryDependencies += "org.apache.spark" %% "spark-sql" % sparkVersion % "provided"
 
+//For Windows, to remove the dependency on winutils.exe for local filesystem access
+libraryDependencies += "com.globalmentor" % "hadoop-bare-naked-local-fs" % "latest.integration"
+
 Compile / unmanagedResourceDirectories += { baseDirectory.value / "resources" }
 
 //Do not run tests during the assembly task
@@ -39,7 +42,7 @@ assembly / assemblyOption ~= {
 //Run tests in a separate JVM
 Test / fork := true
 
-Test / javaOptions ++= Seq("-Xmx4G")
+Test / javaOptions ++= Seq("-Xmx4G", "-Dfile.encoding=UTF-8")
 
 //These options are required when running tests on Java 17, as of Spark 3.3.0.
 //Can safely be commented out on Java 8 or 11.
