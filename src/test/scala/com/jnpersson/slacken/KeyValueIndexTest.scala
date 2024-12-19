@@ -22,8 +22,7 @@ package com.jnpersson.slacken
 
 import com.jnpersson.kmers.TestGenerators._
 import com.jnpersson.kmers.minimizer._
-import com.jnpersson.kmers.{NTSeq, SparkSessionTestWrapper, Testing => DTesting}
-import com.jnpersson.kmers.IndexParams
+import com.jnpersson.kmers.{HDFSUtil, IndexParams, NTSeq, SparkSessionTestWrapper, Testing => DTesting}
 import com.jnpersson.slacken.Taxonomy.{NONE, Species}
 import org.apache.spark.sql.functions
 import org.apache.spark.sql.functions.count
@@ -127,7 +126,7 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
 
   test("Insert testData genomes, write to disk, and check index contents") {
     val dir = System.getProperty("user.dir")
-    val location = s"$dir/testData/slacken/slacken_test_kv"
+    val location = HDFSUtil.makeQualified(s"$dir/testData/slacken/slacken_test_kv")
     val k = 35
     val m = 31
     val s = 7
