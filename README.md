@@ -284,14 +284,14 @@ This generates the index file `library.fna.fai`, which Slacken needs. This step 
 that will be indexed. If you already have a pre-existing Kraken 2 library with genomes, generating the faidx files is 
 sufficient preparation.
 
-Unlike with Kraken 2, the sequence files (`.fna`) may be needed even after building the index to enable dynamic
+Unlike with Kraken 2, the sequence files (`.fna`) are needed even after building the index to enable dynamic
 classification. Deleting them to save space is not recommended (i.e., avoid running `kraken2-build --clean`).
 
-#### Obtaining genomes with the provided build scripts
+#### Obtaining genomes with the Slacken build scripts
 
-As a hopefully faster and more reliable alternative to kraken2-build, we have included modified and optimised versions 
-of the Kraken 2 build scripts in [scripts/k2](scripts/k2) for downloading genomes and the taxonomy. Please refer to README.txt in 
-that directory for more details.
+As a hopefully faster and more efficient alternative to kraken2-build, we have included modified and optimized versions 
+of the Kraken 2 build scripts in [scripts/k2](scripts/k2) for downloading genomes and the taxonomy. They also have special
+logic for building the "refseq prefer complete" library. Please refer to README.txt in that directory for more details.
 
 #### Building the index
 
