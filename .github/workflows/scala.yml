@@ -12,6 +12,8 @@ jobs:
         include:
           - os: ubuntu-latest
             java: 17
+            #          - os: windows-latest
+            #          java: 17
     runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout
