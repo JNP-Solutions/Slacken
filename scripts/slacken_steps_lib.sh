@@ -1,9 +1,6 @@
 #!/bin/bash
 
-#Slacken evaluation pipeline. Currently runs on AWS.
-#Supports three main functions:
-# 1) build libraries, 2) classify samples, 3) compare classified output with reference.
-#Work in progress.
+#Slacken steps for running on AWS
 
 #Main bucket
 ROOT=s3://onr-emr
@@ -76,13 +73,6 @@ function build {
   PARAMS="-k $K -m $M --spaces $S -p $BUCKETS"
   ./slacken-aws.sh $PARAMS -t $TAXONOMY taxonIndex $DATA/$NAME build -l $K2 $OTHER
   histogram $NAME
-}
-
-function respace {
-  LIB=$1
-  SPACES=$2
-  #The output path will be renamed automatically as long as the _s naming convention is followed
-  ./slacken-aws.sh taxonIndex $DATA/$LIB respace -s $SPACES -o $DATA/$LIB
 }
 
 function histogram {

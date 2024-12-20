@@ -22,8 +22,7 @@ package com.jnpersson.slacken
 
 import com.jnpersson.kmers.TestGenerators._
 import com.jnpersson.kmers.minimizer._
-import com.jnpersson.kmers.{NTSeq, SparkSessionTestWrapper, Testing => DTesting}
-import com.jnpersson.kmers.IndexParams
+import com.jnpersson.kmers.{HDFSUtil, IndexParams, NTSeq, SparkSessionTestWrapper, Testing => DTesting}
 import com.jnpersson.slacken.Taxonomy.{NONE, Species}
 import org.apache.spark.sql.functions
 import org.apache.spark.sql.functions.count
@@ -83,6 +82,8 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
     val labels = seqIdToTaxId.toDF("header", "taxon").cache()
     val noiseReads = DTesting.getList(randomReads(200, 200), 1000).
       zipWithIndex.map(x => x._1.copy(header = x._2.toString)).toDS()
+    val dir = System.getProperty("user.dir")
+    val location = HDFSUtil.makeQualified(s"$dir/testData/slacken/slacken_test_random")
 
     //As this test is slow, we limit the number of checks
     forAll((Gen.choose(15, maxM + 30), "k"), (ms(maxM), "m"), minSuccessful(5)) { (k, m) =>
@@ -90,7 +91,7 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
         forAll(minimizerPriorities(m), minSuccessful(2)) { mp =>
           println(mp)
           val splitter = MinSplitter(mp, k)
-          val params = IndexParams(spark.sparkContext.broadcast(splitter), 16, "")
+          val params = IndexParams(spark.sparkContext.broadcast(splitter), 16, location)
           val idx = makeIdx(params, taxonomy)
           val cls = new Classifier(idx)
 
@@ -127,7 +128,7 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
 
   test("Insert testData genomes, write to disk, and check index contents") {
     val dir = System.getProperty("user.dir")
-    val location = s"$dir/testData/slacken/slacken_test_kv"
+    val location = HDFSUtil.makeQualified(s"$dir/testData/slacken/slacken_test_kv")
     val k = 35
     val m = 31
     val s = 7
