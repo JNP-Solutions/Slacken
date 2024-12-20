@@ -44,9 +44,11 @@ Slacken has its own database format and can not use pre-built Kraken 2 databases
 ### Running Slacken
 
 Minimal single-machine prerequisites: 
-* [Spark](https://spark.apache.org/downloads.html) 3.5.0 or later (pre-built, for Scala 2.12. The Scala 2.13 version is not compatible.) It is sufficient to download and extract the Spark distribution somewhere.
+* [Spark](https://spark.apache.org/downloads.html) 3.5.0 or later (pre-built, for Scala 2.12. The Scala 2.13 version is not compatible.) It is sufficient 
+to download and extract the Spark distribution somewhere.
 * 16 GB or more of RAM (32 GB or more recommended).
-* A fast SSD drive for temporary space is very helpful. The amount of space required depends on the size of the libraries.
+* A fast SSD drive for temporary space is very helpful. The amount of space required depends on the size of the 
+libraries and samples.
 * As of December 2024, Spark supports Java 8/11/17. Java 23 is unsupported. Please refer to the Spark documentation.
 
 Set up the environment:
@@ -84,11 +86,8 @@ Standard (corresponds to Kraken 2 standard library):
 * Genomes location for dynamic libraries: s3://slacken-sbi/library/standard-224c/
 * Taxonomy: s3://slacken-sbi/library/standard-224c/std_35_31_s7_taxonomy/
 
-The libraries are hosted in the us-east-1 region of AWS, and when running AWS EMR in that region,
-these libraries may be accessed directly from the public S3 bucket without downloading them.
-
-TODO: step by step instructions for using
-
+The libraries are hosted in the us-east-1 region of AWS, and when running Slacken on AWS EMR in that region,
+these libraries may also be accessed directly from the public S3 bucket without downloading them.
 
 ### Classifying reads (1-step)
 
@@ -101,7 +100,8 @@ The "1-step" classification corresponds to the standard Kraken 2 method. It clas
 
 Where
 
-* `mySlackenLib` is the location where the library was built in the previous step
+* `mySlackenLib` is the location where the library was built. For the pre-built library, this would 
+be `standard-224c/std_35_31_s7`.
 * `SRR094926_10k.fasta` is the file with reads to be classified. Any number of files may be supplied.
 * `test_class` is the directory where the output will be stored. Individual read classifications and a file 
 `test_class_kreport.txt` will be created.
@@ -171,11 +171,21 @@ For example (100 reads heuristic, multi-sample mode):
 
 Where:
 
+* --sample-regex is the multisample regular expression (see above)
 * --reads 100 is the taxon heuristic (see below)
 * --bracken-length is the optional read length to use for building bracken weights for the dynamic library. 
 If omitted, no weights will be built.
 * k2 is a directory that contains library/ with the genomes that were used to build the static minimizer index. A subset 
-of these will be used to build the dynamic index.
+of these will be used to build the dynamic index. 
+
+The same example with the pre-built library:
+
+```
+./slacken.sh taxonIndex standard-224c/std_35_31_s7 classify -p \
+ --sample-regex "(S[0-9]+)" -o test_class \
+  dynamic --reads 100 -l standard-224c --bracken-length 150 \
+  sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq
+```
 
 #### Heuristics
 
