@@ -43,18 +43,19 @@ def collapse(value):
     else:
         return value
 
-def reduce(df):
+def reduce(df,noCollapse):
     rank_names=['U','R','K','D','P','C','O','F','G','S']
     dfReduced=df.copy()
     dfReduced['Group'] = df['Rank'].str.extract(r'([A-Z])')[0]
-    dfReduced['Group'] = dfReduced['Group'].apply(collapse)
+    if(noCollapse==False):
+        dfReduced['Group'] = dfReduced['Group'].apply(collapse)
     dfReduced = dfReduced.groupby('Group')['In taxon'].sum().reset_index()
     #print(dfReduced, dfReduced['In taxon'].sum())
     dfReduced['ratio'] = dfReduced['In taxon']/dfReduced['In taxon'].sum()
     #print(dfReduced,dfReduced['In taxon'].sum()/50)
     return dfReduced
 
-def aggkreports(datasetPathsDict,classifierDict,classifiers,ds_name):
+def aggkreports(datasetPathsDict,classifierDict,classifiers,ds_name,noCollapse=False):
     dfResult=pd.DataFrame(columns=['classifier','In taxon','Group','ratio'])
     ds_paths=datasetPathsDict[ds_name]
     for clfName in classifiers:
@@ -87,7 +88,7 @@ def aggkreports(datasetPathsDict,classifierDict,classifiers,ds_name):
                 if(clfName=='kraken'):
                     break
         dfCat=pd.concat(dfReduce_list)
-        dfReduce=reduce(dfCat)
+        dfReduce=reduce(dfCat,noCollapse)
         dfReduce['classifier']=clfName
         dfResult=pd.concat([dfResult, dfReduce])
         #print(f'{clfName} :\t: {dfReduce}')
@@ -225,3 +226,7 @@ df_result2 = aggResultDf(result_list_2,dataset_list[:4])
 df_result2.to_csv("../FigureData/multiple_datasets_gold.csv",index=False)
 
 
+result_list_3 = [aggkreports(names, name_classifier, ['rspc_1-step','rspc_R100','rspc_R10','rspc_R1','std_1-step','std_R100','std_R10','std_R1','kraken', 'rspc_gold', 'std_gold']
+, dataset, noCollapse=True) for dataset in dataset_list]
+df_result3 = aggResultDf(result_list_3,dataset_list)
+df_result3.to_csv("../FigureData/all_datasets_NoFig.csv",index=False)
