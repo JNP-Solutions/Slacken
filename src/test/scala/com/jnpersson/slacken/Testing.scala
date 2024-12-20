@@ -22,7 +22,7 @@ package com.jnpersson.slacken
 
 import com.jnpersson.kmers
 import com.jnpersson.kmers.minimizer._
-import com.jnpersson.kmers.{AnyMinSplitter, IndexParams, Inputs, TestGenerators, Testing => TTesting}
+import com.jnpersson.kmers.{AnyMinSplitter, HDFSUtil, IndexParams, Inputs, TestGenerators, Testing => TTesting}
 import com.jnpersson.slacken.Taxonomy.{NONE, ROOT, Rank, Root}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.scalacheck.{Gen, Shrink}
@@ -135,10 +135,10 @@ object TestData {
   val numberOf35Mers = Map(526997 -> 2902850, 455631 -> 3565872, 9606 -> 639784)
 
   def inputs(k: Int)(implicit spark: SparkSession) =
-    new Inputs(List("testData/slacken/slacken_tinydata.fna"), k, 10000000)
+    new Inputs(List(HDFSUtil.makeQualified("testData/slacken/slacken_tinydata.fna")), k, 10000000)
 
   def library(k: Int)(implicit spark: SparkSession): GenomeLibrary =
-    GenomeLibrary(inputs(k), "testData/slacken/seqid2taxid.map")
+    GenomeLibrary(inputs(k), HDFSUtil.makeQualified("testData/slacken/seqid2taxid.map"))
 
   def minPriorities(m: Int, s: Int): MinimizerPriorities =
     if (s > 0)

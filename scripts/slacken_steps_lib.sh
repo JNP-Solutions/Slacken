@@ -1,9 +1,6 @@
 #!/bin/bash
 
-#Slacken evaluation pipeline. Currently runs on AWS.
-#Supports three main functions:
-# 1) build libraries, 2) classify samples, 3) compare classified output with reference.
-#Work in progress.
+#Slacken steps for running on AWS
 
 #Main bucket
 ROOT=s3://onr-emr

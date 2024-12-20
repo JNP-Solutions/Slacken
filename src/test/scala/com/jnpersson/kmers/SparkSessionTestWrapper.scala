@@ -19,6 +19,8 @@
 
 package com.jnpersson.kmers
 
+import com.globalmentor.apache.hadoop.fs.BareLocalFileSystem
+import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.sql.SparkSession
 
 trait SparkSessionTestWrapper {
@@ -36,6 +38,12 @@ trait SparkSessionTestWrapper {
       .getOrCreate()
 
     r.sparkContext.setLogLevel("WARN")
+
+    //BareLocalFileSystem bypasses the need for winutils.exe on Windows and does no harm on other OS's
+    //This affects access to file:/ paths (effectively local files)
+    r.sparkContext.hadoopConfiguration.
+      setClass("fs.file.impl", classOf[BareLocalFileSystem], classOf[FileSystem])
+
     r
   }
 }
