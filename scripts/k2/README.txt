@@ -19,6 +19,7 @@ Dependencies that must be available in $PATH:
 * Scala 2.12 (https://www.scala-lang.org/download/all.html)
 * perl
 
+To use these scripts, it is first necessary to configure some environment variables.
 The directory $KRAKEN2_DB_NAME/library will be created and genomes will be stored there.
 The taxonomy will be downloaded to $KRAKEN2_DB_NAME/taxonomy.
 
@@ -26,14 +27,6 @@ Example environment:
 
 export KRAKEN2_DB_NAME=(destination directory)
 export KRAKEN2_DIR=(wherever these scripts are located)
-export KRAKEN2_PROTEIN_DB=
-export KRAKEN2_SKIP_MAPS=
-export KRAKEN2_USE_FTP=
-export KRAKEN2_MASK_LC=true
 
-#Choices are: complete, prefer_complete, all
-#Complete selects only complete genomes ("chromosome" or "complete genome")
-#All selects both complete and incomplete genomes.
-#Prefer_complete selects complete genomes for those taxa that have them, and for other taxa selects incomplete ones.
-
-export KRAKEN2_FILTER_LEVEL=prefer_complete
+After configuring these variables, to download the standard database, use download_standard.sh.
+To download the RefSeq prefer-complete database, use download_rspc.sh.
