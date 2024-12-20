@@ -78,12 +78,10 @@ locally. We refer users to the Spark documentation for more details.
 We provide a pre-built library in a public S3 bucket at s3://slacken-sbi. The current version is based on
 RefSeq release 224.
 
-Standard (corresponds to Kraken 2 standard library):
-
-* Compressed bundle for download (164 GB): https://s3.amazonaws.com/slacken-sbi/library/standard-224c.tar.gz
+* Compressed bundle with everything (164 GB): https://s3.amazonaws.com/slacken-sbi/library/standard-224c.tar.gz
 * Slacken index: s3://slacken-sbi/library/standard-224c/std_35_31_s7/
 * Bracken weights: s3://slacken-sbi/library/standard-224c/std_35_31_s7_bracken/
-* Genomes location for dynamic libraries: s3://slacken-sbi/library/standard-224c/
+* Library location for dynamic mode: s3://slacken-sbi/library/standard-224c/
 * Taxonomy: s3://slacken-sbi/library/standard-224c/std_35_31_s7_taxonomy/
 
 The libraries are hosted in the us-east-1 region of AWS, and when running Slacken on AWS EMR in that region,
@@ -244,13 +242,13 @@ cluster ID, either from the web GUI or from the CLI. Set the `AWS_EMR_CLUSTER` e
 ```export AWS_EMR_CLUSTER=j-abc123...```
 
 `slacken-aws.sh` may then be invoked in the same way as `slacken.sh` in the examples above, with the difference that 
-instead of running locally, it will create a step on your EMR cluster.
+instead of running Slacken locally, the script will create a step on your EMR cluster.
 
 The files [scripts/slacken_pipeline.sh](scripts/slacken_pipeline.sh) and 
 [scripts/slacken_steps_lib.sh](scripts/slacken_steps_lib.sh) contain preconfigured AWS pipelines and EMR steps, 
 respectively.
 
-If you are running an AWS EMR cluster in the us-east-1 region, then you can access the pre-built standard library 
+If you are running an AWS EMR cluster in the us-east-1 region, you can access the pre-built standard library 
 directly at `s3://slacken-sbi/library/standard-224c/std_35_31_s7`. Genomes for 2-step classification are available at
 `s3://slacken-sbi/library/standard-224c`. If you are running in a different region, we recommend that you copy
 these files to your cluster's region first for better performance.
