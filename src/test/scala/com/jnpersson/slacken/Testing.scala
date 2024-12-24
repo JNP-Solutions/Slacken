@@ -99,6 +99,22 @@ object Testing {
     Gen.oneOf(taxa).map( t => TaxonHit(Array(0), 0, t, kmers))
   }
 
+  def permutations[T](items: Seq[T]): Gen[Vector[T]] =
+    permutations(items.toVector)
+
+  def permutations[T](items: Vector[T]): Gen[Vector[T]] = {
+    if (items.size < 2) {
+      Gen.const(items)
+    } else {
+      for {
+        i <- Gen.choose(0, items.size - 1)
+        x = items(i)
+        prefix <- permutations(items.take(i))
+        suffix <- permutations(items.drop(i + 1))
+      } yield x +: (prefix ++ suffix)
+    }
+  }
+
 }
 
 object TestData {
