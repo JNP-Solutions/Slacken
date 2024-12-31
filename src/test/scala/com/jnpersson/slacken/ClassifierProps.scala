@@ -10,31 +10,46 @@ class ClassifierProps extends AnyFunSuite with ScalaCheckPropertyChecks with Mat
   import Testing._
 
   /** Generate taxon hits from a read.
-   * @param taxon Taxon for valid hits
+   * @param taxa Taxa for valid hits in the read
    * @param kmers total number of k-mers
    * @param invalidFrac fraction of invalid (NONE) k-mers in the read
    */
-  def readHits(taxon: Taxon, kmers: Int, invalidFrac: Double): Gen[Array[TaxonHit]] = {
+  def readHits(taxa: Array[Taxon], kmers: Int, invalidFrac: Double): Gen[Array[TaxonHit]] = {
     val sizePerHit = 5
     val invalidKmers = Math.floor(kmers * invalidFrac).toInt
     val validKmers = kmers - invalidKmers
 
     for {
-      validPart <- Gen.listOfN(validKmers / sizePerHit, taxonHits(Array(taxon), sizePerHit))
+      validPart <- Gen.listOfN(validKmers / sizePerHit, taxonHits(taxa, sizePerHit))
       invalidPart <- Gen.listOfN(invalidKmers / sizePerHit, taxonHits(Array(Taxonomy.NONE), sizePerHit))
       permuted <- permutations(validPart ++ invalidPart)
     } yield permuted.toArray
   }
 
-  def readHitsLineage(taxonomy: Taxonomy, taxon: Taxon, kmers: Int): Gen[Array[TaxonHit]] = {
-    val sizePerHit = 5
+  def readHitsLineage(taxonomy: Taxonomy, taxon: Taxon, kmers: Int, invalidFrac: Double): Gen[Array[TaxonHit]] = {
     if (taxon == Taxonomy.NONE) {
-      readHits(Taxonomy.NONE, kmers, 0)
+      readHits(Array(Taxonomy.NONE), kmers, invalidFrac)
     } else {
       val lineage = taxonomy.pathToRoot(taxon).toArray
-      Gen.listOfN(kmers / sizePerHit, taxonHits(lineage, sizePerHit)).map(_.toArray)
+      readHits(lineage, kmers, invalidFrac)
     }
   }
+
+  /** Fraction of k-mers in a pseudo-read occupied by a taxon and its ancestors */
+  def fractionPath(taxonomy: Taxonomy, taxon: Taxon, hits: Array[TaxonHit]): Double =
+    if (hits.isEmpty) 0 else
+      hits.filter(h => taxonomy.hasAncestor(taxon, h.taxon)).map(_.count).sum.toDouble /
+        hits.map(_.count).sum
+
+  /** Fraction of k-mers in a pseudo-read occupied by just the taxon */
+  def fraction(taxon: Taxon, hits: Array[TaxonHit]): Double =
+    if (hits.isEmpty) 0 else
+      hits.filter(h => h.taxon == taxon).map(_.count).sum.toDouble /
+        hits.map(_.count).sum
+
+  def validFraction(hits: Array[TaxonHit]): Double =
+    hits.filter(h => h.taxon != Taxonomy.NONE).map(_.count).sum.toDouble /
+      hits.map(_.count).sum
 
   test("resolveTree") {
     forAll(taxonomies(100), Gen.choose(10, 100).label("kmers"),
@@ -43,33 +58,28 @@ class ClassifierProps extends AnyFunSuite with ScalaCheckPropertyChecks with Mat
       (t, kmers, taxon, invalidFrac, threshold) =>
       whenever(taxon > 0 && taxon < t.size && kmers >= 0 && invalidFrac >= 0 && threshold >= 0) {
         val lca = new LowestCommonAncestor(t)
-        forAll(readHits(taxon, kmers, invalidFrac)) { hits =>
-          val measuredValidCount = hits.filter(_.taxon != Taxonomy.NONE).map(_.count).sum
-          //We can not precisely guarantee the valid fraction in the generated data, so it's easier to measure it
-          val measuredValidFraction = if (hits.isEmpty) 0 else measuredValidCount.toDouble / hits.map(_.count).sum
+        forAll(readHitsLineage(t, taxon, kmers, invalidFrac)) { hits =>
+          val measuredValidFraction = validFraction(hits)
 
           val r = lca.resolveTree(TaxonCounts.fromHits(hits), threshold)
-          if (hits.size == 0 || measuredValidFraction < threshold)
+          if (hits.size == 0 || measuredValidFraction < threshold) {
             r should equal(Taxonomy.NONE)
-          else
-            r should equal(taxon)
-        }
-      }
-    }
-  }
+          } else {
+            val distinctTaxa = hits.map(_.taxon).distinct
 
-  test("resolveTree lineage") {
-    forAll(taxonomies(100), Gen.choose(10, 100), Gen.choose(1, 99)) { (t, k, taxon) =>
-      // prevent taxon from shrinking below 1
-      whenever(taxon > 0 && taxon < t.size) {
-        val lca = new LowestCommonAncestor(t)
-        forAll(readHitsLineage(t, taxon, k)) { hits =>
-          val r = lca.resolveTree(TaxonCounts.fromHits(hits), 0)
-          if (hits.size == 0)
-            r should equal(Taxonomy.NONE)
-          else {
-            val lowestHit = hits.map(_.taxon).maxBy(t.depth)
-            r should equal(lowestHit)
+            //Descending sort by fraction. Find most heavily weighted path.
+            val bestHit = distinctTaxa.map(x => (fractionPath(t, x, hits), x)).
+              sortBy(x => x._1).reverse.headOption.map(_._2).getOrElse(Taxonomy.NONE)
+
+            val fractionLevels = t.pathToRoot(bestHit).
+              scanLeft[Double](0.0)((score, t) => score + fraction(t, hits)).drop(1)
+            //Find an ancestor in the path of bestHit that has a sufficient support fraction
+            val sufficientFraction = t.pathToRoot(bestHit).zip(fractionLevels).dropWhile(_._2 < threshold).toStream.
+              map(_._1).
+              headOption.getOrElse(Taxonomy.NONE)
+
+//            println(s"$bestHit ${fractionPath(t, bestHit, hits)} ${TaxonCounts.fromHits(hits)}")
+            r should equal(sufficientFraction)
           }
         }
       }
