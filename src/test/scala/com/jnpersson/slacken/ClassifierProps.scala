@@ -62,25 +62,21 @@ class ClassifierProps extends AnyFunSuite with ScalaCheckPropertyChecks with Mat
           val measuredValidFraction = validFraction(hits)
 
           val r = lca.resolveTree(TaxonCounts.fromHits(hits), threshold)
-          if (hits.size == 0 || measuredValidFraction < threshold) {
-            r should equal(Taxonomy.NONE)
-          } else {
-            val distinctTaxa = hits.map(_.taxon).distinct
+          val distinctTaxa = hits.map(_.taxon).distinct
 
-            //Descending sort by fraction. Find most heavily weighted path.
-            val bestHit = distinctTaxa.map(x => (fractionPath(t, x, hits), x)).
-              sortBy(x => x._1).reverse.headOption.map(_._2).getOrElse(Taxonomy.NONE)
+          //Descending sort by fraction. Find most heavily weighted path.
+          val bestHit = distinctTaxa.map(x => (fractionPath(t, x, hits), x)).
+            sortBy(x => x._1).reverse.headOption.map(_._2).getOrElse(Taxonomy.NONE)
 
-            val fractionLevels = t.pathToRoot(bestHit).
-              scanLeft[Double](0.0)((score, t) => score + fraction(t, hits)).drop(1)
-            //Find an ancestor in the path of bestHit that has a sufficient support fraction
-            val sufficientFraction = t.pathToRoot(bestHit).zip(fractionLevels).dropWhile(_._2 < threshold).toStream.
-              map(_._1).
-              headOption.getOrElse(Taxonomy.NONE)
+          val fractionLevels = t.pathToRoot(bestHit).
+            scanLeft[Double](0.0)((score, t) => score + fraction(t, hits)).drop(1)
+          //Find an ancestor in the path of bestHit that has a sufficient support fraction
+          val sufficientFraction = t.pathToRoot(bestHit).zip(fractionLevels).dropWhile(_._2 < threshold).toStream.
+            map(_._1).
+            headOption.getOrElse(Taxonomy.NONE)
 
-//            println(s"$bestHit ${fractionPath(t, bestHit, hits)} ${TaxonCounts.fromHits(hits)}")
-            r should equal(sufficientFraction)
-          }
+//        println(s"$bestHit ${fractionPath(t, bestHit, hits)} ${TaxonCounts.fromHits(hits)}")
+          r should equal(sufficientFraction)
         }
       }
     }
