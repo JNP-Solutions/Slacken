@@ -26,56 +26,52 @@ class ClassifierProps extends AnyFunSuite with ScalaCheckPropertyChecks with Mat
     } yield permuted.toArray
   }
 
-  def readHitsLineage(taxonomy: Taxonomy, taxon: Taxon, kmers: Int, invalidFrac: Double): Gen[Array[TaxonHit]] = {
-    if (taxon == Taxonomy.NONE) {
-      readHits(Array(Taxonomy.NONE), kmers, invalidFrac)
-    } else {
-      val lineage = taxonomy.pathToRoot(taxon).toArray
-      readHits(lineage, kmers, invalidFrac)
-    }
-  }
-
   /** Fraction of k-mers in a pseudo-read occupied by a taxon and its ancestors */
-  def fractionPath(taxonomy: Taxonomy, taxon: Taxon, hits: Array[TaxonHit]): Double =
+  def fractionAbove(taxonomy: Taxonomy, taxon: Taxon, hits: Array[TaxonHit]): Double =
     if (hits.isEmpty) 0 else
       hits.filter(h => taxonomy.hasAncestor(taxon, h.taxon)).map(_.count).sum.toDouble /
         hits.map(_.count).sum
 
-  /** Fraction of k-mers in a pseudo-read occupied by just the taxon */
-  def fraction(taxon: Taxon, hits: Array[TaxonHit]): Double =
+  /** Fraction of k-mers in a pseudo-read occupied by a taxon and its descendants */
+  def fractionBelow(taxonomy: Taxonomy, taxon: Taxon, hits: Array[TaxonHit]): Double =
     if (hits.isEmpty) 0 else
-      hits.filter(h => h.taxon == taxon).map(_.count).sum.toDouble /
+      hits.filter(h => taxonomy.hasAncestor(h.taxon, taxon)).map(_.count).sum.toDouble /
         hits.map(_.count).sum
-
-  def validFraction(hits: Array[TaxonHit]): Double =
-    hits.filter(h => h.taxon != Taxonomy.NONE).map(_.count).sum.toDouble /
-      hits.map(_.count).sum
 
   test("resolveTree") {
     forAll(taxonomies(100), Gen.choose(10, 100).label("kmers"),
-      Gen.choose(1, 99).label("taxon"),
       Gen.choose(0.0, 1.0).label("invalidFrac"), Gen.choose(0.0, 1.0).label("threshold")) {
-      (t, kmers, taxon, invalidFrac, threshold) =>
-      whenever(taxon > 0 && taxon < t.size && kmers >= 0 && invalidFrac >= 0 && threshold >= 0) {
+      (t, kmers, invalidFrac, threshold) =>
+      whenever(kmers >= 0 && invalidFrac >= 0 && threshold >= 0) {
         val lca = new LowestCommonAncestor(t)
-        forAll(readHitsLineage(t, taxon, kmers, invalidFrac)) { hits =>
-          val measuredValidFraction = validFraction(hits)
+        forAll(readHits(t.taxa.toArray, kmers, invalidFrac)) { hits =>
+          //First, calculate the expected classification result for the generated pseudo-read.
 
-          val r = lca.resolveTree(TaxonCounts.fromHits(hits), threshold)
-          val distinctTaxa = hits.map(_.taxon).distinct
+          val distinctTaxa = hits.map(_.taxon).filter(_ != Taxonomy.NONE).distinct
 
           //Descending sort by fraction. Find most heavily weighted path.
-          val bestHit = distinctTaxa.map(x => (fractionPath(t, x, hits), x)).
-            sortBy(x => x._1).reverse.headOption.map(_._2).getOrElse(Taxonomy.NONE)
+          val bestHits = distinctTaxa.map(x => (fractionAbove(t, x, hits), x)).
+            sortBy(x => x._1).reverse.toList
 
-          val fractionLevels = t.pathToRoot(bestHit).
-            scanLeft[Double](0.0)((score, t) => score + fraction(t, hits)).drop(1)
+          var bestHit = bestHits.headOption.getOrElse((0, Taxonomy.NONE))
+          var remainingHits = if (bestHits.nonEmpty) bestHits.tail else bestHits
+
+          //Equal scores for multiple paths get resolved by LCA
+          while (remainingHits.nonEmpty && remainingHits.head._1 == bestHit._1) {
+            bestHit = (bestHit._1, lca(bestHit._2, remainingHits.head._2))
+            remainingHits = remainingHits.tail
+          }
+          val bestTaxon = bestHit._2
+
+          //Find the coverage fraction at each level in the bestTaxon's path to root
+          val fractionLevels = t.pathToRoot(bestTaxon).map(tax => fractionBelow(t, tax, hits))
           //Find an ancestor in the path of bestHit that has a sufficient support fraction
-          val sufficientFraction = t.pathToRoot(bestHit).zip(fractionLevels).dropWhile(_._2 < threshold).toStream.
+          val sufficientFraction = t.pathToRoot(bestTaxon).zip(fractionLevels).dropWhile(_._2 < threshold).toStream.
             map(_._1).
             headOption.getOrElse(Taxonomy.NONE)
 
-//        println(s"$bestHit ${fractionPath(t, bestHit, hits)} ${TaxonCounts.fromHits(hits)}")
+//        println(s"$bestHit ${cladeFraction(t, bestHit._2, hits)} ${TaxonCounts.fromHits(hits)}")
+          val r = lca.resolveTree(TaxonCounts.fromHits(hits), threshold)
           r should equal(sufficientFraction)
         }
       }
