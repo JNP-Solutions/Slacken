@@ -95,9 +95,14 @@ object Testing {
     }
   }
 
-  def taxonHits(taxa: Array[Taxon], kmers: Int): Gen[TaxonHit] = {
-    Gen.oneOf(taxa).map( t => TaxonHit(Array(0), 0, t, kmers))
-  }
+  /** Generate taxon hits from a read with taxa randomly selected from the given array and a
+   * given number of total k-mers.
+   */
+  def pseudoRead(taxa: Array[Taxon], totalKmers: Int): Gen[Vector[TaxonHit]] =
+    for {
+      kmersPerHit <- termsToSum(totalKmers)
+      taxa <- Gen.listOfN(kmersPerHit.size, Gen.oneOf(taxa))
+    } yield kmersPerHit.zip(taxa).map(kt => TaxonHit(Array(0), 0, kt._2, kt._1))
 
   def permutations[T](items: Seq[T]): Gen[Vector[T]] =
     permutations(items.toVector)
@@ -112,6 +117,18 @@ object Testing {
         prefix <- permutations(items.take(i))
         suffix <- permutations(items.drop(i + 1))
       } yield x +: (prefix ++ suffix)
+    }
+  }
+
+  /** Generate possible ways to sum up nonzero integer terms to a given total */
+  def termsToSum(sum: Int): Gen[Vector[Int]] = {
+    if (sum == 0) {
+      Gen.const(Vector.empty)
+    } else {
+      for {
+        i <- Gen.choose(1, sum)
+        suffix <- termsToSum(sum - i)
+      } yield i +: suffix
     }
   }
 

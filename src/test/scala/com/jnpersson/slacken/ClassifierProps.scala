@@ -15,13 +15,12 @@ class ClassifierProps extends AnyFunSuite with ScalaCheckPropertyChecks with Mat
    * @param invalidFrac fraction of invalid (NONE) k-mers in the read
    */
   def readHits(taxa: Array[Taxon], kmers: Int, invalidFrac: Double): Gen[Array[TaxonHit]] = {
-    val sizePerHit = 5
     val invalidKmers = Math.floor(kmers * invalidFrac).toInt
     val validKmers = kmers - invalidKmers
 
     for {
-      validPart <- Gen.listOfN(validKmers / sizePerHit, taxonHits(taxa, sizePerHit))
-      invalidPart <- Gen.listOfN(invalidKmers / sizePerHit, taxonHits(Array(Taxonomy.NONE), sizePerHit))
+      validPart <- pseudoRead(taxa, validKmers)
+      invalidPart <- pseudoRead(Array(Taxonomy.NONE), invalidKmers)
       permuted <- permutations(validPart ++ invalidPart)
     } yield permuted.toArray
   }
@@ -70,7 +69,7 @@ class ClassifierProps extends AnyFunSuite with ScalaCheckPropertyChecks with Mat
             map(_._1).
             headOption.getOrElse(Taxonomy.NONE)
 
-//        println(s"$bestHit ${cladeFraction(t, bestHit._2, hits)} ${TaxonCounts.fromHits(hits)}")
+//        println(s"$bestHit ${fractionBelow(t, bestHit._2, hits)} ${TaxonCounts.fromHits(hits)}")
           val r = lca.resolveTree(TaxonCounts.fromHits(hits), threshold)
           r should equal(sufficientFraction)
         }
