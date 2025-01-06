@@ -19,8 +19,8 @@ class ClassifierProps extends AnyFunSuite with ScalaCheckPropertyChecks with Mat
     val validKmers = kmers - invalidKmers
 
     for {
-      validPart <- pseudoRead(taxa, validKmers)
-      invalidPart <- pseudoRead(Array(Taxonomy.NONE), invalidKmers)
+      validPart <- pseudoRead(taxa, validKmers, 10)
+      invalidPart <- pseudoRead(Array(Taxonomy.NONE), invalidKmers, 10)
       permuted <- permutations(validPart ++ invalidPart)
     } yield permuted.toArray
   }
@@ -38,7 +38,7 @@ class ClassifierProps extends AnyFunSuite with ScalaCheckPropertyChecks with Mat
         hits.map(_.count).sum
 
   test("resolveTree") {
-    forAll(taxonomies(100), Gen.choose(10, 100).label("kmers"),
+    forAll(taxonomies(100), Gen.choose(10, 200).label("kmers"),
       Gen.choose(0.0, 1.0).label("invalidFrac"), Gen.choose(0.0, 1.0).label("threshold")) {
       (t, kmers, invalidFrac, threshold) =>
       whenever(kmers >= 0 && invalidFrac >= 0 && threshold >= 0) {
