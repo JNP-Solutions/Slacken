@@ -27,6 +27,8 @@ import com.jnpersson.slacken.Taxonomy.{NONE, ROOT, Rank, Root}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.scalacheck.{Gen, Shrink}
 
+import scala.annotation.tailrec
+
 object Testing {
 
   //Construct a smaller taxonomy by removing a single node
@@ -98,9 +100,9 @@ object Testing {
   /** Generate taxon hits from a read with taxa randomly selected from the given array and a
    * given number of total k-mers.
    */
-  def pseudoRead(taxa: Array[Taxon], totalKmers: Int): Gen[Vector[TaxonHit]] =
+  def pseudoRead(taxa: Array[Taxon], totalKmers: Int, maxHitSize: Int): Gen[List[TaxonHit]] =
     for {
-      kmersPerHit <- termsToSum(totalKmers)
+      kmersPerHit <- termsToSum(totalKmers, maxHitSize)
       taxa <- Gen.listOfN(kmersPerHit.size, Gen.oneOf(taxa))
     } yield kmersPerHit.zip(taxa).map(kt => TaxonHit(Array(0), 0, kt._2, kt._1))
 
@@ -120,16 +122,31 @@ object Testing {
     }
   }
 
-  /** Generate possible ways to sum up nonzero integer terms to a given total */
-  def termsToSum(sum: Int): Gen[Vector[Int]] = {
-    if (sum == 0) {
-      Gen.const(Vector.empty)
-    } else {
-      for {
-        i <- Gen.choose(1, sum)
-        suffix <- termsToSum(sum - i)
-      } yield i +: suffix
+  /** Pick a list prefix such that the sum of the terms equals the given value.
+   *
+   * @param remaining target sum
+   * @param terms     terms to pick from
+   * @param acc       accumulator
+   * @return terms such that the sum of them all equals the initial target sum, in reversed order
+   */
+  @tailrec
+  def prefixToSum(remaining: Int, terms: List[Int], acc: List[Int]): List[Int] = {
+    terms match {
+      case x :: xs =>
+        if (x >= remaining)
+          remaining :: acc //Adjust the final term to guarantee that the total sum is correct
+        else
+          prefixToSum(remaining - x, xs, x :: acc)
+      case _ => acc
     }
+  }
+
+  /** Generate possible ways to sum up nonzero integer terms to a given total */
+  def termsToSum(sum: Int, maxTerm: Int): Gen[List[Int]] = {
+    //First, generate at least "sum" number of random integers that are at least 1.
+    //The sum of them all is between sum and sum * maxTerm.
+    //Then take only the prefix that is long enough to satisfy that the total sum should be correct.
+    Gen.listOfN(sum, Gen.choose(1, maxTerm)).map(list => prefixToSum(sum, list, Nil))
   }
 
 }
