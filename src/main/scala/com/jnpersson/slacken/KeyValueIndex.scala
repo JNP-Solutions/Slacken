@@ -78,29 +78,29 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
 
     numIdColumns match {
       case 1 =>
-        seqTaxa.flatMap(r => {
+        seqTaxa.flatMap(r =>
           bcSplit.value.superkmerPositions(r._2).map { min =>
             (min.rank(0), r._1)
           }
-        }).toDF(recordColumnNames: _*)
+        ).toDF(recordColumnNames: _*)
       case 2 =>
-        seqTaxa.flatMap(r => {
+        seqTaxa.flatMap(r =>
           bcSplit.value.superkmerPositions(r._2).map { min =>
             (min.rank(0), min.rank(1), r._1)
           }
-        }).toDF(recordColumnNames: _*)
+        ).toDF(recordColumnNames: _*)
       case 3 =>
-        seqTaxa.flatMap(r => {
+        seqTaxa.flatMap(r =>
           bcSplit.value.superkmerPositions(r._2).map { min =>
             (min.rank(0), min.rank(1), min.rank(2), r._1)
           }
-        }).toDF(recordColumnNames: _*)
+        ).toDF(recordColumnNames: _*)
       case 4 =>
-        seqTaxa.flatMap(r => {
+        seqTaxa.flatMap(r =>
           bcSplit.value.superkmerPositions(r._2).map { min =>
             (min.rank(0), min.rank(1), min.rank(2), min.rank(3), r._1)
           }
-        }).toDF(recordColumnNames: _*)
+        ).toDF(recordColumnNames: _*)
       case _ =>
         //In case of minimizers wider than 128 bp (4 longs), expand this section
         ???
