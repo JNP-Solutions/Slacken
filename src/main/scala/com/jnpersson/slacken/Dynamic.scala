@@ -243,7 +243,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     HDFSUtil.usingWriter(outputLocation + "_support_report_classifiedReadCount.txt",
       wr => classifiedReadCounter.print(wr))
 
-    val minimizerCoverage = statCollection._3.cache
+    val minimizerCoverage = statCollection._3.cache()
 
     try {
       minimizerCoverage
@@ -307,7 +307,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
 
     val promoted = notFound.flatMap(t => {
       val path = taxonomy.pathToRoot(t).filter(taxonSetInLibrary.contains)
-      if (path.hasNext) Some(path.next) else None
+      if (path.hasNext) Some(path.next()) else None
     })
     println(s"${notFound.size} taxa from gold set not found in library, promoted to ${promoted.size} taxa.")
     val levelCounts = promoted.toSeq.map(t => taxonomy.depth(t)).groupBy(x => x).map(x =>

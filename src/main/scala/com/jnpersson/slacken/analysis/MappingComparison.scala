@@ -128,8 +128,8 @@ class MappingComparison(tax: Broadcast[Taxonomy],
 
 
   def allMetrics(dataFile: String, reference: String): Iterator[Metrics] = {
-    val referenceData = readReferenceData(reference).cache
-    println(s"Filtered reference size: ${referenceData.count}")
+    val referenceData = readReferenceData(reference).cache()
+    println(s"Filtered reference size: ${referenceData.count()}")
 
     try {
       println(s"--------$dataFile--------")
