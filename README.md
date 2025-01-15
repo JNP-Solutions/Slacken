@@ -5,7 +5,7 @@ Slacken implements metagenomic classification based on k-mers and minimizers. It
 algorithms. In particular, it supports sample-tailored libraries, where the minimizer library is built on the fly as part 
 of read classification.
 
-For more motivation and details, please see our [paper](https://www.biorxiv.org/content/10.1101/2024.12.22.629657v1.article-metrics) on BioRXiv.
+For more motivation and details, please see our [preprint](https://www.biorxiv.org/content/10.1101/2024.12.22.629657v1) on BioRXiv.
 
 Copyright (c) Johan Nyström-Persson 2019-2025.
 
