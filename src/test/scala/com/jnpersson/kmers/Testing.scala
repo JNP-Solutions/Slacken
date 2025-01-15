@@ -57,9 +57,9 @@ object Testing {
 object TestGenerators {
   import BitRepresentation._
 
-  val dnaCharsArray = "ACTG".toArray
-  val dnaCharsArrayMixedCase = "ACTGactg".toArray
-  val dnaRnaCharsArrayMixedCase = "ACTGUactgu".toArray
+  val dnaCharsArray = "ACTG".toSeq
+  val dnaCharsArrayMixedCase = "ACTGactg".toSeq
+  val dnaRnaCharsArrayMixedCase = "ACTGUactgu".toSeq
   val dnaLetterTwobits: Gen[Byte] = Gen.choose(0, 3).map(x => twobits(x))
 
   def dnaStrings(minLen: Int, maxLen: Int): Gen[NTSeq] = for {
