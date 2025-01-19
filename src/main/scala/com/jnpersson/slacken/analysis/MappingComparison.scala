@@ -70,7 +70,14 @@ object Metrics {
   def header = s"title\tfamily\tgroup\tsample\tlibrary\tk\tm\tfrequency\tfl\ts\tc\trank\t${PerTaxonMetrics.header}\t${PerReadMetrics.header}"
 }
 
-/** Compare a set of classifications against a reference. */
+/** Compare a set of classifications against a reference.
+ * @param tax The taxonomy
+ * @param refIdCol Read ID column in reference, 1-based.
+ * @param refTaxonCol Read taxon column in reference, 1-based.
+ * @param withHeader Whether to skip a single header line in the reference
+ * @param minCountTaxon Min read count for a taxon to be considered present
+ * @param multiSample Whether the test data was generated in multi-sample mode
+ * */
 class MappingComparison(tax: Broadcast[Taxonomy],
                         refIdCol: Int, refTaxonCol: Int, withHeader: Boolean,
                         minCountTaxon: Long,
@@ -262,7 +269,7 @@ class MappingComparison(tax: Broadcast[Taxonomy],
     Dataset[(SeqTitle, Taxon)] = {
     val bcTax = this.tax
     spark.read.option("sep", "\t").option("header", withHeader.toString).csv(location).
-      filter(x => !x.getString(idCol -1).contains("/2")). //paired end
+      filter(x => !x.getString(idCol - 1).contains("/2")). //paired end
       map(x => (
         x.getString(idCol - 1).replaceAll("/1", ""),  //remove /1 in paired end reads
         bcTax.value.primary(x.getString(taxonCol - 1).toInt))

@@ -59,7 +59,9 @@ final case class GenomeLibrary(inputs: Inputs, labelFile: String) {
 }
 
 object GenomeLibrary {
-  val rankStrUdf: UserDefinedFunction =
+
+  /** For a numerical rank (depth), produce a human-readable taxonomic rank, such as "genus" */
+  val numericalRankToStrUdf: UserDefinedFunction =
     udf((x: Int) =>
       Taxonomy.rankValues.find(_.depth == x).map(_.title).getOrElse("???"))
 
@@ -101,7 +103,7 @@ object GenomeLibrary {
 
     val missingSteps = validLabelled.flatMap(x => tax.missingStepsToRoot(x)).toSeq.toDF("missingLevel")
     missingSteps.groupBy("missingLevel").agg(count("missingLevel")).sort("missingLevel").
-      withColumn("label", rankStrUdf($"missingLevel")).
+      withColumn("label", numericalRankToStrUdf($"missingLevel")).
       show()
   }
 }

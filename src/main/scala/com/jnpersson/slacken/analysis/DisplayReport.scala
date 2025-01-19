@@ -39,6 +39,11 @@ object DisplayReport {
     Taxonomy.rankValues.find(_.code == code).
       getOrElse(Taxonomy.Unclassified).depth
 
+  /**
+   * Filter, color code and display a Kraken/Slacken report.
+   * Arguments: 1. letter code for taxonomic rank cutoff, e.g. G for genus. See [[Rank]].
+   * 2. Minimum percentage for cutoff, e.g. 1. If given, the rank must also be given.
+   */
   def main(args: Array[String]): Unit = {
     val levelArg = if (args.length > 0) Some(args(0)) else None
     val minPercentArg = if (args.length > 1) Some(args(1).toDouble) else None
