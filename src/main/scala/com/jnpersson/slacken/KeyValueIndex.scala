@@ -22,7 +22,7 @@ package com.jnpersson.slacken
 import com.jnpersson.kmers._
 import com.jnpersson.kmers.minimizer._
 import com.jnpersson.kmers.Helpers.randomTableName
-import com.jnpersson.kmers.Output.formatPerc
+import com.jnpersson.kmers.Helpers.formatPerc
 
 import com.jnpersson.kmers.util.NTBitArray
 import org.apache.spark.broadcast.Broadcast
