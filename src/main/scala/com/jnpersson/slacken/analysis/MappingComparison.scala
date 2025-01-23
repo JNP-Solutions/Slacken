@@ -21,7 +21,7 @@
 package com.jnpersson.slacken.analysis
 
 import com.jnpersson.kmers._
-import com.jnpersson.kmers.Output.formatPerc
+import com.jnpersson.kmers.Helpers.formatPerc
 import com.jnpersson.slacken.Taxonomy.{Genus, Rank, Species}
 import com.jnpersson.slacken.{Taxon, Taxonomy}
 import org.apache.spark.broadcast.Broadcast

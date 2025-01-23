@@ -118,7 +118,7 @@ final case class SampledFrequencies(table: MinTable, minimizerCounts: Array[Int]
     val sum = Arrays.sum(minimizerCounts)
     val unseenCount = countUnseen()
 
-    def percent(x: Int) = Output.formatPerc(x.toDouble/sum)
+    def percent(x: Int) = Helpers.formatPerc(x.toDouble/sum)
 
     def ntString(p: Int) = NTBitArray.fromLong(p, width).toString
 
