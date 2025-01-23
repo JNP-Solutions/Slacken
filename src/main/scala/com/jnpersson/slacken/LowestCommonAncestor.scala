@@ -92,7 +92,7 @@ final class LowestCommonAncestor(taxonomy: Taxonomy) {
   def resolveTree(hitSummary: TaxonCounts, confidenceThreshold: Double): Taxon = {
     //the number of times each taxon was seen in a read, excluding ambiguous
     val hitCounts = hitSummary.toMap
-    val requiredScore = Math.ceil(confidenceThreshold * hitSummary.totalTaxa)
+    val requiredScore = Math.ceil(confidenceThreshold * hitSummary.totalKmers)
     resolveTree(hitCounts, requiredScore)
   }
 

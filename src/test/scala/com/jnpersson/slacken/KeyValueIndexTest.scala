@@ -82,8 +82,8 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
     val labels = seqIdToTaxId.toDF("header", "taxon").cache()
     val noiseReads = DTesting.getList(randomReads(200, 200), 1000).
       zipWithIndex.map(x => x._1.copy(header = x._2.toString)).toDS()
-    val dir = System.getProperty("user.dir")
-    val location = HDFSUtil.makeQualified(s"$dir/testData/slacken/slacken_test_random")
+
+    val location = "testData/slacken/slacken_test_random"
 
     //As this test is slow, we limit the number of checks
     forAll((Gen.choose(15, maxM + 30), "k"), (ms(maxM), "m"), minSuccessful(5)) { (k, m) =>
@@ -127,8 +127,7 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
   }
 
   test("Insert testData genomes, write to disk, and check index contents") {
-    val dir = System.getProperty("user.dir")
-    val location = HDFSUtil.makeQualified(s"$dir/testData/slacken/slacken_test_kv")
+    val location = "testData/slacken/slacken_test_kv"
     val k = 35
     val m = 31
     val s = 7
@@ -153,11 +152,11 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
         whenever(k <= x.length) {
           val s = m/3
           val idx = TestData.index(k, m, s, None)
-          val taxaSequence = List((1, x)).toDS
+          val taxaSequence = List((1, x)).toDS()
           val recs = idx.makeRecords(taxaSequence)
           val recordCount = recs.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect()
 
-          val minCount = idx.split.superkmerPositions(x).map(_.rank).toSeq.toDS.distinct().count()
+          val minCount = idx.split.superkmerPositions(x).map(_.rank).toSeq.toDS().distinct().count()
           List((1, minCount)) should equal(recordCount)
         }
       }

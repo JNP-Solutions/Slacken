@@ -103,7 +103,7 @@ class CAMIToKrakenReport(mappingLocation: String, tax: Taxonomy, minRank: Option
       sql.functions.floor(
         sql.functions.count("*") / 2
       )
-    ).as[(Taxon, Long)].collect
+    ).as[(Taxon, Long)].collect()
 
     val pairs = counts
     val report = new KrakenReport(tax, pairs)
