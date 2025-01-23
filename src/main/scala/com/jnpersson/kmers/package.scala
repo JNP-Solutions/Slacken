@@ -96,6 +96,9 @@ package object kmers {
     def getFormat[P <: MinimizerPriorities](cls: Class[_ <: P]): SplitterFormat[P] = synchronized {
       formatsByCls.getOrElse(cls, throw new Exception(s"No format for class $cls")).asInstanceOf[SplitterFormat[P]]
     }
+
+    /** Format a fraction as a percentage string */
+    def formatPerc(d: Double): String = "%.2f%%".format(d * 100)
   }
 
 }
