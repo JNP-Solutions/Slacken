@@ -27,6 +27,8 @@ import com.jnpersson.slacken.Taxonomy.{NONE, ROOT, Rank, Root}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.scalacheck.{Gen, Shrink}
 
+import scala.annotation.tailrec
+
 object Testing {
 
   //Construct a smaller taxonomy by removing a single node
@@ -95,8 +97,56 @@ object Testing {
     }
   }
 
-  def taxonHits(taxa: Array[Taxon], kmers: Int): Gen[TaxonHit] = {
-    Gen.oneOf(taxa).map( t => TaxonHit(Array(0), 0, t, kmers))
+  /** Generate taxon hits from a read with taxa randomly selected from the given array and a
+   * given number of total k-mers.
+   */
+  def pseudoRead(taxa: Array[Taxon], totalKmers: Int, maxHitSize: Int): Gen[List[TaxonHit]] =
+    for {
+      kmersPerHit <- termsToSum(totalKmers, maxHitSize)
+      taxa <- Gen.listOfN(kmersPerHit.size, Gen.oneOf(taxa))
+    } yield kmersPerHit.zip(taxa).map(kt => TaxonHit(Array(0), 0, kt._2, kt._1))
+
+  def permutations[T](items: Seq[T]): Gen[Vector[T]] =
+    permutations(items.toVector)
+
+  def permutations[T](items: Vector[T]): Gen[Vector[T]] = {
+    if (items.size < 2) {
+      Gen.const(items)
+    } else {
+      for {
+        i <- Gen.choose(0, items.size - 1)
+        x = items(i)
+        prefix <- permutations(items.take(i))
+        suffix <- permutations(items.drop(i + 1))
+      } yield x +: (prefix ++ suffix)
+    }
+  }
+
+  /** Pick a list prefix such that the sum of the terms equals the given value.
+   *
+   * @param remaining target sum
+   * @param terms     terms to pick from
+   * @param acc       accumulator
+   * @return terms such that the sum of them all equals the initial target sum, in reversed order
+   */
+  @tailrec
+  def prefixToSum(remaining: Int, terms: List[Int], acc: List[Int]): List[Int] = {
+    terms match {
+      case x :: xs =>
+        if (x >= remaining)
+          remaining :: acc //Adjust the final term to guarantee that the total sum is correct
+        else
+          prefixToSum(remaining - x, xs, x :: acc)
+      case _ => acc
+    }
+  }
+
+  /** Generate possible ways to sum up nonzero integer terms to a given total */
+  def termsToSum(sum: Int, maxTerm: Int): Gen[List[Int]] = {
+    //First, generate at least "sum" number of random integers that are at least 1.
+    //The sum of them all is between sum and sum * maxTerm.
+    //Then take only the prefix that is long enough to satisfy that the total sum should be correct.
+    Gen.listOfN(sum, Gen.choose(1, maxTerm)).map(list => prefixToSum(sum, list, Nil))
   }
 
 }
@@ -135,10 +185,10 @@ object TestData {
   val numberOf35Mers = Map(526997 -> 2902850, 455631 -> 3565872, 9606 -> 639784)
 
   def inputs(k: Int)(implicit spark: SparkSession) =
-    new Inputs(List(HDFSUtil.makeQualified("testData/slacken/slacken_tinydata.fna")), k, 10000000)
+    new Inputs(List("testData/slacken/slacken_tinydata.fna"), k, 10000000)
 
   def library(k: Int)(implicit spark: SparkSession): GenomeLibrary =
-    GenomeLibrary(inputs(k), HDFSUtil.makeQualified("testData/slacken/seqid2taxid.map"))
+    GenomeLibrary(inputs(k), "testData/slacken/seqid2taxid.map")
 
   def minPriorities(m: Int, s: Int): MinimizerPriorities =
     if (s > 0)

@@ -31,14 +31,14 @@ import scala.collection.mutable
  */
 package object slacken {
   type Taxon = Int
-  type SegmentFlag = Int
 
-  val AMBIGUOUS_SPAN: Taxon = -1
-  val MATE_PAIR_BORDER: Taxon = -2
+  val AMBIGUOUS_SPAN: Taxon = -1   /** special taxon for [[AMBIGUOUS_FLAG]] */
+  val MATE_PAIR_BORDER: Taxon = -2   /** special taxon for [[MATE_PAIR_BORDER_FLAG]] */
 
   //Special information about a segment, whether it is normal (sequence), ambiguous sequence,
   //or a mate pair border (between paired reads)
   //This should really be a trait/case object hierarchy, but spark can't serialize those currently.
+  type SegmentFlag = Int
   val SEQUENCE_FLAG: SegmentFlag = 1
   val AMBIGUOUS_FLAG: SegmentFlag = 2
   val MATE_PAIR_BORDER_FLAG: SegmentFlag = 3

@@ -82,8 +82,8 @@ final case class TaxonCounts(taxa: mutable.IndexedSeq[Taxon], counts: mutable.In
     r
   }
 
-  /** The total number of taxa counted here, including ambiguous spans, but not including any mate pair border. */
-  def totalTaxa: Int =
+  /** The total number of k-mers counted here, including ambiguous spans, but not including any mate pair border. */
+  def totalKmers: Int =
     asPairs.
       filter(_._1 != MATE_PAIR_BORDER).
       map(_._2).sum

@@ -33,7 +33,9 @@ import scala.collection.mutable
 
 /** Metagenomic index compatible with the Kraken 2 algorithm.
  * This index stores k-mers and LCA taxa as key-value pairs.
- * @param records LCA records
+ *
+ * @param records LCA records. The number of columns depends on the minimizer width:
+ *                one long value for each 32 bp of the minimizers, and an integer for the taxon.
  * @param params Parameters for k-mers, index bucketing and persistence
  * @param taxonomy The taxonomy
  */
@@ -50,34 +52,38 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
   private val recordColumnNames: Seq[String] = idColumnNames :+ "taxon"
 
 
+  /** Find (minimizer, taxon) pairs in the given pairs of (taxon, NT sequence).
+   * @param seqTaxa pairs of (taxon, NT sequence)
+   * @return pairs of (minimizer, taxon).
+   */
   def findMinimizers(seqTaxa: Dataset[(Taxon, NTSeq)]): DataFrame = {
     val bcSplit = this.bcSplit
 
     numIdColumns match {
       case 1 =>
-        seqTaxa.flatMap(r => {
+        seqTaxa.flatMap(r =>
           bcSplit.value.superkmerPositions(r._2).map { min =>
             (min.rank(0), r._1)
           }
-        }).toDF(recordColumnNames: _*)
+        ).toDF(recordColumnNames: _*)
       case 2 =>
-        seqTaxa.flatMap(r => {
+        seqTaxa.flatMap(r =>
           bcSplit.value.superkmerPositions(r._2).map { min =>
             (min.rank(0), min.rank(1), r._1)
           }
-        }).toDF(recordColumnNames: _*)
+        ).toDF(recordColumnNames: _*)
       case 3 =>
-        seqTaxa.flatMap(r => {
+        seqTaxa.flatMap(r =>
           bcSplit.value.superkmerPositions(r._2).map { min =>
             (min.rank(0), min.rank(1), min.rank(2), r._1)
           }
-        }).toDF(recordColumnNames: _*)
+        ).toDF(recordColumnNames: _*)
       case 4 =>
-        seqTaxa.flatMap(r => {
+        seqTaxa.flatMap(r =>
           bcSplit.value.superkmerPositions(r._2).map { min =>
             (min.rank(0), min.rank(1), min.rank(2), min.rank(3), r._1)
           }
-        }).toDF(recordColumnNames: _*)
+        ).toDF(recordColumnNames: _*)
       case _ =>
         //In case of minimizers wider than 128 bp (4 longs), expand this section
         ???
@@ -86,6 +92,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
 
   /** Given input genomes and their taxon IDs, build index records of minimizers and LCA taxa.
    * @param taxaSequences pairs of (taxon, genome DNA)
+   * @return index records
    */
   def makeRecords(taxaSequences: Dataset[(Taxon, NTSeq)]): DataFrame = {
     val minimizersTaxa = findMinimizers(taxaSequences)
@@ -102,14 +109,14 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
    *
    * @param library     Input data
    * @param addRC       Whether to add reverse complements
-   * @param taxonFilter Optionally limit input sequences to only taxa in this set (and their descendants)
+   * @param taxonFilter If given, limit input sequences to only taxa in this set (and their descendants)
    * @return index records
    */
   def makeRecords(library: GenomeLibrary, addRC: Boolean, taxonFilter: Option[mutable.BitSet] = None): DataFrame = {
     val input = taxonFilter match {
       case Some(tf) =>
         val titlesTaxa = library.getTaxonLabels.
-          filter(l => tf.contains(l._2)).as[(SeqTitle, Taxon)].toDF("header", "taxon").cache //TODO unpersist
+          filter(l => tf.contains(l._2)).as[(SeqTitle, Taxon)].toDF("header", "taxon").cache() //TODO unpersist
 
         println("Construct dynamic records from:")
         titlesTaxa.select(countDistinct($"header"), countDistinct($"taxon")).show()
@@ -227,6 +234,8 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
   def collectHitsBySequence(subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])] =
     spansToGroupedHits(getSpans(subjects, withTitle = true))
 
+  /** Group super-mers (minimizer spans) by sequence title and convert them to taxon hits.
+   */
   def spansToGroupedHits(subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit])] = {
     //The 'subject' struct constructs an OrdinalSpan
     val taggedSpans = subjects.select(
@@ -235,7 +244,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
         :_*)
     val setTaxonUdf = udf((tax: Option[Taxon], span: OrdinalSpan) => span.toHit(tax))
 
-    //Shuffling of the index in this join can be avoided when the partitioning column
+    //Shuffling in this join can be avoided when the partitioning column
     //and number of partitions is the same in both tables
     val taxonHits = taggedSpans.join(records, idColumnNames, "left").
       select($"subject.seqTitle".as("seqTitle"),
@@ -335,19 +344,19 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
       sort(desc("depth")).as[(Taxon, Int)]
   }
 
-  import GenomeLibrary.rankStrUdf
+  import GenomeLibrary.numericalRankToStrUdf
 
   def kmerDepthHistogram(): DataFrame = {
     kmersDepths.select("depth").groupBy("depth").count().
       sort("depth").
-      withColumn("rank", rankStrUdf($"depth")).
+      withColumn("rank", numericalRankToStrUdf($"depth")).
       select("depth", "rank", "count")
   }
 
   def taxonDepthHistogram(): DataFrame = {
     taxonDepths.select("depth").groupBy("depth").count().
       sort("depth").
-      withColumn("rank", rankStrUdf($"depth")).
+      withColumn("rank", numericalRankToStrUdf($"depth")).
       select("depth", "rank", "count")
   }
 

@@ -76,7 +76,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
       if (flag == SEQUENCE_FLAG) {
         val it = splitter.superkmerPositions(seq)
         while (it.hasNext) {
-          builder.addLongs(it.next.rank)
+          builder.addLongs(it.next().rank)
         }
       }
     }
@@ -161,7 +161,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
 
       //Did a new hit move into the window?
       if (lastInWindow.ordinal + lastInWindow.count < windowEnd) {  //no longer touching the boundary
-        if (hits.hasNext) currentWindow += hits.next
+        if (hits.hasNext) currentWindow += hits.next()
         lastInWindow = currentWindow.last
       }
 
@@ -253,10 +253,10 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
         classifications.hasNext
 
       def next: (Taxon, Taxon, Long) = {
-        val x = classifications.next
+        val x = classifications.next()
         var count = 1L
         while (classifications.hasNext && classifications.head == x) {
-          classifications.next
+          classifications.next()
           count += 1
         }
         (taxon, x, count)
