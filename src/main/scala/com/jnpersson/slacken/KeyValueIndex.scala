@@ -220,21 +220,30 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
     })
   }
 
+  /** Build a TaxonHit from an OrdinalSpan in spark SQL */
+  private val spanToHit: List[Column] =
+    List($"minimizer", $"ordinal",
+      when($"flag" === lit(AMBIGUOUS_FLAG), lit(AMBIGUOUS_SPAN)).
+        otherwise(when($"flag" === lit(MATE_PAIR_BORDER_FLAG), lit(MATE_PAIR_BORDER)).
+          otherwise(when(isnotnull($"taxon"), $"taxon").
+            otherwise(lit(Taxonomy.NONE))
+          )
+        ).as("taxon"),
+      $"kmers".as("count"))
+
   /** Find TaxonHits from InputFragments and set their taxa, without grouping them by seqTitle. */
   def findHits(subjects: Dataset[InputFragment]): Dataset[TaxonHit] = {
     val spans = getSpans(subjects, withTitle = false)
     //The 'subject' struct constructs an OrdinalSpan
     val taggedSpans = spans.select(
-      struct($"minimizer", $"kmers", $"flag", $"ordinal", $"seqTitle").as("subject") +:
-        idColumnsFromMinimizer
+      (Array($"minimizer", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
+        idColumnsFromMinimizer)
         :_*)
-    val setTaxonUdf = udf((tax: Option[Taxon], span: OrdinalSpan) => span.toHit(tax))
 
-    //Shuffling of the index in this join can be avoided when the partitioning column
-    //and number of partitions is the same in both tables
     taggedSpans.join(records, idColumnNames, "left").
-      select(setTaxonUdf($"taxon", $"subject").as("hit")).
-      select($"hit.*").as[TaxonHit]
+      select(
+        spanToHit : _*
+      ).as[TaxonHit]
   }
 
   /** Find the number of distinct minimizers for each of the given taxa */
@@ -264,16 +273,15 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
   def spansToGroupedHits(subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit])] = {
     //The 'subject' struct constructs an OrdinalSpan
     val taggedSpans = subjects.select(
-      struct($"minimizer", $"kmers", $"flag", $"ordinal", $"seqTitle").as("subject") +:
-        idColumnsFromMinimizer
+      (Seq($"minimizer", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
+        idColumnsFromMinimizer)
         :_*)
-    val setTaxonUdf = udf((tax: Option[Taxon], span: OrdinalSpan) => span.toHit(tax))
 
-    //Shuffling in this join can be avoided when the partitioning column
-    //and number of partitions is the same in both tables
     val taxonHits = taggedSpans.join(records, idColumnNames, "left").
-      select($"subject.seqTitle".as("seqTitle"),
-        setTaxonUdf($"taxon", $"subject").as("hit"))
+      select(
+        $"seqTitle",
+        struct(spanToHit : _*).as("hit")
+      )
 
     //Group all hits by sequence title again so that we can reassemble (the hits from) each sequence according
     // to the original order.
