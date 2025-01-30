@@ -63,19 +63,6 @@ package object slacken {
    * @param seqTitle title of the original sequence
    * */
   final case class OrdinalSpan(minimizer: Array[Long], kmers: Int, flag: SegmentFlag, ordinal: Int,
-                               seqTitle: SeqTitle) {
-
-    /** For a super-mer with a given minimizer, assign a taxon hit, handling ambiguity flags correctly
-     * @param taxon  The minimizer's LCA taxon
-     * */
-    def toHit(taxon: Option[Taxon]): TaxonHit = {
-      val reportTaxon =
-        if (flag == AMBIGUOUS_FLAG) AMBIGUOUS_SPAN
-        else if (flag == MATE_PAIR_BORDER_FLAG) MATE_PAIR_BORDER
-        else taxon.getOrElse(Taxonomy.NONE)
-
-      TaxonHit(minimizer, ordinal, reportTaxon, kmers)
-    }
-  }
+                               seqTitle: SeqTitle)
 
 }
