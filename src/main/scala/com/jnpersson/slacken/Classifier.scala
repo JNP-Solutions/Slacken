@@ -22,7 +22,8 @@ package com.jnpersson.slacken
 import com.jnpersson.kmers.minimizer.InputFragment
 import com.jnpersson.kmers.{HDFSUtil, Inputs, SeqTitle}
 import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
-import org.apache.spark.sql.functions.{count, desc}
+import org.apache.spark.sql.functions.{collect_list, count, desc, struct}
+import scala.collection.JavaConverters._
 
 import java.util
 
@@ -147,18 +148,36 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     } else {
       reads.where($"classified" === true)
     }
-    val outputRows = keepLines.map(r => (r.outputLine, r.sampleId)).
-      toDF("classification", "sample")
+
+    val perReadOutput = true
 
     val classOutputLoc = s"${location}_classified"
-    //These tables will be relatively small. We coalesce to avoid generating a lot of small files
-    //in the case of an index with many partitions
-    outputRows.coalesce(1000).write.mode(SaveMode.Overwrite).
-      partitionBy("sample").
-      option("compression", "gzip").
-      text(classOutputLoc)
-    makeReportsFromClassifications(classOutputLoc)
+    if (perReadOutput) {
+      //Write the classification of every read along with hit details
+      val outputRows = keepLines.map(r => (r.outputLine, r.sampleId)).
+        toDF("classification", "sample")
+
+      //These tables will be relatively small. We coalesce to avoid generating a lot of small files
+      //in the case of an index with many partitions
+      outputRows.coalesce(1000).write.mode(SaveMode.Overwrite).
+        partitionBy("sample").
+        option("compression", "gzip").
+        text(classOutputLoc)
+      makeReportsFromClassifications(classOutputLoc)
+    } else {
+      //Write aggregate classification reports only
+      for {
+        (sample, countByTaxon) <- keepLines.groupBy("sampleId", "taxon").agg(count("*").as("count"))
+        .groupBy("sampleId").agg(collect_list(struct($"taxon".as("_1"), $"count".as("_2")))).
+        as[(String,Array[(Taxon, Long)])].toLocalIterator().asScala
+            } {
+        val report = new KrakenReport(index.taxonomy, countByTaxon)
+        val loc = s"$classOutputLoc/${sample}_kreport.txt"
+        HDFSUtil.usingWriter(loc, wr => report.print(wr))
+      }
+    }
   }
+
 
   /** For each subdirectory (corresponding to a sample), read back written classifications
    * and produce a KrakenReport. */
@@ -180,9 +199,8 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
       map(x => x.getString(2).toInt).toDF("taxon").
       groupBy("taxon").agg(count("*").as("count")).
       sort(desc("count")).as[(Taxon, Long)].collect()
-    new KrakenReport(index.bcTaxonomy.value, countByTaxon)
+    new KrakenReport(index.taxonomy, countByTaxon)
   }
-
 }
 
 object Classifier {
