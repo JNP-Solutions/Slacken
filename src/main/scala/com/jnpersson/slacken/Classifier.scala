@@ -196,7 +196,7 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
   /** Read back written classifications from writeOutput to produce a KrakenReport. */
   private def reportFromWrittenClassifications(location: String): KrakenReport = {
     val countByTaxon = spark.read.option("sep", "\t").csv(location).
-      map(x => x.getString(2).toInt).toDF("taxon").
+      select($"_c2".cast("int").as("taxon")).as[Taxon].
       groupBy("taxon").agg(count("*").as("count")).
       sort(desc("count")).as[(Taxon, Long)].collect()
     new KrakenReport(index.taxonomy, countByTaxon)

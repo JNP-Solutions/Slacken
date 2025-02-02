@@ -75,7 +75,7 @@ object GenomeLibrary {
   def getTaxonLabels(file: String)(implicit spark: SparkSession): Dataset[(String, Taxon)] = {
     import spark.sqlContext.implicits._
     spark.read.option("sep", "\t").csv(file).
-      map(x => (x.getString(0), x.getString(1).toInt))
+      select($"_c0", $"_c1".cast("int")).as[(String, Taxon)]
   }
 
   /** Show statistics for a taxon label file */
