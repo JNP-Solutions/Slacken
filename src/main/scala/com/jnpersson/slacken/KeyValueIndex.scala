@@ -257,9 +257,8 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
         coalesce(200).
         write.mode(SaveMode.Overwrite).option("sep", "\t").csv(precalcLocation)
     }
-    spark.read.option("sep", "\t").csv(precalcLocation).map(x =>
-      (x.getString(0).toInt, x.getString(1).toLong)).
-      toDF("taxon", "count").
+    spark.read.option("sep", "\t").csv(precalcLocation).
+      select($"_c0".cast("int").as("taxon"), $"_c1".cast("long").as("count")).
       join(taxa.toDF("taxon"), List("taxon")).as[(Taxon, Long)].
       collect()
   }
