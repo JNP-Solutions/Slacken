@@ -25,7 +25,7 @@ import com.jnpersson.slacken.Taxonomy.NONE
 import it.unimi.dsi.fastutil.ints.Int2IntMap
 import it.unimi.dsi.fastutil.objects.{Object2IntOpenCustomHashMap, Object2IntOpenHashMap}
 import it.unimi.dsi.fastutil.longs.LongArrays.HASH_STRATEGY
-import org.apache.spark.sql.functions.{collect_list, ifnull, lit, sum, udf}
+import org.apache.spark.sql.functions.{collect_list, ifnull, lit, regexp_replace, sum, udf}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 
 import scala.collection.mutable.ArrayBuffer
@@ -68,8 +68,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
    * @return
    */
   def distinctMinimizers(splitter: AnyMinSplitter, defaultValue: Array[Long]): Iterator[Array[Long]] = {
-    val noWhitespace = nucleotides.replaceAll("\\s+", "")
-    val segments = Supermers.splitByAmbiguity(noWhitespace, Supermers.nonAmbiguousRegex(splitter.k))
+    val segments = Supermers.splitByAmbiguity(nucleotides, Supermers.nonAmbiguousRegex(splitter.k))
     val builder = KmerTable.builder(splitter.priorities.width, 10000)
 
     for { (seq, flag, _) <- segments } {
@@ -334,12 +333,13 @@ class BrackenWeights(keyValueIndex: KeyValueIndex, readLen: Int)(implicit val sp
     val presentTaxon = udf((x: Taxon) => taxa.contains(x))
 
     //Prepare the sequence for super-mer splitting and encoding
-    val noWhitespace = udf((x: NTSeq) => x.replaceAll("\\s+", ""))
     val readLen = this.readLen
 
     //Find all fragments of genomes
     val fragments = idSeqDF.join(titlesTaxa, List("header")).
-      select($"taxon", noWhitespace($"nucleotides").as("nucleotides"), $"header", $"location").
+      select($"taxon",
+        regexp_replace($"nucleotides", "\\s+", "").as("nucleotides"),
+        $"header", $"location").
       where(presentTaxon($"taxon")).
       as[TaxonFragment].
       flatMap(_.splitToMaxLength(FRAGMENT_MAX, readLen))
@@ -428,7 +428,6 @@ class BrackenWeights(keyValueIndex: KeyValueIndex, readLen: Int)(implicit val sp
     source.zip(counts).zip(readCounts).map { case ((s, c), r) => s"$s:$c:$r" }.mkString(" "))
 
   /** Write a report from the calculated bracken weights.
-   * Unpersists the data.
    */
   private def writeReport(collectedData: DataFrame, outputLocation: String): Unit = {
     //Form bracken output lines for each source taxon
