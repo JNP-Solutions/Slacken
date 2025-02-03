@@ -54,10 +54,13 @@ final case class ClassifiedRead(sampleId: String, classified: Boolean, title: Se
  *                         taxon's clade)
  * @param sampleRegex      regular expression that identifies the sample ID of each read (for multi-sample mode).
  *                         e.g. ".*\\|(.*)\\|.*"
- *                         If none is specified, then single-sample mode is assumed.
+ *                         If none is specified, then single-sample mode is assumed. The first parenthesis group
+ *                         in the regex is used to extract the sample ID.
+ * @param perReadOutput    whether to output classification results, including hit groups, for every read. If false,
+ *                         only reports are output.
  */
 final case class ClassifyParams(minHitGroups: Int, withUnclassified: Boolean, thresholds: List[Double] = List(0.0),
-                                sampleRegex: Option[String] = None)
+                                sampleRegex: Option[String] = None, perReadOutput: Boolean = true)
 
 /** Routines for classifying reads using a taxonomic k-mer LCA index.
  * @param index Minimizer-LCA index
@@ -149,10 +152,8 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
       reads.where($"classified" === true)
     }
 
-    val perReadOutput = true
-
     val classOutputLoc = s"${location}_classified"
-    if (perReadOutput) {
+    if (cpar.perReadOutput) {
       //Write the classification of every read along with hit details
       val outputRows = keepLines.map(r => (r.outputLine, r.sampleId)).
         toDF("classification", "sample")
