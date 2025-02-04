@@ -23,9 +23,10 @@ import com.jnpersson.kmers.minimizer.InputFragment
 import com.jnpersson.kmers.{HDFSUtil, Inputs, SeqTitle}
 import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
 import org.apache.spark.sql.functions.{collect_list, count, desc, struct}
-import scala.collection.JavaConverters._
 
+import scala.collection.JavaConverters._
 import java.util
+import java.util.Comparator
 
 
 /** A classified read.
@@ -93,8 +94,9 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     val bcTax = index.bcTaxonomy
     val k = index.params.k
     val sre = cpar.sampleRegex.map(_.r)
+
     subjectsHits.map({ case (title, hits) =>
-      val sortedHits = hits.sortBy(_.ordinal)
+      java.util.Arrays.sort(hits, Classifier.hitsComparator)
 
       val sample = sre match {
         case Some(re) => re.findFirstMatchIn(title).
@@ -102,7 +104,7 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
         case _ => "all"
       }
 
-      Classifier.classify(bcTax.value, sample, title, sortedHits, threshold, k, cpar)
+      Classifier.classify(bcTax.value, sample, title, hits, threshold, k, cpar)
     })
   }
 
@@ -179,7 +181,6 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     }
   }
 
-
   /** For each subdirectory (corresponding to a sample), read back written classifications
    * and produce a KrakenReport. */
   private def makeReportsFromClassifications(location: String): Unit = {
@@ -246,4 +247,7 @@ object Classifier {
     }
     hitCount >= minimum
   }
+
+  val hitsComparator = java.util.Comparator.comparingInt((hit: TaxonHit) => hit.ordinal)
+
 }
