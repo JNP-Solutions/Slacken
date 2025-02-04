@@ -225,8 +225,12 @@ object Classifier {
     val classified = taxon != Taxonomy.NONE && sufficientHitGroups(sortedHits, cpar.minHitGroups)
 
     val reportTaxon = if (classified) taxon else Taxonomy.NONE
-    ClassifiedRead(sampleId, classified, title, reportTaxon, sortedHits,
-      totalSummary.lengthString(k), totalSummary.pairsInOrderString)
+    if (cpar.perReadOutput) {
+      ClassifiedRead(sampleId, classified, title, reportTaxon, sortedHits,
+        totalSummary.lengthString(k), totalSummary.pairsInOrderString)
+    } else {
+      ClassifiedRead(sampleId, classified, "", reportTaxon, Array.empty, "", "")
+    }
   }
 
   /** For the given set of sorted hits, was there a sufficient number of hit groups wrt the given minimum? */
