@@ -224,12 +224,12 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
   private val spanToHit: List[Column] =
     List($"minimizer", $"ordinal",
       when($"flag" === lit(AMBIGUOUS_FLAG), lit(AMBIGUOUS_SPAN)).
-        otherwise(when($"flag" === lit(MATE_PAIR_BORDER_FLAG), lit(MATE_PAIR_BORDER)).
-          otherwise(when(isnotnull($"taxon"), $"taxon").
-            otherwise(lit(Taxonomy.NONE))
-          )
-        ).as("taxon"),
-      $"kmers".as("count"))
+        when($"flag" === lit(MATE_PAIR_BORDER_FLAG), lit(MATE_PAIR_BORDER)).
+        when(isnotnull($"taxon"), $"taxon").
+        otherwise(lit(Taxonomy.NONE)).
+        as("taxon"),
+    $"kmers".as("count")
+  )
 
   /** Find TaxonHits from InputFragments and set their taxa, without grouping them by seqTitle. */
   def findHits(subjects: Dataset[InputFragment]): Dataset[TaxonHit] = {
