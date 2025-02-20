@@ -57,12 +57,13 @@ package object slacken {
    * A super-mer with a specific minimizer, which is potentially ambiguous, but without sequence data (so just a span)
    * By tracking the ordinal and the sequence title, the original sequences can be reconstructed.
    * @param minimizer minimizer
+   * @param distinct whether the minimizer was distinct from the previous valid minimizer. Also true for the first valid minimizer in a sequence.
    * @param kmers number of k-mers in this span
    * @param flag ambiguous flag
    * @param ordinal the relative position of this span in the original sequence
    * @param seqTitle title of the original sequence
    * */
-  final case class OrdinalSpan(minimizer: Array[Long], kmers: Int, flag: SegmentFlag, ordinal: Int,
+  final case class OrdinalSpan(minimizer: Array[Long], distinct: Boolean, kmers: Int, flag: SegmentFlag, ordinal: Int,
                                seqTitle: SeqTitle)
 
 }

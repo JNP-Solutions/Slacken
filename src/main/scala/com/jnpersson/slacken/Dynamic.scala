@@ -105,7 +105,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
      hits.flatMap(h =>
         for {t <- h.trueTaxon
              if bcTax.value.depth(t) >= rank.depth
-             } yield (t, h.minimizer)
+             } yield (t, null) //TODO
       ).
       toDF("taxon", "minimizer").groupBy("taxon")
   }
@@ -152,7 +152,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     val cls = new Classifier(base)
     val classified = cls.classify(subjects, cpar, initThreshold)
     classified.where($"classified" === true).
-      flatMap(r => r.hits.map(hit => (r.taxon, hit.minimizer, r.title))).toDF("taxon", "minimizer", "title").
+      flatMap(r => r.hits.map(hit => (r.taxon, null, r.title))).toDF("taxon", "minimizer", "title"). //TODO
       groupBy("taxon").agg(approx_count_distinct("title"), approx_count_distinct("minimizer")).as[(Taxon, Long, Long)].
       collect()
   }

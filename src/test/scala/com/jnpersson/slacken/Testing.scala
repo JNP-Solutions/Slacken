@@ -104,7 +104,7 @@ object Testing {
     for {
       kmersPerHit <- termsToSum(totalKmers, maxHitSize)
       taxa <- Gen.listOfN(kmersPerHit.size, Gen.oneOf(taxa))
-    } yield kmersPerHit.zip(taxa).map(kt => TaxonHit(Array(0), 0, kt._2, kt._1))
+    } yield kmersPerHit.zip(taxa).map(kt => TaxonHit(true, 0, kt._2, kt._1))
 
   def permutations[T](items: Seq[T]): Gen[Vector[T]] =
     permutations(items.toVector)

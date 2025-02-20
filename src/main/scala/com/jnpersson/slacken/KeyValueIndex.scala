@@ -23,12 +23,12 @@ import com.jnpersson.kmers._
 import com.jnpersson.kmers.minimizer._
 import com.jnpersson.kmers.Helpers.randomTableName
 import com.jnpersson.kmers.Helpers.formatPerc
-
 import com.jnpersson.kmers.util.NTBitArray
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql._
 
+import java.util
 import scala.collection.mutable
 
 /** Metagenomic index compatible with the Kraken 2 algorithm.
@@ -206,23 +206,44 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
     //Split input sequences by minimizer, optionally preserving ordinal of the super-mer and optionally sequence ID
     subjects.mapPartitions(fs => {
       val supermers = new Supermers(bcSplit.value, ni)
-      fs.flatMap(s =>
-        supermers.splitFragment(s).map(x =>
-          //Drop the sequence data
-          if (withTitle)
-            OrdinalSpan(x.segment.rank,
-              x.segment.nucleotides.size - (k - 1), x.flag, x.ordinal, x.seqTitle)
-          else
-            OrdinalSpan(x.segment.rank,
-              x.segment.nucleotides.size - (k - 1), x.flag, x.ordinal, null)
-        )
-      )
+
+      fs.flatMap(s => {
+        val sms = supermers.splitFragment(s)
+
+        new Iterator[OrdinalSpan] {
+          private var first = true
+          private var lastMinimizer = Array[Long]()
+
+          override def hasNext: Boolean =
+            sms.hasNext
+
+          override def next(): OrdinalSpan = {
+            val x = sms.next()
+            val flag = x.flag
+
+            //Track whether two consecutive valid minimizers are distinct. This allows us to count the number of
+            //hit groups later.
+            val distinct =
+              flag != AMBIGUOUS_FLAG && flag != MATE_PAIR_BORDER_FLAG &&
+                (first || !util.Arrays.equals(x.segment.rank, lastMinimizer))
+            val title = if (withTitle) x.seqTitle else null
+            if (flag != AMBIGUOUS_FLAG && flag != MATE_PAIR_BORDER_FLAG) {
+              lastMinimizer = x.segment.rank
+            }
+
+            first = false
+
+            OrdinalSpan(x.segment.rank, distinct, x.segment.nucleotides.size - (k - 1),
+              x.flag, x.ordinal, title)
+          }
+        }
+      })
     })
   }
 
   /** Build a TaxonHit from an OrdinalSpan in spark SQL */
   private val spanToHit: List[Column] =
-    List($"minimizer", $"ordinal",
+    List($"distinct", $"ordinal",
       when($"flag" === lit(AMBIGUOUS_FLAG), lit(AMBIGUOUS_SPAN)).
         when($"flag" === lit(MATE_PAIR_BORDER_FLAG), lit(MATE_PAIR_BORDER)).
         when(isnotnull($"taxon"), $"taxon").
@@ -236,7 +257,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
     val spans = getSpans(subjects, withTitle = false)
     //The 'subject' struct constructs an OrdinalSpan
     val taggedSpans = spans.select(
-      (Array($"minimizer", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
+      (Array($"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
         idColumnsFromMinimizer)
         :_*)
 
@@ -272,7 +293,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
   def spansToGroupedHits(subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit])] = {
     //The 'subject' struct constructs an OrdinalSpan
     val taggedSpans = subjects.select(
-      (Seq($"minimizer", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
+      (Seq($"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
         idColumnsFromMinimizer)
         :_*)
 
@@ -473,13 +494,13 @@ object KeyValueIndex {
 }
 
 /** A single hit group for a taxon and some number of k-mers
- * @param minimizer minimizer
+ * @param distinct whether the minimizer was distinct from the previous valid minimizer
  * @param ordinal the position of this hit in the sequence of hits in the query sequence
  *              (not same as position in sequence)
  * @param taxon the classified LCA taxon
  * @param count the number of k-mer hits
  * */
-final case class TaxonHit(minimizer: Array[Long], ordinal: Int, taxon: Taxon, count: Int) {
+final case class TaxonHit(distinct: Boolean, ordinal: Int, taxon: Taxon, count: Int) {
   def trueTaxon: Option[Taxon] = taxon match {
     case AMBIGUOUS_SPAN | MATE_PAIR_BORDER => None
     case _ => Some(taxon)
