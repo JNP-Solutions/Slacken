@@ -97,16 +97,16 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   }
 
   private def minimizersInSubjects(subjects: Dataset[InputFragment]): RelationalGroupedDataset = {
-    val hits = base.findHits(subjects)
+    val hits = base.findHitsWithMinimizers(subjects)
 
     val bcTax = base.bcTaxonomy
     val rank = reclassifyRank
 
-     hits.flatMap(h =>
-        for {t <- h.trueTaxon
-             if bcTax.value.depth(t) >= rank.depth
-             } yield (t, null) //TODO
-      ).
+     hits.flatMap { case (hit, min) =>
+       for {t <- hit.trueTaxon
+            if bcTax.value.depth(t) >= rank.depth
+            } yield (t, min)
+     }).
       toDF("taxon", "minimizer").groupBy("taxon")
   }
 
@@ -142,18 +142,6 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     classified.where($"classified" === true).
       select("taxon").
       groupBy("taxon").agg(count("*")).as[(Taxon, Long)].
-      collect()
-  }
-
-  /** Counting method that counts the number of reads classified per taxon, as well as
-   * distinct minimizers, to aid taxon set filtering */
-  def classifiedReadsPerTaxonWithDistinctMinimizers(subjects: Dataset[InputFragment]): Array[(Taxon, Long, Long)] = {
-    val initThreshold = 0.0
-    val cls = new Classifier(base)
-    val classified = cls.classify(subjects, cpar, initThreshold)
-    classified.where($"classified" === true).
-      flatMap(r => r.hits.map(hit => (r.taxon, null, r.title))).toDF("taxon", "minimizer", "title"). //TODO
-      groupBy("taxon").agg(approx_count_distinct("title"), approx_count_distinct("minimizer")).as[(Taxon, Long, Long)].
       collect()
   }
 
