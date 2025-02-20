@@ -236,17 +236,16 @@ object Classifier {
   /** For the given set of sorted hits, was there a sufficient number of hit groups wrt the given minimum? */
   def sufficientHitGroups(sortedHits: Array[TaxonHit], minimum: Int): Boolean = {
     var hitCount = 0
-    var lastMin = sortedHits(0).minimizer
 
     //count separate hit groups (adjacent but with different minimizers) for each sequence, imitating kraken2 classify.cc
     var h = 0
     while (h < sortedHits.length) {
       val hit = sortedHits(h)
-      if (hit.taxon != AMBIGUOUS_SPAN && hit.taxon != Taxonomy.NONE && hit.taxon != MATE_PAIR_BORDER &&
-        (hitCount == 0 || !util.Arrays.equals(hit.minimizer, lastMin))) {
-        hitCount += 1
+      if (hit.taxon != AMBIGUOUS_SPAN && hit.taxon != MATE_PAIR_BORDER) {
+        if (hit.taxon != Taxonomy.NONE && hit.distinct) {
+          hitCount += 1
+        }
       }
-      lastMin = hit.minimizer
       h += 1
     }
     hitCount >= minimum

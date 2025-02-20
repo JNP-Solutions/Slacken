@@ -28,6 +28,7 @@ import it.unimi.dsi.fastutil.longs.LongArrays.HASH_STRATEGY
 import org.apache.spark.sql.functions.{collect_list, ifnull, lit, regexp_replace, sum, udf}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 
+import java.util
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.{BitSet, mutable}
 
@@ -188,21 +189,26 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
     val segments = Supermers.splitByAmbiguity(nucleotides, Supermers.nonAmbiguousRegex(k))
 
     //Construct all super-mers, including quasi-supermers (NONE) for ambiguous regions
-    val empty = Array[Long]()
+
+    var first = true
+    var lastMinimizer = Array[Long]()
     segments.flatMap {
       case (seq, SEQUENCE_FLAG, pos) =>
         splitter.superkmerPositions(seq).map(x => {
           //Construct each minimizer hit.
           //Overloading the second argument (ordinal) to mean the absolute position in the fragment in this case
 
-          TaxonHit(x.rank, x.location + pos, lcaLookup.applyAsInt(x.rank), x.length - (k - 1))
+          val distinct = first || !util.Arrays.equals(x.rank, lastMinimizer)
+          first = false
+          lastMinimizer = x.rank
+          TaxonHit(distinct, x.location + pos, lcaLookup.applyAsInt(x.rank), x.length - (k - 1))
         }) ++
           //additional invalid k-mers that go into the next ambiguous segment, or past the end
-          Iterator(TaxonHit(empty, seq.length - (k - 1), Taxonomy.NONE, k - 1))
+          Iterator(TaxonHit(false, seq.length - (k - 1), Taxonomy.NONE, k - 1))
 
       case (seq, AMBIGUOUS_FLAG, pos) =>
         Iterator(
-          TaxonHit(empty, pos, Taxonomy.NONE, seq.length)
+          TaxonHit(false, pos, Taxonomy.NONE, seq.length)
         )
     }
   }
@@ -284,18 +290,15 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
    */
   def sufficientHitGroups(sortedHits: IndexedSeq[TaxonHit], minimum: Int): Boolean = {
     var hitCount = 0
-    var lastMin: Array[Long] = Array.empty
 
     var i = 0
     while (i < sortedHits.length) {
       //count separate hit groups (adjacent but with different minimizers) for each sequence, imitating kraken2 classify.cc
       val hit = sortedHits(i)
-      if (hit.taxon != Taxonomy.NONE &&
-        (hitCount == 0 || !java.util.Arrays.equals(hit.minimizer, lastMin))) {
+      if (hit.taxon != Taxonomy.NONE && hit.distinct) {
         hitCount += 1
         if (hitCount >= minimum) return true
       }
-      lastMin = hit.minimizer
       i += 1
     }
     false
