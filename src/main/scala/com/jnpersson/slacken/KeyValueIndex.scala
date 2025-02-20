@@ -274,13 +274,13 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
     val spans = getSpans(subjects, withTitle = false)
 
     val taggedSpans = spans.select(
-      (Array($"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
+      (Array($"minimizer", $"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
         idColumnsFromMinimizer)
         :_*)
 
     taggedSpans.join(records, idColumnNames, "left").
       select(
-        $"minimizer".as("_2"), struct(spanToHit: _*).as("_1")
+        struct(spanToHit: _*).as("_1"), $"minimizer".as("_2")
       ).as[(TaxonHit, Array[Long])]
   }
 
