@@ -255,7 +255,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
   /** Find TaxonHits from InputFragments and set their taxa, without grouping them by seqTitle. */
   def findHits(subjects: Dataset[InputFragment]): Dataset[TaxonHit] = {
     val spans = getSpans(subjects, withTitle = false)
-    //The 'subject' struct constructs an OrdinalSpan
+
     val taggedSpans = spans.select(
       (Array($"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
         idColumnsFromMinimizer)
@@ -265,6 +265,23 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
       select(
         spanToHit : _*
       ).as[TaxonHit]
+  }
+
+  /** Find TaxonHits from InputFragments and set their taxa, without grouping them by seqTitle.
+   * This version preserves each hit's minimizer.
+   */
+  def findHitsWithMinimizers(subjects: Dataset[InputFragment]): Dataset[(TaxonHit, Array[Long])] = {
+    val spans = getSpans(subjects, withTitle = false)
+
+    val taggedSpans = spans.select(
+      (Array($"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
+        idColumnsFromMinimizer)
+        :_*)
+
+    taggedSpans.join(records, idColumnNames, "left").
+      select(
+        $"minimizer".as("_2"), struct(spanToHit: _*).as("_1")
+      ).as[(TaxonHit, Array[Long])]
   }
 
   /** Find the number of distinct minimizers for each of the given taxa */
