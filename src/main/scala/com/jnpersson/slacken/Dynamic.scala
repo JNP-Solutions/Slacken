@@ -106,7 +106,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
        for {t <- hit.trueTaxon
             if bcTax.value.depth(t) >= rank.depth
             } yield (t, min)
-     }).
+     }.
       toDF("taxon", "minimizer").groupBy("taxon")
   }
 
