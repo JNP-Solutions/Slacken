@@ -79,12 +79,12 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
    */
   def classifyAndWrite(inputs: Inputs, outputLocation: String, cpar: ClassifyParams): Unit = {
     val subjects = inputs.getInputFragments(withRC = false, withAmbiguous = true)
-    val hits = index.collectHitsBySequence(subjects)
+    val hits = index.collectHitsBySequence(subjects, cpar.perReadOutput)
     classifyHitsAndWrite(hits, outputLocation, cpar)
   }
 
   def classify(subjects: Dataset[InputFragment], cpar: ClassifyParams, threshold: Double): Dataset[ClassifiedRead] = {
-    val hits = index.collectHitsBySequence(subjects)
+    val hits = index.collectHitsBySequence(subjects, cpar.perReadOutput)
     classifyHits(hits, cpar, threshold)
   }
 
@@ -96,7 +96,10 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     val sre = cpar.sampleRegex.map(_.r)
 
     subjectsHits.map({ case (title, hits) =>
-      java.util.Arrays.sort(hits, Classifier.hitsComparator)
+      if (cpar.perReadOutput) {
+        //The ordering of hits is not needed if we are not generating per read output
+        java.util.Arrays.sort(hits, Classifier.hitsComparator)
+      }
 
       val sample = sre match {
         case Some(re) => re.findFirstMatchIn(title).

@@ -345,7 +345,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
       }
 
       val t = startTimer("Classify reads")
-      val hits = dynamicIndex.collectHitsBySequence(reads)
+      val hits = dynamicIndex.collectHitsBySequence(reads, cpar.perReadOutput)
       val cls = new Classifier(dynamicIndex)
       cls.classifyHitsAndWrite(hits, outputLocation, cpar)
       t.finish()

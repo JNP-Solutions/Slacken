@@ -242,8 +242,9 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
   }
 
   /** Build a TaxonHit from an OrdinalSpan in spark SQL */
-  private val spanToHit: List[Column] =
-    List($"distinct", $"ordinal",
+  private def spanToHit(withOrdinal: Boolean): List[Column] =
+    List($"distinct",
+      if (withOrdinal) $"ordinal" else lit(0).as("ordinal"),
       when($"flag" === lit(AMBIGUOUS_FLAG), lit(AMBIGUOUS_SPAN)).
         when($"flag" === lit(MATE_PAIR_BORDER_FLAG), lit(MATE_PAIR_BORDER)).
         when(isnotnull($"taxon"), $"taxon").
@@ -263,7 +264,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
 
     taggedSpans.join(records, idColumnNames, "left").
       select(
-        spanToHit : _*
+        spanToHit(false) : _*
       ).as[TaxonHit]
   }
 
@@ -280,7 +281,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
 
     taggedSpans.join(records, idColumnNames, "left").
       select(
-        struct(spanToHit: _*).as("_1"), $"minimizer".as("_2")
+        struct(spanToHit(false): _*).as("_1"), $"minimizer".as("_2")
       ).as[(TaxonHit, Array[Long])]
   }
 
@@ -302,12 +303,12 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
   }
 
   /** Classify subject sequences (as a dataset) */
-  def collectHitsBySequence(subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])] =
-    spansToGroupedHits(getSpans(subjects, withTitle = true))
+  def collectHitsBySequence(subjects: Dataset[InputFragment], withOrdinal: Boolean): Dataset[(SeqTitle, Array[TaxonHit])] =
+    spansToGroupedHits(getSpans(subjects, withTitle = true), withOrdinal)
 
   /** Group super-mers (minimizer spans) by sequence title and convert them to taxon hits.
    */
-  def spansToGroupedHits(subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit])] = {
+  def spansToGroupedHits(subjects: Dataset[OrdinalSpan], withOrdinal: Boolean): Dataset[(SeqTitle, Array[TaxonHit])] = {
     //The 'subject' struct constructs an OrdinalSpan
     val taggedSpans = subjects.select(
       (Seq($"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
@@ -317,7 +318,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
     val taxonHits = taggedSpans.join(records, idColumnNames, "left").
       select(
         $"seqTitle",
-        struct(spanToHit : _*).as("hit")
+        struct(spanToHit(withOrdinal) : _*).as("hit")
       )
 
     //Group all hits by sequence title again so that we can reassemble (the hits from) each sequence according
