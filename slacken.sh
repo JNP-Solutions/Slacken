@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SPARK_MASTER=spark://localhost:7077
-SPARK_MASTER=local[*]
+SPARK_MASTER=${SPARK_MASTER:-local[*]}
 
 #SPARK_HOME=/local/spark-3.5.3-bin-hadoop3/
 if [ -z "$SPARK_HOME" ]
@@ -18,7 +18,7 @@ then
 fi
 
 #Try to find the directory that this file is located in
-SLACKEN_HOME="$(dirname -- "$(readlink "${BASH_SOURCE}")")"
+SLACKEN_HOME=${SLACKEN_HOME:-$(dirname -- "$(readlink "${BASH_SOURCE}")")}
 
 #For standalone mode (one process), it is helpful to provide as much memory as possible.
 #This sets the default value to 16g if the variable is unassigned.
