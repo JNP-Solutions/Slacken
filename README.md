@@ -1,7 +1,7 @@
 ## Slacken
 
 [![Build and test](https://github.com/jtnystrom/discount/actions/workflows/ci.yml/badge.svg)](https://github.com/jtnystrom/Discount/actions/workflows/ci.yml)
-![Docker Pulls](https://img.shields.io/docker/pulls/jtnystrom/slacken)
+![Docker Pulls](https://img.shields.io/docker/pulls/jtnystrom/slacken?link=https%3A%2F%2Fhub.docker.com%2Fr%2Fjtnystrom%2Fslacken)
 ![GitHub License](https://img.shields.io/github/license/jnp-solutions/slacken)
 
 
