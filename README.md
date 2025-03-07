@@ -52,10 +52,18 @@ to download and extract the Spark distribution somewhere.
 libraries and samples.
 * As of December 2024, Spark supports Java 8/11/17. Java 23 is unsupported. Please refer to the Spark documentation.
 
+#### Download
+
+The latest precompiled Slacken may be downloaded as a .zip from the 
+[Releases](https://github.com/JNP-Solutions/Slacken/releases). This is the easiest way to obtain Slacken.
+
+A [Docker image](https://hub.docker.com/r/jtnystrom/slacken) is also available. If you are using the Docker image,
+please refer to the instructions on that page.
+
 Set up the environment:
 
 ```commandline
-#path to the Spark distribution
+#path to the Spark distribution (where you extracted your Spark download)
 export SPARK_HOME=SPARK_HOME=/usr/local/spark-3.5.1-bin-hadoop3  
 
 #a location for scratch space on a fast hard drive
