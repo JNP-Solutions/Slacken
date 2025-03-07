@@ -1,9 +1,8 @@
 ## Slacken
 
 [![Build and test](https://github.com/jtnystrom/discount/actions/workflows/ci.yml/badge.svg)](https://github.com/jtnystrom/Discount/actions/workflows/ci.yml)
-![Docker Pulls](https://img.shields.io/docker/pulls/jtnystrom/slacken?link=https%3A%2F%2Fhub.docker.com%2Fr%2Fjtnystrom%2Fslacken)
+[![Docker Pulls](https://badgen.net/docker/pulls/jtnystrom/slacken?icon=docker&label=pulls)](https://hub.docker.com/r/jtnystrom/slacken/)
 ![GitHub License](https://img.shields.io/github/license/jnp-solutions/slacken)
-
 
 Slacken implements metagenomic classification based on k-mers and minimizers. It implements the
 [Kraken 2](https://github.com/DerrickWood/kraken2)[1] algorithm, while also supporting a wider parameter space and additional 
