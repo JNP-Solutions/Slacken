@@ -1,4 +1,4 @@
-FROM sbtscala/scala-sbt:eclipse-temurin-17.0.14_7_1.10.10_2.12.20 AS build
+FROM --platform=$BUILDPLATFORM sbtscala/scala-sbt:eclipse-temurin-17.0.14_7_1.10.10_2.12.20 AS build
 
 WORKDIR /build/
 COPY build.sbt /build/
