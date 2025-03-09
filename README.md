@@ -4,7 +4,7 @@
 [![Docker Pulls](https://badgen.net/docker/pulls/jtnystrom/slacken?icon=docker&label=pulls)](https://hub.docker.com/r/jtnystrom/slacken/)
 ![GitHub License](https://img.shields.io/github/license/jnp-solutions/slacken)
 
-Slacken implements metagenomic classification based on k-mers and minimizers. It implements the
+Slacken is a metagenomic profiler that classifies genomic sequences based on k-mers and minimizers. It implements the
 [Kraken 2](https://github.com/DerrickWood/kraken2)[1] algorithm, while also supporting a wider parameter space and additional 
 algorithms. In particular, it supports sample-tailored libraries, where the minimizer library is built on the fly as part 
 of read classification.
