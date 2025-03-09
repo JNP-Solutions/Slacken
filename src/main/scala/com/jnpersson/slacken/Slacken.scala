@@ -358,7 +358,11 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
   verify()
 }
 
-/** Implements the Kraken 2 method for taxonomic classification. */
+/**
+ * Slacken implements the Kraken 2 metagenomic classification algorithm on Spark,
+ * while also improving on it and supporting a wider parameter space.
+ * This is the main entry point for the Slacken Spark application.
+ */
 object Slacken extends SparkTool("Slacken") {
   def main(args: Array[String]): Unit = {
     val conf = new SlackenConf(args)(sparkSession()).finishSetup()
