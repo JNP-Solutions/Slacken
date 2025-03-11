@@ -87,7 +87,7 @@ While Slacken is running, the Spark UI may be inspected at [http://localhost:404
 locally. We refer users to the Spark documentation for more details.
 
 Below, we walk through some common use cases step by step. For convenience, the complete list of Slacken commands is 
-also available on its own [wiki page](https://github.com/JNP-Solutions/Slacken/wiki/Slacken-commands).
+also available on its own [wiki page](https://github.com/JNP-Solutions/Slacken/wiki/Slacken-commands-overview).
 
 ### Obtaining a pre-built genomic library
 
