@@ -66,7 +66,7 @@ please refer to the instructions on that page.
 
 Set up the environment:
 
-```commandline
+```
 #path to the Spark distribution (where you extracted your Spark download)
 export SPARK_HOME=SPARK_HOME=/usr/local/spark-3.5.1-bin-hadoop3  
 
@@ -85,6 +85,9 @@ These options may also be permanently configured by editing `slacken.sh`.
 
 While Slacken is running, the Spark UI may be inspected at [http://localhost:4040](http://localhost:4040) if the process is running
 locally. We refer users to the Spark documentation for more details.
+
+Below, we walk through some common use cases step by step. For convenience, the complete list of Slacken commands is 
+also available on its own [wiki page](https://github.com/JNP-Solutions/Slacken/wiki/Slacken-commands).
 
 ### Obtaining a pre-built genomic library
 
