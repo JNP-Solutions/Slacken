@@ -28,4 +28,4 @@ ENV SPARK_LOCAL_IP 0.0.0.0
 EXPOSE 4040
 
 ENTRYPOINT ["/opt/slacken/slacken.sh"]
-
+CMD ["--help"]
