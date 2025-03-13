@@ -1,4 +1,4 @@
-FROM sbtscala/scala-sbt:eclipse-temurin-17.0.14_7_1.10.10_2.12.20 AS build
+FROM --platform=$BUILDPLATFORM sbtscala/scala-sbt:eclipse-temurin-17.0.14_7_1.10.10_2.12.20 AS build
 
 WORKDIR /build/
 COPY build.sbt /build/
@@ -28,4 +28,4 @@ ENV SPARK_LOCAL_IP 0.0.0.0
 EXPOSE 4040
 
 ENTRYPOINT ["/opt/slacken/slacken.sh"]
-
+CMD ["--help"]
