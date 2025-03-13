@@ -17,7 +17,12 @@ COPY slacken.sh /opt/slacken/
 COPY log4j.properties /opt/slacken/
 
 #A writable directory for scratch space. Supply to docker with e.g. -v /fast/spark:/scratch:rw
+USER root
+RUN mkdir /scratch
+RUN chown spark:spark /scratch
+USER spark
 ENV SLACKEN_TMP /scratch
+
 ENV SLACKEN_HOME /opt/slacken
 
 #Consider also setting SLACKEN_MEMORY while running, e.g. with -e SLACKEN_MEMORY=32g (more is better).
