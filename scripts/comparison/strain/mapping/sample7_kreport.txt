@@ -1,0 +1,64 @@
+#Perc	Aggregate	In taxon	Rank	Taxon	Name
+100.00	5630478	0	R	1	root
+100.00	5630478	0	R1	131567	  cellular organisms
+100.00	5630478	0	D	2	    Bacteria
+ 61.35	3454062	0	P	1224	      Pseudomonadota
+ 61.35	3454062	0	C	1236	        Gammaproteobacteria
+ 61.35	3454062	0	O	91347	          Enterobacterales
+ 61.35	3454062	0	F	543	            Enterobacteriaceae
+ 45.35	2553483	0	G	561	              Escherichia
+ 45.35	2553483	2553483	S	562	                Escherichia coli
+ 15.64	880887	0	F1	2890311	              Klebsiella/Raoultella group
+ 15.64	880887	0	G	570	                Klebsiella
+ 14.40	810950	810950	S	573	                  Klebsiella pneumoniae
+  1.24	69937	69937	S	548	                  Klebsiella aerogenes
+  0.34	19208	0	G	544	              Citrobacter
+  0.34	19208	0	G1	1344959	                Citrobacter freundii complex
+  0.34	19208	19208	S	1639133	                  Citrobacter portucalensis
+  0.01	484	0	G	547	              Enterobacter
+  0.01	484	0	G1	354276	                Enterobacter cloacae complex
+  0.01	484	484	S	550	                  Enterobacter cloacae
+ 38.27	2154676	0	D1	1783272	      Terrabacteria group
+ 38.27	2154676	0	P	1239	        Bacillota
+ 38.27	2154676	0	C	91061	          Bacilli
+ 35.71	2010497	0	O	186826	            Lactobacillales
+ 29.12	1639322	0	F	1300	              Streptococcaceae
+ 29.11	1639171	0	G	1301	                Streptococcus
+ 27.47	1546864	1546864	S	1313	                  Streptococcus pneumoniae
+  1.45	81813	81813	S	257758	                  Streptococcus pseudopneumoniae
+  0.14	7992	7992	S	68892	                  Streptococcus infantis
+  0.04	2502	2502	S	28037	                  Streptococcus mitis
+  0.00	151	0	G	1357	                Lactococcus
+  0.00	151	151	S	1363	                  Lactococcus garvieae
+  6.14	345844	0	F	81852	              Enterococcaceae
+  6.14	345844	0	G	1350	                Enterococcus
+  5.71	321452	321452	S	1352	                  Enterococcus faecium
+  0.43	24392	24392	S	1351	                  Enterococcus faecalis
+  0.45	25331	0	F	33958	              Lactobacillaceae
+  0.30	16622	0	G	1578	                Lactobacillus
+  0.28	15573	0	G1	2620435	                  unclassified Lactobacillus
+  0.28	15573	15573	S	97137	                    Lactobacillus sp. ASF360
+  0.02	1049	1049	S	508451	                  Lactobacillus taiwanensis
+  0.15	8709	0	G	2742598	                Limosilactobacillus
+  0.15	8709	8709	S	1598	                  Limosilactobacillus reuteri
+  2.56	144179	0	O	1385	            Bacillales
+  2.49	140143	0	F	90964	              Staphylococcaceae
+  2.49	140143	0	G	1279	                Staphylococcus
+  2.49	140143	140143	S	1280	                  Staphylococcus aureus
+  0.07	4036	0	F	186822	              Paenibacillaceae
+  0.07	4036	0	G	44249	                Paenibacillus
+  0.07	4036	0	G1	185978	                  unclassified Paenibacillus
+  0.07	4036	4036	S	481743	                    Paenibacillus sp. Y412MC10
+  0.39	21740	0	D1	1783270	      FCB group
+  0.39	21740	0	D2	68336	        Bacteroidota/Chlorobiota group
+  0.39	21740	0	P	976	          Bacteroidota
+  0.39	21740	0	C	200643	            Bacteroidia
+  0.39	21740	0	O	171549	              Bacteroidales
+  0.19	10917	0	F	815	                Bacteroidaceae
+  0.19	10917	0	G	909656	                  Phocaeicola
+  0.19	10917	10917	S	671267	                    Phocaeicola sartorii
+  0.19	10823	0	F	2005525	                Tannerellaceae
+  0.19	10823	0	G	375288	                  Parabacteroides
+  0.16	8935	0	G1	2649774	                    unclassified Parabacteroides
+  0.16	8935	8935	S	1235803	                      Parabacteroides sp. ASF519
+  0.03	1888	1888	S	823	                    Parabacteroides distasonis
