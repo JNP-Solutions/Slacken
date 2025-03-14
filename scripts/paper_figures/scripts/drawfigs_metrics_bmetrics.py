@@ -5,8 +5,10 @@ import os
 import matplotlib
 matplotlib.use('Agg')
 
+# df_metric=pd.read_csv("/Users/n-dawg/IdeaProjects/Slacken-SBI/scripts/benchmark_data/All_paper_metrics.tsv",sep='\t')
+# df_bmetric=pd.read_csv("/Users/n-dawg/IdeaProjects/Slacken-SBI/scripts/benchmark_data/All_paper_bmetrics.tsv",sep='\t')
 df_metric=pd.read_csv("/Users/n-dawg/IdeaProjects/Slacken-SBI/scripts/benchmark_data/All_paper_metrics.tsv",sep='\t')
-df_bmetric=pd.read_csv("/Users/n-dawg/IdeaProjects/Slacken-SBI/scripts/benchmark_data/All_paper_bmetrics.tsv",sep='\t')
+df_bmetric=pd.read_csv("/Users/n-dawg/IdeaProjects/Slacken-SBI/scripts/benchmark_data/All_paper_bmetrics_with_metaphlan.tsv",sep='\t')
 
 def add_figure_single(rankx,dataSet,var,confd,classifier_list,inputType, figShape, figName, rotn=30, addYlabel=True):
     print(rankx,dataSet,var)
@@ -17,7 +19,12 @@ def add_figure_single(rankx,dataSet,var,confd,classifier_list,inputType, figShap
 
     df_mm = df_input[['library', 'c', 'group', 'rank'] + [var]]
     df_mm = df_mm[(df_mm['group']== dataSet)]
-    df_mm = df_mm[df_mm['c']==confd]
+
+    if("MetaPhlAn4.1" in classifier_list):
+        df_mm = df_mm[(df_mm['c']==confd) | df_mm['c'].isna()]
+    else:
+        df_mm = df_mm[df_mm['c']==confd]
+
     df_mm = df_mm[(df_mm['rank'] == rankx)]
 
     df_mm = df_mm[df_mm['library'].isin(classifier_list)]
@@ -28,6 +35,7 @@ def add_figure_single(rankx,dataSet,var,confd,classifier_list,inputType, figShap
 
     #print(list(zip(*df_mm[var].tolist())))
     df=pd.DataFrame(list(zip(*df_mm[var].tolist())), columns=df_mm['library'].tolist())
+
     df = df[classifier_list]
 
     # Custom color scheme for scatter points
@@ -43,10 +51,11 @@ def add_figure_single(rankx,dataSet,var,confd,classifier_list,inputType, figShap
         'kraken2': '#F1C40F',
         'rspc_gold': '#B7B7B7',
         'std_gold': '#B7B7B7',
+        'MetaPhlAn4.1':'#1E8449'
     }
 
     # Set alpha transparency for the scatter
-    alphas = [0.5, 0.5, 0.5, 0.5, 0.5,0.5, 0.5, 0.5]
+    alphas = [0.5, 0.5, 0.5, 0.5, 0.5,0.5, 0.5, 0.5, 0.5]
 
     plt.figure(num=1, figsize=figShape, clear=True)
 
@@ -188,17 +197,23 @@ def add_figure4(rankx, dataSets, var, confd, classifier_list, inputType, figShap
         'kraken2': '#F1C40F',
         'rspc_gold': '#B7B7B7',
         'std_gold': '#B7B7B7',
+        'MetaPhlAn4.1':'#1E8449'    
     }
 
     # Set alpha transparency for the scatter
-    alphas = [0.5] * 11  # 11 classifiers
+    alphas = [0.5] * 12  # 12 classifiers
 
     coordId = 0
 
     for dataSet in dataSets:
         df_mm = df_input[['library', 'c', 'group', 'rank'] + [var]]
         df_mm = df_mm[(df_mm['group'] == dataSet)]
-        df_mm = df_mm[df_mm['c'] == confd]
+
+        if("MetaPhlAn4.1" in classifier_list):
+            df_mm = df_mm[(df_mm['c']==confd) | df_mm['c'].isna()]
+        else:
+            df_mm = df_mm[df_mm['c']==confd]
+
         df_mm = df_mm[(df_mm['rank'] == rankx)]
         df_mm = df_mm[df_mm['library'].isin(classifier_list)]
         df_mm = df_mm[['library', var]]
@@ -270,17 +285,24 @@ def add_figure6(rankx, dataSets, var, confd, classifier_list, inputType, figShap
         'kraken2': '#F1C40F',
         'rspc_gold': '#B7B7B7',
         'std_gold': '#B7B7B7',
+        'MetaPhlAn4.1':'#1E8449'
     }
 
     # Set alpha transparency for the scatter
-    alphas = [0.5] * 11  # 11 classifiers
+    alphas = [0.5] * 12  # 11 classifiers
 
     coordId = 0
 
     for dataSet in dataSets:
         df_mm = df_input[['library', 'c', 'group', 'rank'] + [var]]
         df_mm = df_mm[(df_mm['group'] == dataSet)]
-        df_mm = df_mm[df_mm['c'] == confd]
+
+
+        if("MetaPhlAn4.1" in classifier_list):
+            df_mm = df_mm[(df_mm['c']==confd) | df_mm['c'].isna()]
+        else:
+            df_mm = df_mm[df_mm['c']==confd]
+
         df_mm = df_mm[(df_mm['rank'] == rankx)]
         df_mm = df_mm[df_mm['library'].isin(classifier_list)]
         df_mm = df_mm[['library', var]]
@@ -468,8 +490,6 @@ def add_figure4PairedBox(rankx, dataSets, var1, var2, confd, classifier_list, in
 # add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'L1', 0.15, ["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'bmetrics', (6,6), 'bmetrics/Species_all_L1_0.15', rotn=90, thicken=0.27, twidth=0.17 ,addYlabel=False)
 # add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'LSE', 0.15, ["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'bmetrics', (10,6), 'bmetrics/Species_all_LSE_0.15')
 
-
-
 # add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'], 'read_tp_frac', 0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics', (10,6), 'supplementary_figures/Species_all_read_tp_frac_0.15_gold', rotn=90, addYlabel=False)
 # add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'], 'read_fp_frac', 0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics', (10,6), 'supplementary_figures/Species_all_read_fp_frac_0.15_gold', rotn=90, addYlabel=False)
 # add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'], 'read_vp_frac', 0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics', (10,6), 'supplementary_figures/Species_all_read_vp_frac_0.15_gold', rotn=90, addYlabel=False)
@@ -478,3 +498,22 @@ def add_figure4PairedBox(rankx, dataSets, var1, var2, confd, classifier_list, in
 # add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'], 'read_softIndex', 0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics', (10,6), 'supplementary_figures/Species_all_read_softIndex_frac_0.15_gold', rotn=90, addYlabel=False)
 # add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'], 'L1', 0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step"], 'bmetrics', (10,6), 'supplementary_figures/Species_all_read_L1_frac_0.15_gold', rotn=90, addYlabel=False)
 # add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'], 'LSE', 0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step"], 'bmetrics', (10,6), 'supplementary_figures/Species_all_read_LSE_frac_0.15_gold', rotn=90, addYlabel=False)
+
+# add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'],'TP',0.15,["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step", "MetaPhlAn4.1"],'bmetrics',(8,7),'bmetrics/metaphlanTest_TP_All', 90, addYlabel=False)
+# add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'],'FP',0.15,["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step", "MetaPhlAn4.1"],'bmetrics',(8,7),'bmetrics/metaphlanTest_FP_All', 90, addYlabel=False)
+# add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'],'FN',0.15,["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step", "MetaPhlAn4.1"],'bmetrics',(8,7),'bmetrics/metaphlanTest_FN_All', 90, addYlabel=False)
+# add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'],'Precision',0.15,["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step", "MetaPhlAn4.1"],'bmetrics',(8,7),'bmetrics/metaphlanTest_Precision_All', 90, addYlabel=False)
+# add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'],'Recall',0.15,["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step", "MetaPhlAn4.1"],'bmetrics',(8,7),'bmetrics/metaphlanTest_Recall_All', 90, addYlabel=False)
+
+# add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'],'TP',0.15,["rspc_gold","rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step", "std_gold", "MetaPhlAn4.1"],'bmetrics',(8,7),'bmetrics/metaphlanTest_TP_All', 90, addYlabel=False)
+# add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'],'FP',0.15,["rspc_gold","rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step", "std_gold", "MetaPhlAn4.1"],'bmetrics',(8,7),'bmetrics/metaphlanTest_FP_All', 90, addYlabel=False)
+# add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'],'FN',0.15,["rspc_gold","rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step", "std_gold", "MetaPhlAn4.1"],'bmetrics',(8,7),'bmetrics/metaphlanTest_FN_All', 90, addYlabel=False)
+add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'],'Precision',0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_1-step", "std_R100", "std_R10", "std_1-step", "std_gold", "MetaPhlAn4.1"],'bmetrics',(6,6),'bmetrics/metaphlanTest_Precision_All', 90, addYlabel=False)
+add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'],'Recall',0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_1-step", "std_R100", "std_R10", "std_1-step", "std_gold", "MetaPhlAn4.1"],'bmetrics',(6,6),'bmetrics/metaphlanTest_Recall_All', 90, addYlabel=False)
+
+
+# add_figure_single('Species','plant_associated','TP',0.15,["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step", "MetaPhlAn4.1"],'bmetrics',(4,5),'bmetrics/metaphlanTest_TP', 90, addYlabel=False)
+# add_figure_single('Species','plant_associated','FP',0.15,["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step", "MetaPhlAn4.1"],'bmetrics',(4,5),'bmetrics/metaphlanTest_FP', 90, addYlabel=False)
+# add_figure_single('Species','plant_associated','FN',0.15,["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step", "MetaPhlAn4.1"],'bmetrics',(4,5),'bmetrics/metaphlanTest_FN', 90, addYlabel=False)
+# add_figure_single('Species','plant_associated','Precision',0.15,["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step", "MetaPhlAn4.1"],'bmetrics',(4,5),'bmetrics/metaphlanTest_Precision', 90, addYlabel=False)
+# add_figure_single('Species','plant_associated','Recall',0.15,["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step", "MetaPhlAn4.1"],'bmetrics',(4,5),'bmetrics/metaphlanTest_Recall', 90, addYlabel=False)
