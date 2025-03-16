@@ -62,7 +62,7 @@ The latest precompiled Slacken may be downloaded as a .zip from the
 [Releases](https://github.com/JNP-Solutions/Slacken/releases). This is the easiest way to obtain Slacken.
 
 A [Docker image](https://hub.docker.com/r/jtnystrom/slacken) is also available. If you are using the Docker image,
-please refer to the instructions on that page.
+please refer to the instructions on that page. In this case you do not need to download Spark or Java.
 
 Set up the environment:
 
