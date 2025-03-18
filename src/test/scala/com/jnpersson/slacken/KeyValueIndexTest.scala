@@ -22,7 +22,7 @@ package com.jnpersson.slacken
 
 import com.jnpersson.kmers.TestGenerators._
 import com.jnpersson.kmers.minimizer._
-import com.jnpersson.kmers.{HDFSUtil, IndexParams, NTSeq, SparkSessionTestWrapper, Testing => DTesting}
+import com.jnpersson.kmers.{IndexParams, NTSeq, SparkSessionTestWrapper, Testing => DTesting}
 import com.jnpersson.slacken.Taxonomy.{NONE, Species}
 import org.apache.spark.sql.functions
 import org.apache.spark.sql.functions.count
@@ -177,7 +177,7 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
       groupBy("title").agg(functions.sum("kmers")).
       as[(Taxon, Long)].collect()
 
-    kmers should contain theSameElementsAs(TestData.numberOf35Mers)
+    kmers should contain theSameElementsAs TestData.numberOf35Mers
   }
 
   test("Dynamic index") {

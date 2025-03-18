@@ -22,9 +22,6 @@ package com.jnpersson
 
 import com.jnpersson.kmers._
 import com.jnpersson.kmers.minimizer._
-import org.apache.spark.sql.SparkSession
-
-import scala.collection.mutable
 
 /**
  * Routines for taxonomic classification of reads from metagenomic datasets.

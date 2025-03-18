@@ -20,10 +20,10 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.kmers._
-import com.jnpersson.kmers.util.{KmerTable, NTBitArray}
+import com.jnpersson.kmers.util.KmerTable
 import com.jnpersson.slacken.Taxonomy.NONE
 import it.unimi.dsi.fastutil.ints.Int2IntMap
-import it.unimi.dsi.fastutil.objects.{Object2IntOpenCustomHashMap, Object2IntOpenHashMap}
+import it.unimi.dsi.fastutil.objects.Object2IntOpenCustomHashMap
 import it.unimi.dsi.fastutil.longs.LongArrays.HASH_STRATEGY
 import org.apache.spark.sql.functions.{collect_list, ifnull, lit, regexp_replace, sum, udf}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}

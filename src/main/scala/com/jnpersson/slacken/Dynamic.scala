@@ -23,7 +23,7 @@ import com.jnpersson.kmers.minimizer._
 import com.jnpersson.kmers.Helpers.formatPerc
 import com.jnpersson.kmers.{HDFSUtil, Inputs}
 import com.jnpersson.slacken.Taxonomy.Rank
-import org.apache.spark.sql.functions.{approx_count_distinct, count, udf, concat_ws}
+import org.apache.spark.sql.functions.{count, udf, concat_ws}
 import org.apache.spark.sql.{DataFrame, SaveMode, Dataset, RelationalGroupedDataset, SparkSession, functions}
 
 import scala.collection.mutable
