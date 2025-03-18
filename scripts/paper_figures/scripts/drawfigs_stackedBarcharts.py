@@ -230,3 +230,8 @@ result_list_3 = [aggkreports(names, name_classifier, ['rspc_1-step','rspc_R100',
 , dataset, noCollapse=True) for dataset in dataset_list]
 df_result3 = aggResultDf(result_list_3,dataset_list)
 df_result3.to_csv("../FigureData/all_datasets_NoFig.csv",index=False)
+
+result_list_4 = [aggkreports(names, name_classifier, ['std_1-step','std_gold'], dataset) for dataset in dataset_list[:4]]  # Limit to 4 datasets
+saveplot4(result_list_4, dataset_list[:4],'multilevel_stacked_barcharts/sbiF1')
+df_result4= aggResultDf(result_list_4,dataset_list[:4])
+df_result4.to_csv("../FigureData/sbiF1.csv",index=False)
