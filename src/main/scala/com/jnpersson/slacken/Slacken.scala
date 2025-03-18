@@ -20,11 +20,11 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.kmers.minimizer._
-import com.jnpersson.kmers.{Commands, HDFSUtil, IndexParams, RunCmd, SeqTitle, SparkConfiguration, SparkTool}
+import com.jnpersson.kmers.{Commands, HDFSUtil, IndexParams, RunCmd, SparkConfiguration, SparkTool}
 import com.jnpersson.slacken.Taxonomy.Species
-import com.jnpersson.slacken.analysis.{MappingComparison, Metrics, MinimizerMigration}
+import com.jnpersson.slacken.analysis.{MappingComparison, MinimizerMigration}
 import org.apache.spark.sql.SparkSession
-import org.rogach.scallop.{ScallopOption, Subcommand}
+import org.rogach.scallop.Subcommand
 
 import java.io.FileNotFoundException
 import java.util.regex.PatternSyntaxException

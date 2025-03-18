@@ -258,8 +258,8 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
     val spans = getSpans(subjects, withTitle = false)
 
     val taggedSpans = spans.select(
-      (Array($"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
-        idColumnsFromMinimizer)
+      Array($"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
+        idColumnsFromMinimizer
         :_*)
 
     taggedSpans.join(records, idColumnNames, "left").
@@ -275,8 +275,8 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
     val spans = getSpans(subjects, withTitle = false)
 
     val taggedSpans = spans.select(
-      (Array($"minimizer", $"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
-        idColumnsFromMinimizer)
+      Array($"minimizer", $"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
+        idColumnsFromMinimizer
         :_*)
 
     taggedSpans.join(records, idColumnNames, "left").
@@ -311,8 +311,8 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
   def spansToGroupedHits(subjects: Dataset[OrdinalSpan], withOrdinal: Boolean): Dataset[(SeqTitle, Array[TaxonHit])] = {
     //The 'subject' struct constructs an OrdinalSpan
     val taggedSpans = subjects.select(
-      (Seq($"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
-        idColumnsFromMinimizer)
+      Seq($"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
+        idColumnsFromMinimizer
         :_*)
 
     val taxonHits = taggedSpans.join(records, idColumnNames, "left").

@@ -25,8 +25,6 @@ import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
 import org.apache.spark.sql.functions.{collect_list, count, desc, struct}
 
 import scala.collection.JavaConverters._
-import java.util
-import java.util.Comparator
 
 
 /** A classified read.

@@ -22,7 +22,7 @@ package com.jnpersson.slacken
 
 import com.jnpersson.kmers
 import com.jnpersson.kmers.minimizer._
-import com.jnpersson.kmers.{AnyMinSplitter, HDFSUtil, IndexParams, Inputs, TestGenerators, Testing => TTesting}
+import com.jnpersson.kmers.{AnyMinSplitter, IndexParams, Inputs, TestGenerators, Testing => TTesting}
 import com.jnpersson.slacken.Taxonomy.{NONE, ROOT, Rank, Root}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.scalacheck.{Gen, Shrink}
