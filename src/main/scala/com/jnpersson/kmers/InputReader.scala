@@ -143,7 +143,7 @@ class Inputs(val files: Seq[String], k: Int, maxReadLength: Int, pairedEnd: Bool
       expandedFiles.map(forFile(_, None))
     }
     val fs = readers.map(_.getInputFragments(withRC, withAmbiguous, sampleFraction))
-    fs.foldLeft(spark.emptyDataset[InputFragment])(_ union _)
+    spark.sparkContext.union(fs.map(_.rdd)).toDS()
   }
 
   /**
@@ -151,7 +151,7 @@ class Inputs(val files: Seq[String], k: Int, maxReadLength: Int, pairedEnd: Bool
    */
   def getSequenceTitles: Dataset[SeqTitle] = {
     val titles = expandedFiles.map(forFile(_)).map(_.getSequenceTitles)
-    titles.foldLeft(spark.emptyDataset[SeqTitle])(_ union _)
+    spark.sparkContext.union(titles.map(_.rdd)).toDS()
   }
 }
 
@@ -299,8 +299,9 @@ class FastqShortInput(file: String, k: Int, maxReadLength: Int, file2: Option[St
     1000 //ID string and separator characters
   conf.set("look_ahead_buffer_size", bufsiz.toString)
 
-  protected def loadFile(input: String): RDD[QRecord] =
+  protected def loadFile(input: String): RDD[QRecord] = {
     sc.newAPIHadoopFile(input, classOf[FASTQInputFileFormat], classOf[Text], classOf[QRecord], conf).values
+  }
 
   def getSequenceTitles: Dataset[SeqTitle] =
     rdd.map(_.getKey).toDS.distinct
