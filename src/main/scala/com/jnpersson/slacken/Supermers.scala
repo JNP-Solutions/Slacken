@@ -103,7 +103,7 @@ final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializab
 }
 
 object Supermers {
-  def nonAmbiguousRegex(k: Int) = s"[actguACTGU]{$k,}".r
+  def nonAmbiguousRegex(k: Int) = s"[actguACTGU\n\r]{$k,}".r
 
   /**
    * Split a sequence into maximally long segments that are either unambiguous or ambiguous.
