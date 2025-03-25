@@ -38,9 +38,7 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
   // Write a new temporary file with content
   def generateFile(content: String, extension: String): String = {
     val loc = Files.createTempFile(null, extension)
-    println(content)
     Files.writeString(loc, content)
-    println(loc)
     loc.toString
   }
 
@@ -110,7 +108,7 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
 
   test("fasta reads fragment reading") {
     forAll(fastaFiles(k)) { case file =>
-      val loc = generateFile(file.toString, "fasta")
+      val loc = generateFile(file.toString, ".fasta")
       val inputs = readFiles(List(loc))
       val fragments = file.records.map(pair => (pair._2.header, pair._2.nucleotides)).sortBy(_._1)
       val got = inputs.getInputFragments(withRC = false).collect().toList.sortBy(_.header).map(r =>
@@ -123,7 +121,7 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
 
   test("fastq reads fragment reading") {
     forAll(fastqFiles(k)) { case file =>
-      val loc = generateFile(file.toString, "fastq")
+      val loc = generateFile(file.toString, ".fastq")
       val inputs = readFiles(List(loc))
       val fragments = file.records.map(pair => (pair._2.header, pair._2.nucleotides)).sortBy(_._1)
       val got = inputs.getInputFragments(withRC = false).collect().toList.sortBy(_.header).map(r =>
