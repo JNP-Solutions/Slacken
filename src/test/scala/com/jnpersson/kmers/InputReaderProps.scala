@@ -71,7 +71,7 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
   def fastaFileShortSequences(k: Int, lineSep: String): Gen[(String, InputFragment)] =
     for {
       lines <- Gen.choose(1, 10)
-      dnaSeqs <- Gen.listOfN(lines, dnaStrings(k, 100))
+      dnaSeqs <- Gen.listOfN(lines, dnaStringsMixedCaseWithAmbig(k, 100))
       id <- Gen.stringOfN(10, Gen.alphaNumChar)
       sequence = dnaSeqs.mkString("")
       record = s">$id$lineSep" + dnaSeqs.mkString(lineSep) + lineSep
@@ -80,7 +80,7 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
 
   def fastqFileShortSequences(k: Int, lineSep: String): Gen[(String, InputFragment)] =
     for {
-      dnaSeq <- dnaStrings(k, 200)
+      dnaSeq <- dnaStringsMixedCaseWithAmbig(k, 200)
       id <- Gen.stringOfN(10, Gen.alphaNumChar)
       quality <- Gen.stringOfN(dnaSeq.length, Gen.oneOf(fastqQuality))
       record = s"@$id$lineSep$dnaSeq$lineSep+$lineSep$quality$lineSep"
@@ -111,7 +111,7 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
       val loc = generateFile(file.toString, ".fasta")
       val inputs = readFiles(List(loc))
       val fragments = file.records.map(pair => (pair._2.header, pair._2.nucleotides)).sortBy(_._1)
-      val got = inputs.getInputFragments(withRC = false).collect().toList.sortBy(_.header).map(r =>
+      val got = inputs.getInputFragments(withAmbiguous = true, withRC = false).collect().toList.sortBy(_.header).map(r =>
         (r.header, removeSeparators(r.nucleotides))
       )
       got should equal(fragments)
@@ -124,7 +124,7 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
       val loc = generateFile(file.toString, ".fastq")
       val inputs = readFiles(List(loc))
       val fragments = file.records.map(pair => (pair._2.header, pair._2.nucleotides)).sortBy(_._1)
-      val got = inputs.getInputFragments(withRC = false).collect().toList.sortBy(_.header).map(r =>
+      val got = inputs.getInputFragments(withAmbiguous = true, withRC = false).collect().toList.sortBy(_.header).map(r =>
         (r.header, removeSeparators(r.nucleotides))
       )
       got should equal(fragments)
