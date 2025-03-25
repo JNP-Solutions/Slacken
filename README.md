@@ -68,7 +68,7 @@ Unless you are using the Docker image, you should set up the environment:
 
 ```
 #path to the Spark distribution (where you extracted your Spark download)
-export SPARK_HOME=SPARK_HOME=/usr/local/spark-3.5.1-bin-hadoop3  
+export SPARK_HOME=/usr/local/spark-3.5.1-bin-hadoop3  
 
 #a location for scratch space on a fast hard drive
 export SLACKEN_TMP=/tmp
