@@ -69,7 +69,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
    * @return
    */
   def distinctMinimizers(splitter: AnyMinSplitter, defaultValue: Array[Long]): Iterator[Array[Long]] = {
-    val segments = Supermers.splitByAmbiguity(nucleotides, Supermers.nonAmbiguousRegex(splitter.k))
+    val segments = Supermers.splitByAmbiguity(nucleotides, splitter.k)
     val builder = KmerTable.builder(splitter.priorities.width, 10000)
 
     for { (seq, flag, _) <- segments } {
@@ -186,7 +186,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
     }
 
     val k = splitter.k
-    val segments = Supermers.splitByAmbiguity(nucleotides, Supermers.nonAmbiguousRegex(k))
+    val segments = Supermers.splitByAmbiguity(nucleotides, k)
 
     //Construct all super-mers, including quasi-supermers (NONE) for ambiguous regions
 
