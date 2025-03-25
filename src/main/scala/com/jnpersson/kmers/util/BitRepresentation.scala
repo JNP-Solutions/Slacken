@@ -137,6 +137,16 @@ object BitRepresentation {
     }
 
   /**
+   * Test whether a single character is encodable.
+   * @param char
+   * @return
+   */
+  def isValid(char: Char): Boolean = (char: @switch) match {
+    case 'A' | 'a' | 'C' | 'c' | 'G' | 'g' | 'T' | 't' | 'U' | 'u' => true
+    case _ => false
+  }
+
+  /**
    * Convert a single nucleotide from string (char) representation to "twobit" representation.
    * Does not throw an exception, but returns INVALID on invalid characters.
    */
