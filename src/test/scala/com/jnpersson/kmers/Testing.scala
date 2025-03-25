@@ -57,20 +57,30 @@ object Testing {
 object TestGenerators {
   import BitRepresentation._
 
-  val dnaChars = "ACTG".toSeq
-  val dnaCharsArrayMixedCase = "ACTGactg".toSeq
-  val dnaRnaCharsArrayMixedCase = "ACTGUactgu".toSeq
+  val dnaChars = "ACTG"
+  val dnaCharsMixedCase = "ACTGactg"
+  val dnaCharsMixedCaseWithAmbig = "ACTGNactgn"
+  val dnaRnaCharsMixedCase = "ACTGUactgu"
   val dnaLetterTwobits: Gen[Byte] = Gen.choose(0, 3).map(x => twobits(x))
 
-  def dnaStrings(minLen: Int, maxLen: Int): Gen[NTSeq] = for {
+  def varLengthStrings(minLen: Int, maxLen: Int, alphabet: Gen[Char]): Gen[String] = for {
     length <- Gen.choose(minLen, maxLen)
-    x <- Gen.stringOfN(length, Gen.oneOf(dnaChars))
+    x <- Gen.stringOfN(length, alphabet)
   } yield x
 
-  def dnaStringsMixedCase(minLen: Int, maxLen: Int): Gen[NTSeq] = for {
-    length <- Gen.choose(minLen, maxLen)
-    x <- Gen.stringOfN(length, Gen.oneOf(dnaCharsArrayMixedCase))
-  } yield x
+  def varLengthStrings(minLen: Int, maxLen: Int, alphabet: Seq[Char]): Gen[SeqTitle] =
+    varLengthStrings(minLen, maxLen, Gen.oneOf(alphabet))
+
+  def dnaStrings(minLen: Int, maxLen: Int): Gen[NTSeq] =
+    varLengthStrings(minLen, maxLen, dnaChars)
+
+  def dnaStringsMixedCase(minLen: Int, maxLen: Int): Gen[NTSeq] =
+    varLengthStrings(minLen, maxLen, dnaCharsMixedCase)
+
+  def dnaStringsMixedCaseWithAmbig(minLen: Int, maxLen: Int): Gen[NTSeq] =
+    varLengthStrings(minLen, maxLen,
+      Gen.frequency((minLen, Gen.oneOf(dnaCharsMixedCase)), (1, Gen.oneOf("Nn")))
+    )
 
   def dnaStrings(minLen: Int): Gen[NTSeq] = dnaStrings(minLen, 200)
 
