@@ -36,8 +36,9 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
   val maxReadLength = 100000
 
   // Write a new temporary file with content
-  def generateFile(content: String): String = {
-    val loc = Files.createTempFile(null, ".fasta")
+  def generateFile(content: String, extension: String): String = {
+    val loc = Files.createTempFile(null, extension)
+    println(content)
     Files.writeString(loc, content)
     println(loc)
     loc.toString
@@ -56,47 +57,75 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
     x.replaceAll("[\n\r]+", "")
 
   //File format generators
-  case class SeqRecordFile(records: List[(InputFragment, String)], lineSeparator: String) {
+  case class SeqRecordFile(records: List[(String, InputFragment)], lineSeparator: String) {
     override def toString: String =
-      records.map(r => s">${r._1.header}\n${r._2}").mkString("\n")
-
-    def fileString: String =
-      records.map(r => s">${r._1.header}$lineSeparator${r._2}").mkString(lineSeparator)
+      records.map(_._1).mkString("")
   }
 
-  implicit def shrinkFile: Shrink[SeqRecordFile] =
-    Shrink { case x =>
-      Shrink.shrink(x.records).map(recs => SeqRecordFile(recs, x.lineSeparator))
-    }
+  //Do not shrink an individual record
+  implicit def shrinkPair: Shrink[(InputFragment, String)] = Shrink { _ => Stream.empty }
+
+  val fastqQuality =
+    (33 to 126).map(_.toChar)
 
   //lines have different length, to simulate a complex fasta file
   //Triples of (file data, expected input fragment, line separator)
-  def fastaFileShortSequences(k: Int, lineSep: String): Gen[(String, InputFragment, String)] =
+  def fastaFileShortSequences(k: Int, lineSep: String): Gen[(String, InputFragment)] =
     for {
-      i <- Gen.choose(1, 10)
-      dnaSeqs <- Gen.listOfN(i, dnaStrings(k, 100))
+      lines <- Gen.choose(1, 10)
+      dnaSeqs <- Gen.listOfN(lines, dnaStrings(k, 100))
       id <- Gen.stringOfN(10, Gen.alphaNumChar)
       sequence = dnaSeqs.mkString("")
-      record = dnaSeqs.mkString(lineSep)
+      record = s">$id$lineSep" + dnaSeqs.mkString(lineSep) + lineSep
       fragment = InputFragment(id, 0, sequence, None)
-    } yield (record, fragment, lineSep)
+    } yield (record, fragment)
 
-  //Fasta files, pairs of data and expected InputFragment records
+  def fastqFileShortSequences(k: Int, lineSep: String): Gen[(String, InputFragment)] =
+    for {
+      dnaSeq <- dnaStrings(k, 200)
+      id <- Gen.stringOfN(10, Gen.alphaNumChar)
+      quality <- Gen.stringOfN(dnaSeq.length, Gen.oneOf(fastqQuality))
+      record = s"@$id$lineSep$dnaSeq$lineSep+$lineSep$quality$lineSep"
+      fragment = InputFragment(id, 0, dnaSeq, None)
+    } yield (record, fragment)
+
+  def lineSeparators: Gen[String] =
+    Gen.oneOf(List("\n", "\n\r"))
+
+  //Fasta file data
   def fastaFiles(k: Int): Gen[SeqRecordFile] =
     for {
-      lineSep <- Gen.oneOf(List("\n", "\n\r"))
+      lineSep <- lineSeparators
       n <- Gen.choose(1, 10)
       records <- Gen.listOfN(n, fastaFileShortSequences(k, lineSep))
-      recordData = records.map(_._1)
-      recordFragments = records.map(_._2)
-    } yield SeqRecordFile(recordFragments zip recordData, lineSep)
+    } yield SeqRecordFile(records, lineSep)
 
+  //Fastq file data
+  def fastqFiles(k: Int): Gen[SeqRecordFile] =
+    for {
+      lineSep <- lineSeparators
+      n <- Gen.choose(1, 10)
+      records <- Gen.listOfN(n, fastqFileShortSequences(k, lineSep))
+    } yield SeqRecordFile(records, lineSep)
 
-  test("fasta short reads fragment reading") {
+  test("fasta reads fragment reading") {
     forAll(fastaFiles(k)) { case file =>
-      val loc = generateFile(file.fileString)
+      val loc = generateFile(file.toString, "fasta")
       val inputs = readFiles(List(loc))
-      val fragments = file.records.map(pair => (pair._1.header, pair._1.nucleotides)).sortBy(_._1)
+      val fragments = file.records.map(pair => (pair._2.header, pair._2.nucleotides)).sortBy(_._1)
+      val got = inputs.getInputFragments(withRC = false).collect().toList.sortBy(_.header).map(r =>
+        (r.header, removeSeparators(r.nucleotides))
+      )
+      got should equal(fragments)
+      removeFile(loc)
+    }
+  }
+
+  test("fastq reads fragment reading") {
+    forAll(fastqFiles(k)) { case file =>
+      val loc = generateFile(file.toString, "fastq")
+      val inputs = readFiles(List(loc))
+      val fragments = file.records.map(pair => (pair._2.header, pair._2.nucleotides)).sortBy(_._1)
       val got = inputs.getInputFragments(withRC = false).collect().toList.sortBy(_.header).map(r =>
         (r.header, removeSeparators(r.nucleotides))
       )
