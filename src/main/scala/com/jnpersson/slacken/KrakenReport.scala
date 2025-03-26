@@ -47,8 +47,10 @@ class TreeAggregator(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
  * @param taxonomy         The taxonomy
  * @param counts           Number of hits (reads) for each taxon
  * @param compatibleFormat Traditional output format (no headers, identical to Kraken/Kraken 2 reports)
+ * @param reportZeros       whether to report taxa with no hits
  */
-class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], compatibleFormat: Boolean = false) {
+class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], compatibleFormat: Boolean = false,
+                   reportZeros: Boolean = false) {
   private val agg = new TreeAggregator(taxonomy, counts)
   private[slacken] val cladeTotals = agg.cladeTotals
   private[slacken] val taxonCounts = agg.taxonCounts
@@ -79,7 +81,7 @@ class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], compatibleF
   /** Depth-first search to generate report lines and print them.
    * Mostly adapted from kraken 2's reports.cc.
    */
-  def reportDFS(output: PrintWriter, reportZeros: Boolean, taxid: Taxon, rank: Rank, rankDepth: Int,
+  def reportDFS(output: PrintWriter, taxid: Taxon, rank: Rank, rankDepth: Int,
                 depth: Int): Unit = {
     val (rankCodeNext, rankDepthNext) = taxonomy.getRank(taxid) match {
       case Some(r) => (r, 0)
@@ -96,11 +98,11 @@ class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], compatibleF
       (child, count) <- sortedChildren
       if reportZeros || count > 0
     } {
-      reportDFS(output, reportZeros, child, rankCodeNext, rankDepthNext, depth + 1)
+      reportDFS(output, child, rankCodeNext, rankDepthNext, depth + 1)
     }
   }
 
-  def reportDFS(output: PrintWriter, reportZeros: Boolean): Unit = {
+  def reportDFS(output: PrintWriter): Unit = {
     if (!compatibleFormat) {
       output.println(headers)
     }
@@ -108,9 +110,9 @@ class KrakenReport(taxonomy: Taxonomy, counts: Array[(Taxon, Long)], compatibleF
     if (totalUnclassified != 0 || reportZeros) {
       output.println(reportLine(NONE, Unclassified, 0, 0))
     }
-    reportDFS(output, reportZeros, ROOT, Root, 0, 0)
+    reportDFS(output, ROOT, Root, 0, 0)
   }
 
-  def print(output: PrintWriter, reportZeros: Boolean = false): Unit =
-    reportDFS(output, reportZeros)
+  def print(output: PrintWriter): Unit =
+    reportDFS(output)
 }

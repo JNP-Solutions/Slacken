@@ -30,6 +30,12 @@ import org.apache.spark.sql.{Dataset, SparkSession}
 import scala.language.postfixOps
 
 
+sealed trait InputGrouping
+/** Single reads or genomes */
+case object Ungrouped extends InputGrouping
+/** Paired-end reads */
+case object PairedEnd extends InputGrouping
+
 /**
  * Splits longer sequences into fragments of a controlled maximum length, optionally sampling them.
  * @param k length of k-mers
@@ -82,11 +88,11 @@ private final case class FragmentParser(k: Int) {
  * @param files files to read. A name of the format @list.txt will be parsed as a list of files.
  * @param k length of k-mers
  * @param maxReadLength max length of short sequences
- * @param pairedEnd whether input files are paired-end reads. If so, they are expected to appear in sequence, so that
+ * @param inputGrouping whether input files are paired-end reads. If so, they are expected to appear in sequence, so that
  *                  the first file is a _1, the second a _2, the third a _1, etc.
  * @param spark the SparkSession
  */
-class Inputs(val files: Seq[String], k: Int, maxReadLength: Int, pairedEnd: Boolean = false)(implicit spark: SparkSession) {
+class Inputs(val files: Seq[String], k: Int, maxReadLength: Int, inputGrouping: InputGrouping = Ungrouped)(implicit spark: SparkSession) {
   protected val conf = new HConfiguration(spark.sparkContext.hadoopConfiguration)
   import spark.sqlContext.implicits._
 
@@ -133,14 +139,15 @@ class Inputs(val files: Seq[String], k: Int, maxReadLength: Int, pairedEnd: Bool
    */
   def getInputFragments(withRC: Boolean, withAmbiguous: Boolean = false,
                         sampleFraction: Option[Double] = None): Dataset[InputFragment] = {
-    val readers = if (pairedEnd) {
-      if (files.size % 2 != 0) {
-        throw new Exception(
-          s"For paired end mode, please supply pairs of files (even number). ${files.size} files were supplied")
-      }
-      expandedFiles.grouped(2).map(pair => forFile(pair(0), Some(pair(1)))).toList
-    } else {
-      expandedFiles.map(forFile(_, None))
+    val readers = inputGrouping match {
+      case PairedEnd =>
+        if (files.size % 2 != 0) {
+          throw new Exception(
+            s"For paired end mode, please supply pairs of files (even number). ${files.size} files were supplied")
+        }
+        expandedFiles.grouped(2).map(pair => forFile(pair(0), Some(pair(1)))).toList
+      case _ =>
+        expandedFiles.map(forFile(_, None))
     }
     val fs = readers.map(_.getInputFragments(withRC, withAmbiguous, sampleFraction))
     spark.sparkContext.union(fs.map(_.rdd)).toDS()

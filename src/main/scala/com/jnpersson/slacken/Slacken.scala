@@ -20,7 +20,7 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.kmers.minimizer._
-import com.jnpersson.kmers.{Commands, HDFSUtil, IndexParams, RunCmd, SparkConfiguration, SparkTool}
+import com.jnpersson.kmers.{Commands, HDFSUtil, IndexParams, InputGrouping, PairedEnd, RunCmd, Ungrouped, SparkConfiguration, SparkTool}
 import com.jnpersson.slacken.Taxonomy.Species
 import com.jnpersson.slacken.analysis.{MappingComparison, MinimizerMigration}
 import org.apache.spark.sql.SparkSession
@@ -68,7 +68,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
     val inFiles = HDFSUtil.findFiles(location + "/library", ".fna")
     println(s"Discovered input files: $inFiles")
     val reader = k match {
-      case Some(k) => inputReader(inFiles, k, pairedEnd = false)
+      case Some(k) => inputReader(inFiles, k, Ungrouped)
       case None => inputReader(inFiles)
     }
     GenomeLibrary(reader, s"$location/seqid2taxid.map")
@@ -131,7 +131,9 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 
       val minHitGroups = opt[Int](name = "minHits", descr = "Minimum hit groups (default 2)", default = Some(2))
       val inFiles = trailArg[List[String]](descr = "Sequences to be classified", default = Some(List()))
-      val paired = opt[Boolean](descr = "Inputs are paired-end reads", default = Some(false))
+      val paired = opt[Boolean](descr = "Inputs are paired-end reads", default = Some(false)).map(
+        if (_) PairedEnd else Ungrouped
+      )
       val unclassified = toggle(descrYes = "Output unclassified reads", default = Some(true))
       val output = opt[String](descr = "Output location", required = true)
       val detailed = toggle(descrYes = "Output detailed results for individual reads", default = Some(true))
