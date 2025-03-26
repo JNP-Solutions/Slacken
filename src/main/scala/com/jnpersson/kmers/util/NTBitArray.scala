@@ -75,6 +75,8 @@ class NTBitDecoder {
 
 object NTBitArray {
 
+  val empty = NTBitArray(Array(), 0)
+
   /** Reversibly encode a nucleotide sequence as an array of 64-bit longs.
    * The 2*length leftmost bits in the array will be populated.
    */

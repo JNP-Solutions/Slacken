@@ -38,7 +38,7 @@ import com.jnpersson.kmers.TestGenerators._
 
           while (window.hasNext) {
             window.motifRanks.bitArraySeq.slice(window.leftBound, window.rightBound).
-              filter(_ != MinSplitter.INVALID) shouldBe sorted
+              filter(x => ! (x eq MinSplitter.INVALID)) shouldBe sorted
             window.advanceWindow()
           }
         }
