@@ -202,7 +202,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
           val i = index()
           val genomeLib = findGenomes(library(), Some(i.params.k))
           val goldStandardOpt = goldSet.toOption.map(x =>
-            DynamicGoldTaxonSet(x, promoteGoldSet.toOption, classifyWithGold()))
+            GoldSetOptions(x, promoteGoldSet.toOption, classifyWithGold()))
           val taxonCriteria = minCount.map(MinimizerTotalCount).
             orElse(reads.map(ClassifiedReadCount(_, readConfidence())).toOption).
             orElse(minDistinct.map(MinimizerDistinctCount).toOption).
