@@ -27,6 +27,8 @@ import org.scalatest.matchers.should.Matchers._
 
 import java.nio.file.Files
 
+/** Test the input reader using synthetic files of the various input formats.
+  */
 class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with ScalaCheckPropertyChecks {
   import TestGenerators._
 
@@ -68,19 +70,19 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
 
   //lines have different length, to simulate a complex fasta file
   //Triples of (file data, expected input fragment, line separator)
-  def fastaFileShortSequences(k: Int, lineSep: String): Gen[(String, InputFragment)] =
+  def fastaFileShortSequences(lineSep: String, seqGen: Gen[NTSeq]): Gen[(String, InputFragment)] =
     for {
       lines <- Gen.choose(1, 10)
-      dnaSeqs <- Gen.listOfN(lines, dnaStringsMixedCaseWithAmbig(k, 100))
+      dnaSeqs <- Gen.listOfN(lines, seqGen)
       id <- Gen.stringOfN(10, Gen.alphaNumChar)
       sequence = dnaSeqs.mkString("")
       record = s">$id$lineSep" + dnaSeqs.mkString(lineSep) + lineSep
       fragment = InputFragment(id, 0, sequence, None)
     } yield (record, fragment)
 
-  def fastqFileShortSequences(k: Int, lineSep: String): Gen[(String, InputFragment)] =
+  def fastqFileShortSequences(lineSep: String, seqGen: Gen[NTSeq]): Gen[(String, InputFragment)] =
     for {
-      dnaSeq <- dnaStringsMixedCaseWithAmbig(k, 200)
+      dnaSeq <- seqGen
       id <- Gen.stringOfN(10, Gen.alphaNumChar)
       quality <- Gen.stringOfN(dnaSeq.length, Gen.oneOf(fastqQuality))
       record = s"@$id$lineSep$dnaSeq$lineSep+$lineSep$quality$lineSep"
@@ -90,28 +92,27 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
   def lineSeparators: Gen[String] =
     Gen.oneOf(List("\n", "\n\r"))
 
-  //Fasta file data
-  def fastaFiles(k: Int): Gen[SeqRecordFile] =
+  def fastaFiles(seqGen: Gen[NTSeq]): Gen[SeqRecordFile] =
     for {
       lineSep <- lineSeparators
       n <- Gen.choose(1, 10)
-      records <- Gen.listOfN(n, fastaFileShortSequences(k, lineSep))
+      records <- Gen.listOfN(n, fastaFileShortSequences(lineSep, seqGen))
     } yield SeqRecordFile(records, lineSep)
 
-  //Fastq file data
-  def fastqFiles(k: Int): Gen[SeqRecordFile] =
+  def fastqFiles(seqGen: Gen[NTSeq]): Gen[SeqRecordFile] =
     for {
       lineSep <- lineSeparators
       n <- Gen.choose(1, 10)
-      records <- Gen.listOfN(n, fastqFileShortSequences(k, lineSep))
+      records <- Gen.listOfN(n, fastqFileShortSequences(lineSep, seqGen))
     } yield SeqRecordFile(records, lineSep)
 
-  test("fasta reads fragment reading") {
-    forAll(fastaFiles(k)) { case file =>
-      val loc = generateFile(file.toString, ".fasta")
+  def testFileFormat(fileGen: Gen[SeqRecordFile], extension: String, withAmbiguous: Boolean): Unit = {
+    forAll(fileGen) { case file =>
+      val loc = generateFile(file.toString, extension)
       val inputs = readFiles(List(loc))
       val fragments = file.records.map(pair => (pair._2.header, pair._2.nucleotides)).sortBy(_._1)
-      val got = inputs.getInputFragments(withAmbiguous = true, withRC = false).collect().toList.sortBy(_.header).map(r =>
+      val got = inputs.getInputFragments(withAmbiguous = withAmbiguous, withRC = false).collect().
+        toList.sortBy(_.header).map(r =>
         (r.header, removeSeparators(r.nucleotides))
       )
       got should equal(fragments)
@@ -119,17 +120,14 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
     }
   }
 
+  test("fasta reads fragment reading") {
+    testFileFormat(fastaFiles(dnaStringsMixedCaseWithAmbig(k, 100)), ".fasta", true)
+    testFileFormat(fastaFiles(dnaStringsMixedCase(k, 100)), ".fasta", false)
+  }
+
   test("fastq reads fragment reading") {
-    forAll(fastqFiles(k)) { case file =>
-      val loc = generateFile(file.toString, ".fastq")
-      val inputs = readFiles(List(loc))
-      val fragments = file.records.map(pair => (pair._2.header, pair._2.nucleotides)).sortBy(_._1)
-      val got = inputs.getInputFragments(withAmbiguous = true, withRC = false).collect().toList.sortBy(_.header).map(r =>
-        (r.header, removeSeparators(r.nucleotides))
-      )
-      got should equal(fragments)
-      removeFile(loc)
-    }
+    testFileFormat(fastqFiles(dnaStringsMixedCaseWithAmbig(k, 200)), ".fastq", true)
+    testFileFormat(fastqFiles(dnaStringsMixedCase(k, 200)), ".fastq", false)
   }
 
 }
