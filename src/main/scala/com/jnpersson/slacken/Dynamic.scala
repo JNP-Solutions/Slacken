@@ -57,9 +57,9 @@ final case class Timer(task: String, start: Long) {
  * @param taxonFile Path to the text file to read taxa from (one per line)
  * @param promoteRank if supplied, taxa from the gold set that have no minimizers in the database will be
  * promoted to this rank at the highest, e.g. Genus
- * @param classifyWithGoldSet whether to classify using the gold set library, or just compare a detected taxon set with it
+ * @param classifyWith whether to classify using the gold set library, or just compare a detected taxon set with it
  */
-case class DynamicGoldTaxonSet(taxonFile: String, promoteRank: Option[Rank], classifyWithGoldSet: Boolean)
+final case class GoldSetOptions(taxonFile: String, promoteRank: Option[Rank], classifyWith: Boolean)
 
 /** Two-step classification of reads with dynamically generated indexes,
  * starting from a base index.
@@ -73,7 +73,7 @@ case class DynamicGoldTaxonSet(taxonFile: String, promoteRank: Option[Rank], cla
  * @param taxonCriteria            criteria for selecting taxa for inclusion in the dynamic index
  * @param cpar                     parameters for classification
  * @param dynamicBrackenReadLength read length for generating bracken weights for the second index (if any)
- * @param goldSet                  parameters for deciding whether to get stats or classify wrt gold standard
+ * @param goldSetOpts              parameters for deciding whether to get stats or classify wrt gold standard
  * @param dynamicReports           whether to generate reports describing the dynamic index
  * @param outputLocation           prefix location for output files
  */
@@ -82,7 +82,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
               taxonCriteria: TaxonCriteria,
               cpar: ClassifyParams,
               dynamicBrackenReadLength: Option[Int],
-              goldSet: Option[DynamicGoldTaxonSet],
+              goldSetOpts: Option[GoldSetOptions],
               dynamicReports: Boolean,
               outputLocation: String)(implicit spark: SparkSession) {
 
@@ -266,7 +266,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     for {loc <- writeLocation}
       HDFSUtil.writeTextLines(loc, keepTaxa.iterator.map(_.toString))
 
-    for { gs <- goldSet } {
+    for { gs <- goldSetOpts} {
         val goldSet = readGoldSet(gs)
         val tp = keepTaxa.intersect(goldSet).size
         val fp = (keepTaxa -- keepTaxa.intersect(goldSet)).size
@@ -285,7 +285,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
 
   private lazy val taxonSetInLibrary = genomes.taxonSet(taxonomy)
 
-  def readGoldSet(goldSetOpts: DynamicGoldTaxonSet): mutable.BitSet = {
+  def readGoldSet(goldSetOpts: GoldSetOptions): mutable.BitSet = {
     val bcTax = base.bcTaxonomy
     val goldSet = mutable.BitSet.empty ++
       spark.read.csv(goldSetOpts.taxonFile).map(x => bcTax.value.primary(x.getString(0).toInt)).collect()
@@ -362,8 +362,8 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
    */
   def makeRecords(subjects: Dataset[InputFragment], setWriteLocation: Option[String]): (DataFrame, mutable.BitSet) = {
 
-    val taxonSet = goldSet match {
-      case Some(dgs@DynamicGoldTaxonSet(_, _, true)) =>
+    val taxonSet = goldSetOpts match {
+      case Some(dgs@GoldSetOptions(_, _, true)) =>
         val goldSet = readGoldSet(dgs)
         taxonomy.taxaWithDescendants(goldSet)
       case _ =>

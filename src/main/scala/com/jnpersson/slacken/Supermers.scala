@@ -100,7 +100,7 @@ final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializab
 }
 
 object Supermers {
-  val nonAmbiguousRegex = s"[actguACTGU\n\r]+".r
+  val nonAmbiguousRegex = "[actguACTGU\n\r]+".r
 
   /**
    * Split a sequence into maximally long segments that are either unambiguous with at least one k-mer, or ambiguous.
