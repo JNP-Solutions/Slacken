@@ -107,7 +107,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
     private var lastInWindow: TaxonHit = null //cache this for optimisation
 
     //Map taxon to k-mer count.
-    //This mutable maps updates to reflect the current window.
+    //This mutable map updates to reflect the current window.
     val countSummary = new it.unimi.dsi.fastutil.ints.Int2IntArrayMap(16) //specialised, very fast map
 
     //Is at least one k-mer from the hit contained in the window?
