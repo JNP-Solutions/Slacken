@@ -104,7 +104,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
     //Offsets in the fragment
     private var windowStart = 0 //inclusive
     private var windowEnd = kmersPerWindow // not inclusive
-    private var lastInWindow: TaxonHit = null //cache this for optimisation
+    private var lastInWindow: TaxonHit = _ //cache this for optimisation
 
     //Map taxon to k-mer count.
     //This mutable map updates to reflect the current window.

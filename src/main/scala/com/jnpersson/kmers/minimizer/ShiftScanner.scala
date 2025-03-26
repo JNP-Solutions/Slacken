@@ -170,12 +170,12 @@ final case class ShiftScanner(priorities: MinimizerPriorities) {
   def matchesOnly(data: Int => Int, len: Int): Iterator[NTBitArray] = new Iterator[NTBitArray] {
     private var pos = 0 //Position that we are reading from the input
     private val window = NTBitArray.blank(width)
-    private var result: NTBitArray = null //The next unreturned result, or null if none
+    private var result: NTBitArray = NTBitArray.empty //The next unreturned result, or null if none
     private var consumed = 0
 
     private def restart(): Unit = {
       window.clear()
-      result = null
+      result = NTBitArray.empty
       consumed = 0
     }
 
@@ -199,7 +199,7 @@ final case class ShiftScanner(priorities: MinimizerPriorities) {
     }
 
     private def findNext(): Unit = {
-      while (result == null && pos < len) {
+      while ((result eq NTBitArray.empty) && pos < len) {
         val x = data(pos)
         pos += 1
 
@@ -214,11 +214,11 @@ final case class ShiftScanner(priorities: MinimizerPriorities) {
 
     populate()
 
-    def hasNext: Boolean = result != null
+    def hasNext: Boolean = !(result eq NTBitArray.empty)
 
     def next: NTBitArray = {
       val r = result
-      result = null
+      result = NTBitArray.empty
 
       findNext()
       r  //The result for this iteration
