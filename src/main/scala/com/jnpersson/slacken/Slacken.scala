@@ -213,12 +213,11 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
           val dyn = new Dynamic(i, genomeLib, rank(),
             taxonCriteria,
             cpar,
-            brackenLength.toOption, goldStandardOpt,
-            indexReports(),
+            goldStandardOpt,
             output())
 
           val inputs = inputReader(inFiles() ++ dynInFiles(), i.params.k, paired())
-          dyn.twoStepClassifyAndWrite(inputs, partitions())
+          dyn.twoStepClassifyAndWrite(inputs, partitions(), indexReports(), brackenLength.toOption)
         }
       }
       addSubcommand(dynamic)
