@@ -20,7 +20,6 @@
 package com.jnpersson
 
 import com.jnpersson.kmers.minimizer._
-import org.apache.spark.sql.{Encoder, Encoders}
 
 /**
  * This package contains routines for processing k-mers, super-mers and minimizers.
@@ -53,24 +52,6 @@ package object kmers {
   type AnyMinSplitter = MinSplitter[MinimizerPriorities]
 
   object Helpers {
-    private var encoders = Map.empty[Class[_], Encoder[_]]
-
-    /** Register a Spark Encoder for a given class */
-    def registerEncoder(cls: Class[_], enc: Encoder[_]): Unit = synchronized {
-      println(s"Register $cls")
-      encoders += cls -> enc
-    }
-
-    /** Obtain a known or previously registered Spark Encoder for a given class */
-    def encoder[S <: MinSplitter[_]](spl: S): Encoder[S] = synchronized {
-      spl.priorities match {
-        case _: MinTable => Encoders.product[MinSplitter[MinTable]].asInstanceOf[Encoder[S]]
-        case _: RandomXOR => Encoders.product[MinSplitter[RandomXOR]].asInstanceOf[Encoder[S]]
-        case _: ExtendedTable => Encoders.product[MinSplitter[ExtendedTable]].asInstanceOf[Encoder[S]]
-        case _ => encoders(spl.priorities.getClass).asInstanceOf[Encoder[S]]
-      }
-    }
-
     def randomTableName: String = {
       val rnd = scala.util.Random.nextLong()
       val useRnd = if (rnd < 0) - rnd else rnd
