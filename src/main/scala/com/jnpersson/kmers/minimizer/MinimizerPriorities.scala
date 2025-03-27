@@ -95,7 +95,7 @@ object MinTable {
 trait MinimizerPriorities extends Serializable {
 
   /** Get the priority of the given minimizer.
-  * If not every m-mer is a minimizer, then null indicates an invalid minimizer. */
+  * If not every m-mer is a minimizer, then [[NTBitArray.empty]] indicates an invalid minimizer. */
   def priorityOf(motif: NTBitArray): NTBitArray
 
   /** Get the minimizer for a given priority. Inverse of the function above.
@@ -167,6 +167,8 @@ final case class RandomXOR(width: Int, xorMask: Long, canonical: Boolean) extend
 final case class MinTable(byPriority: Array[Int], width: Int, override val numLargeBuckets: Long = 0)
   extends MinimizerPriorities {
 
+  import NTBitArray.empty
+
   /**
    * Maps the bit-encoded integer form of each motif to its priority/rank. (This is the inverse of
    * [[byPriority]] above).
@@ -220,12 +222,12 @@ final case class MinTable(byPriority: Array[Int], width: Int, override val numLa
   /** Encoded motif as a NTBitArray (a new object will be allocated) */
   def motifArray(priority: Int): NTBitArray = {
     val p = byPriority(priority)
-    if (p == -1) null else NTBitArray.fromLong(p, width)
+    if (p == -1) empty else NTBitArray.fromLong(p, width)
   }
 
   override def priorityOf(motif: NTBitArray): NTBitArray = {
     val p = priorityLookup(motif.toInt)
-    if (p == -1) null else NTBitArray.fromLong(p, width)
+    if (p == -1) empty else NTBitArray.fromLong(p, width)
   }
 
   override def motifFor(priority: NTBitArray): NTBitArray =
