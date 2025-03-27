@@ -137,8 +137,7 @@ class Inputs(val files: Seq[String], k: Int, maxReadLength: Int, inputGrouping: 
    *                      nucleotides retained.
    * @return
    */
-  def getInputFragments(withRC: Boolean, withAmbiguous: Boolean = false,
-                        sampleFraction: Option[Double] = None): Dataset[InputFragment] = {
+  def getInputFragments(withAmbiguous: Boolean = false, sampleFraction: Option[Double] = None): Dataset[InputFragment] = {
     val readers = inputGrouping match {
       case PairedEnd =>
         if (files.size % 2 != 0) {
@@ -149,7 +148,7 @@ class Inputs(val files: Seq[String], k: Int, maxReadLength: Int, inputGrouping: 
       case _ =>
         expandedFiles.map(forFile(_, None))
     }
-    val fs = readers.map(_.getInputFragments(withRC, withAmbiguous, sampleFraction))
+    val fs = readers.map(_.getInputFragments(withAmbiguous, sampleFraction))
     spark.sparkContext.union(fs.map(_.rdd)).toDS()
   }
 
@@ -159,6 +158,18 @@ class Inputs(val files: Seq[String], k: Int, maxReadLength: Int, inputGrouping: 
   def getSequenceTitles: Dataset[SeqTitle] = {
     val titles = expandedFiles.map(forFile(_)).map(_.getSequenceTitles)
     spark.sparkContext.union(titles.map(_.rdd)).toDS()
+  }
+}
+
+object InputReader {
+  def addRCFragments(fs: Dataset[InputFragment])(implicit spark: SparkSession): Dataset[InputFragment] = {
+    import spark.sqlContext.implicits._
+    fs.flatMap(r =>
+      List(r, r.copy(
+        nucleotides = DNAHelpers.reverseComplement(r.nucleotides),
+        nucleotides2 = r.nucleotides2.map(n2 => DNAHelpers.reverseComplement(n2))
+      ))
+    )
   }
 }
 
@@ -217,7 +228,7 @@ abstract class InputReader[R <: AnyRef](file: String, k: Int)(implicit spark: Sp
   /**
    * Load sequence fragments from files, optionally adding reverse complements and/or sampling.
    */
-  def getInputFragments(withRC: Boolean, withAmbiguous: Boolean,
+  def getInputFragments(withAmbiguous: Boolean,
                         sampleFraction: Option[Double]): Dataset[InputFragment] = {
     val raw = getFragments()
     val valid = if (withAmbiguous) raw else removeInvalid(raw)
@@ -227,16 +238,7 @@ abstract class InputReader[R <: AnyRef](file: String, k: Int)(implicit spark: Sp
       case None => valid
       case Some(f) => valid.sample(f)
     }
-    if (withRC) {
-      sampledValid.flatMap(r => {
-        if (r.nucleotides2.nonEmpty) {
-          throw new Exception("RC reading for paired reads is not implemented yet")
-        }
-        List(r, r.copy(nucleotides = DNAHelpers.reverseComplement(r.nucleotides)))
-      })
-    } else {
-      sampledValid
-    }
+    sampledValid
   }
 }
 

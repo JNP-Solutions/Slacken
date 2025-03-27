@@ -56,7 +56,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
    * Validates that all input sequences have minimizers.
    */
   def checkInput(inputs: Inputs): Unit = {
-    val fragments = inputs.getInputFragments(withRC = false).map(x => (x.header, x.nucleotides))
+    val fragments = inputs.getInputFragments().map(x => (x.header, x.nucleotides))
 
     /* Check if there are input sequences with no valid minimizers.
     * If so, report them.  */

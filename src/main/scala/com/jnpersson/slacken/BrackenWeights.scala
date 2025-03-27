@@ -332,7 +332,7 @@ class BrackenWeights(keyValueIndex: KeyValueIndex, readLen: Int)(implicit val sp
 
     val titlesTaxa = library.getTaxonLabels.toDF("header", "taxon")
 
-    val idSeqDF = library.inputs.getInputFragments(withRC = false, withAmbiguous = true)
+    val idSeqDF = library.inputs.getInputFragments(withAmbiguous = true)
     val presentTaxon = udf((x: Taxon) => taxa.contains(x))
 
     //Prepare the sequence for super-mer splitting and encoding

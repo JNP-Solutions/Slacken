@@ -111,7 +111,7 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
       val loc = generateFile(file.toString, extension)
       val inputs = readFiles(List(loc))
       val fragments = file.records.map(pair => (pair._2.header, pair._2.nucleotides)).sortBy(_._1)
-      val got = inputs.getInputFragments(withAmbiguous = withAmbiguous, withRC = false).collect().
+      val got = inputs.getInputFragments(withAmbiguous = withAmbiguous).collect().
         toList.sortBy(_.header).map(r =>
         (r.header, removeSeparators(r.nucleotides))
       )

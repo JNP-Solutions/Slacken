@@ -168,7 +168,7 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
     val m = 31
     val s = 7
     val idx = TestData.index(k, m, s, None)
-    val fragments = TestData.inputs(k).getInputFragments(withRC = false, withAmbiguous = true).
+    val fragments = TestData.inputs(k).getInputFragments(withAmbiguous = true).
       map(f => f.copy(nucleotides = f.nucleotides.replaceAll("\\s+", "")))
 
     val spans = idx.getSpans(fragments, withTitle = true)
