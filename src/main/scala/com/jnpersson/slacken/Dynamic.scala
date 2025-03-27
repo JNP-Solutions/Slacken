@@ -72,18 +72,14 @@ final case class GoldSetOptions(taxonFile: String, promoteRank: Option[Rank], cl
  * @param reclassifyRank           rank for the initial classification. Taxa at this level will be used to construct the second index
  * @param taxonCriteria            criteria for selecting taxa for inclusion in the dynamic index
  * @param cpar                     parameters for classification
- * @param dynamicBrackenReadLength read length for generating bracken weights for the second index (if any)
  * @param goldSetOpts              parameters for deciding whether to get stats or classify wrt gold standard
- * @param dynamicReports           whether to generate reports describing the dynamic index
  * @param outputLocation           prefix location for output files
  */
 class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
               reclassifyRank: Rank,
               taxonCriteria: TaxonCriteria,
               cpar: ClassifyParams,
-              dynamicBrackenReadLength: Option[Int],
               goldSetOpts: Option[GoldSetOptions],
-              dynamicReports: Boolean,
               outputLocation: String)(implicit spark: SparkSession) {
 
   import spark.sqlContext.implicits._
@@ -319,8 +315,11 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
    *
    * @param inputs         Subjects to classify (reads)
    * @param partitions     Number of partitions for the dynamically generated index in step 2
+   * @param dynamicReports whether to generate reports describing the dynamic index
+   * @param dynamicBrackenReadLength read length for generating bracken weights for the second index (if any)
    */
-  def twoStepClassifyAndWrite(inputs: Inputs, partitions: Int): Unit = {
+  def twoStepClassifyAndWrite(inputs: Inputs, partitions: Int, dynamicReports: Boolean,
+                              dynamicBrackenReadLength: Option[Int]): Unit = {
     val reads = inputs.getInputFragments(withAmbiguous = true).
       coalesce(partitions)
     val (records, usedTaxa) = makeRecords(reads, Some(outputLocation + "_taxonSet.txt"))

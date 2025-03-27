@@ -195,7 +195,7 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
       println(s"Testing: $c")
       val dyn = new Dynamic(idx, TestData.library(k),
         Species, c, cpar,
-        None, None, false, "")
+        None, "")
 
       //Testing the basic code path for dynamic classification.
       //The results aren't yet checked for correctness.
