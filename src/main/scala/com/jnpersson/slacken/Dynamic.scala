@@ -371,7 +371,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     }
 
     //Dynamically create a new index containing only the identified taxa
-    (base.makeRecords(genomes, addRC = false, Some(taxonSet)), taxonSet)
+    (base.makeRecords(genomes, Some(taxonSet)), taxonSet)
   }
 
 }
