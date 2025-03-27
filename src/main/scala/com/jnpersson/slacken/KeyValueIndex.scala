@@ -171,7 +171,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
     records.
       write.mode(SaveMode.Overwrite).
       option("path", location).
-      bucketBy(params.buckets, idColumnNames.head, idColumnNames.tail: _*).
+      bucketBy(params.buckets, idColumnNames(0), idColumnNames.drop(1): _*).
       saveAsTable(tableName)
   }
 
@@ -291,7 +291,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
       /** Precompute these values and store them for reuse later */
       println(s"$precalcLocation didn't exist, creating now.")
       records.
-        groupBy("taxon").agg(functions.count_distinct(idColumns.head, idColumns.tail :_*).as("count")).
+        groupBy("taxon").agg(functions.count_distinct(idColumns(0), idColumns.drop(1) :_*).as("count")).
         coalesce(200).
         write.mode(SaveMode.Overwrite).option("sep", "\t").csv(precalcLocation)
     }
