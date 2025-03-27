@@ -54,7 +54,7 @@ to download and extract the Spark distribution somewhere.
 * 16 GB or more of RAM (32 GB or more recommended).
 * A fast SSD drive for temporary space is very helpful. The amount of space required depends on the size of the 
 libraries and samples.
-* As of December 2024, Spark supports Java 8/11/17. Java 23 is unsupported. Please refer to the Spark documentation.
+* As of December 2024, Spark supports Java 8/11/17. Java 21 is unsupported. Please refer to the Spark documentation.
 
 #### Download
 
