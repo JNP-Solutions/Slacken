@@ -145,7 +145,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
         println("Construct dynamic records from:")
         titlesTaxa.select(countDistinct($"header"), countDistinct($"taxon")).show()
 
-        library.inputs.getInputFragments(withRC = false).join(titlesTaxa, List("header")).
+        library.inputs.getInputFragments().join(titlesTaxa, List("header")).
           select("taxon", "nucleotides").as[(Taxon, NTSeq)].
           repartition(params.buckets, List(): _*)
       case None =>

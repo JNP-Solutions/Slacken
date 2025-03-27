@@ -234,11 +234,10 @@ abstract class InputReader[R <: AnyRef](file: String, k: Int)(implicit spark: Sp
     val valid = if (withAmbiguous) raw else removeInvalid(raw)
 
     //Note: could possibly push down sampling even deeper
-    val sampledValid = sampleFraction match {
+    sampleFraction match {
       case None => valid
       case Some(f) => valid.sample(f)
     }
-    sampledValid
   }
 }
 

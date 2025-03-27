@@ -52,7 +52,7 @@ final case class GenomeLibrary(inputs: Inputs, labelFile: String) {
     import spark.sqlContext.implicits._
 
     val titlesTaxa = getTaxonLabels.toDF("header", "taxon")
-    val idSeqDF = inputs.getInputFragments(withRC = false)
+    val idSeqDF = inputs.getInputFragments()
     idSeqDF.join(titlesTaxa, idSeqDF("header") === titlesTaxa("header")).
       select("taxon", "nucleotides").as[(Taxon, NTSeq)]
   }
