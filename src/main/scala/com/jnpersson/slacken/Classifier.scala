@@ -76,7 +76,7 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
 
    */
   def classifyAndWrite(inputs: Inputs, outputLocation: String, cpar: ClassifyParams): Unit = {
-    val subjects = inputs.getInputFragments(withRC = false, withAmbiguous = true)
+    val subjects = inputs.getInputFragments(withAmbiguous = true)
     val hits = index.collectHitsBySequence(subjects, cpar.perReadOutput)
     classifyHitsAndWrite(hits, outputLocation, cpar)
   }

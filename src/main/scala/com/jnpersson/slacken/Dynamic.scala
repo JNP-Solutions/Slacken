@@ -321,7 +321,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
    * @param partitions     Number of partitions for the dynamically generated index in step 2
    */
   def twoStepClassifyAndWrite(inputs: Inputs, partitions: Int): Unit = {
-    val reads = inputs.getInputFragments(withRC = false, withAmbiguous = true).
+    val reads = inputs.getInputFragments(withAmbiguous = true).
       coalesce(partitions)
     val (records, usedTaxa) = makeRecords(reads, Some(outputLocation + "_taxonSet.txt"))
     if (dynamicReports || dynamicBrackenReadLength.nonEmpty) {
