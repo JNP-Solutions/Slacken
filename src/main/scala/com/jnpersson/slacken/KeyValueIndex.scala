@@ -133,11 +133,10 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
    * Construct records for a new index from genomes.
    *
    * @param library     Input data
-   * @param addRC       Whether to add reverse complements
    * @param taxonFilter If given, limit input sequences to only taxa in this set (and their descendants)
    * @return index records
    */
-  def makeRecords(library: GenomeLibrary, addRC: Boolean, taxonFilter: Option[mutable.BitSet] = None): DataFrame = {
+  def makeRecords(library: GenomeLibrary, taxonFilter: Option[mutable.BitSet] = None): DataFrame = {
     val input = taxonFilter match {
       case Some(tf) =>
         val titlesTaxa = library.getTaxonLabels.
@@ -146,11 +145,11 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
         println("Construct dynamic records from:")
         titlesTaxa.select(countDistinct($"header"), countDistinct($"taxon")).show()
 
-        library.inputs.getInputFragments(addRC).join(titlesTaxa, List("header")).
+        library.inputs.getInputFragments(withRC = false).join(titlesTaxa, List("header")).
           select("taxon", "nucleotides").as[(Taxon, NTSeq)].
           repartition(params.buckets, List(): _*)
       case None =>
-        library.joinSequencesAndLabels(addRC)
+        library.joinSequencesAndLabels()
     }
 
     val bcTax = this.bcTaxonomy

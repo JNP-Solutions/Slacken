@@ -102,7 +102,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
         if (check()) {
           index.checkInput(genomes.inputs)
         } else { //build index
-          val recs = index.makeRecords(genomes, addRC = false)
+          val recs = index.makeRecords(genomes)
           val ni = index.withRecords(recs)
           ni.writeRecords(params.location)
           Taxonomy.copyToLocation(taxonomy(), location() + "_taxonomy")

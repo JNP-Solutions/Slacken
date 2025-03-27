@@ -48,11 +48,11 @@ final case class GenomeLibrary(inputs: Inputs, labelFile: String) {
     GenomeLibrary.getTaxonLabels(labelFile)
   }
 
-  def joinSequencesAndLabels(addRC: Boolean)(implicit spark: SparkSession): Dataset[(Taxon, NTSeq)] = {
+  def joinSequencesAndLabels()(implicit spark: SparkSession): Dataset[(Taxon, NTSeq)] = {
     import spark.sqlContext.implicits._
 
     val titlesTaxa = getTaxonLabels.toDF("header", "taxon")
-    val idSeqDF = inputs.getInputFragments(addRC)
+    val idSeqDF = inputs.getInputFragments(withRC = false)
     idSeqDF.join(titlesTaxa, idSeqDF("header") === titlesTaxa("header")).
       select("taxon", "nucleotides").as[(Taxon, NTSeq)]
   }
