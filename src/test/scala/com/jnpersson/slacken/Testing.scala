@@ -205,7 +205,7 @@ object TestData {
   }
 
   def defaultRecords(idx: KeyValueIndex, k: Int)(implicit spark: SparkSession): DataFrame =
-    idx.makeRecords(TestData.library(k), addRC = false)
+    idx.makeRecords(TestData.library(k))
 
   def indexWithRecords(k: Int, m: Int, s: Int, location: Option[String])(implicit spark: SparkSession): KeyValueIndex = {
     val i = index(k, m, s, location)
