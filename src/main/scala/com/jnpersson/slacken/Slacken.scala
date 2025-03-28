@@ -32,7 +32,7 @@ import java.util.regex.PatternSyntaxException
 /** Command line parameters for Slacken */
 //noinspection TypeAnnotation
 class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends SparkConfiguration(args) {
-  version(s"Slacken ${getClass.getPackage.getImplementationVersion} (c) 2019-2024 Johan Nyström-Persson")
+  version(s"Slacken ${getClass.getPackage.getImplementationVersion} (c) 2019-2025 Johan Nyström-Persson")
   banner("Usage:")
 
   val taxonomy = opt[String](descr = "Path to taxonomy directory (nodes.dmp, merged.dmp and names.dmp)")
@@ -75,7 +75,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
   }
 
   val taxonIndex = new Subcommand("taxonIndex") {
-    banner("Taxonomic minimizer-LCA index functions")
+    banner("Build and use taxonomic minimizer-LCA indexes for classifying sequences.")
     val location = trailArg[String](required = true, descr = "Path to location where index is stored").
       map(l => HDFSUtil.makeQualified(l))
 
@@ -83,7 +83,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
       KeyValueIndex.load(location(), getTaxonomy(location()))
 
     val build = new RunCmd("build") {
-      banner("Build a new index (library) from genomes")
+      banner("Build a new index from genomes with taxa.")
       val library = opt[String](required = true, descr = "Location of sequence files (directory containing library/)")
       val check = opt[Boolean](descr = "Only check input files for consistency", hidden = true, default = Some(false))
 
@@ -114,7 +114,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
     addSubcommand(build)
 
     val respace = new RunCmd("respace") {
-      banner("Build a new index from an existing one by increasing the number of spaces in the mask")
+      banner("Efficiently build a new index from an existing one by increasing the number of spaces in the mask.")
 
       val output = opt[String](required = true, descr = "Output location")
       val spaces = opt[List[Int]](required = true, descr = "Numbers of spaces to generate indexes for")
@@ -127,7 +127,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
     addSubcommand(respace)
 
     val classify = new RunCmd("classify") {
-      banner("Classify genomic sequences")
+      banner("Classify genomic sequences.")
 
       val minHitGroups = opt[Int](name = "minHits", descr = "Minimum hit groups (default 2)", default = Some(2))
       val inFiles = trailArg[List[String]](descr = "Sequences to be classified", default = Some(List()))
@@ -163,7 +163,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
       }
 
       val dynamic = new RunCmd("dynamic") {
-        banner("Two-step classification with dynamic index")
+        banner("Two-step classification using a static and a dynamic index (built on the fly).")
         val library = opt[String](required = true,
           descr = "Genome library location for index construction (directory containing library/)")
 
@@ -232,7 +232,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
     addSubcommand(classify)
 
     val brackenWeights = new RunCmd("brackenWeights") {
-      banner("Generate a weights file (kmer_distrib) for use with Bracken")
+      banner("Generate a weights file (kmer_distrib) for use with Bracken.")
 
       val library = opt[String](descr = "Location of sequence files (directory containing library/)")
       val readLen = opt[Int](descr = "Read length (default 100)", default = Some(100))
@@ -249,7 +249,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
     addSubcommand(brackenWeights)
 
     val stats = new RunCmd("stats") {
-      banner("Get index statistics, optionally checking a genome library for coverage")
+      banner("Get index statistics, optionally checking a genome library for coverage.")
 
       val library = opt[String](descr = "Location of sequence files (directory containing library/) for coverage check")
 
@@ -275,7 +275,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
     addSubcommand(stats)
 
     val histogram = new RunCmd("histogram") {
-      banner("Get index statistics as a histogram")
+      banner("Get index statistics as histograms (minimizers by taxonomic depth, and taxa by taxonomic depth).")
 
 //      val output = opt[String](descr = "Output location", required = true) //TODO
       def run(): Unit = {
@@ -288,7 +288,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
     addSubcommand(histogram)
 
     val report = new RunCmd("report") {
-      banner("Generate an index contents report")
+      banner("Generate an index contents report (inspect the index).")
 
       val library = opt[String](descr = "Location of sequence files (directory containing library/)")
       val output = opt[String](descr = "Output location", required = true)
@@ -320,7 +320,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
   addSubcommand(taxonIndex)
 
   val compare = new RunCmd("compare") {
-    banner("Compare classifications")
+    banner("Compare classifications against a reference mapping.")
     val reference = opt[String](descr = "Reference mapping for comparison (TSV format)", required = true)
     val idCol = opt[Int](descr = "Read ID column in reference", default = Some(2))
     val taxonCol = opt[Int](descr = "Taxon column in reference", short = 'T', default = Some(3))
@@ -344,7 +344,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
   addSubcommand(compare)
 
   val inputCheck = new RunCmd("inputCheck") {
-    banner("Inspect input data")
+    banner("Inspect input data.")
     val labels = opt[String](descr = "Path to sequence taxonomic label file")
 
     def run(): Unit = {
