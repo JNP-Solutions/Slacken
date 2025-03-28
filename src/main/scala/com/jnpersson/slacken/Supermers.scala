@@ -22,7 +22,7 @@ package com.jnpersson.slacken
 
 import com.jnpersson.kmers._
 import com.jnpersson.kmers.minimizer._
-import com.jnpersson.kmers.util.NTBitArray
+import com.jnpersson.kmers.util.{BitRepresentation, NTBitArray}
 
 import scala.util.Random
 import scala.util.matching.Regex
@@ -86,9 +86,6 @@ final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializab
       }
     } yield sm
 
-  private val nonAmbiguousRegex =
-    Supermers.nonAmbiguousRegex(k)
-
   /**
    * Split a sequence into maximally long segments that are either unambiguous or ambiguous.
    *
@@ -98,25 +95,25 @@ final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializab
    *         otherwise [[SEQUENCE_FLAG]]).
    */
   def splitByAmbiguity(sequence: NTSeq): Iterator[(NTSeq, SegmentFlag, Int)] =
-    Supermers.splitByAmbiguity(sequence, nonAmbiguousRegex)
+    Supermers.splitByAmbiguity(sequence, k)
 
 }
 
 object Supermers {
-  def nonAmbiguousRegex(k: Int) = s"[actguACTGU]{$k,}".r
+  val nonAmbiguousRegex = "[actguACTGU\n\r]+".r
 
   /**
-   * Split a sequence into maximally long segments that are either unambiguous or ambiguous.
+   * Split a sequence into maximally long segments that are either unambiguous with at least one k-mer, or ambiguous.
    *
    * @param sequence the sequence to split.
    * @param regex Regular expression to use for detecting non-ambiguous segments
    * @return Tuples of fragments, their sequence flag, and their position
    *         ([[AMBIGUOUS_FLAG]] for ambiguous segments, otherwise [[SEQUENCE_FLAG]]).
    */
-  def splitByAmbiguity(sequence: NTSeq, regex: Regex): Iterator[(NTSeq, SegmentFlag, Int)] = {
+  def splitByAmbiguity(sequence: NTSeq, k: Int): Iterator[(NTSeq, SegmentFlag, Int)] = {
 
     new Iterator[(NTSeq, SegmentFlag, Int)]  {
-      private val matches = regex.findAllMatchIn(sequence).buffered
+      private val matches = nonAmbiguousRegex.findAllMatchIn(sequence).buffered
       private var at = 0
       def hasNext: Boolean =
         at < sequence.length
@@ -125,7 +122,12 @@ object Supermers {
         if (matches.hasNext && matches.head.start == at) {
           val m = matches.next()
           at = m.end
-          (m.toString(), SEQUENCE_FLAG, m.start)
+          val matchStr = m.toString()
+
+          //We have to count the non-newline characters here since newlines can occur anywhere. Attempting
+          //to count in the regex causes backtracking and stack overflow.
+          val sufficient = enoughValidChars(matchStr, k)
+          (matchStr, if (sufficient) SEQUENCE_FLAG else AMBIGUOUS_FLAG, m.start)
         } else if (matches.hasNext) {
           val m = matches.head
           val r = (sequence.substring(at, m.start), AMBIGUOUS_FLAG, at)
@@ -138,5 +140,16 @@ object Supermers {
         }
       }
     }
+  }
+
+  def enoughValidChars(test: String, min: Int): Boolean = {
+    var i = 0
+    var c = 0
+    while (i < test.length) {
+      if (BitRepresentation.isValid(test.charAt(i))) c += 1
+      if (c == min) return true
+      i +=1
+    }
+    false
   }
 }

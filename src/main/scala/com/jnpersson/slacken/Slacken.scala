@@ -20,11 +20,11 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.kmers.minimizer._
-import com.jnpersson.kmers.{Commands, HDFSUtil, IndexParams, RunCmd, SeqTitle, SparkConfiguration, SparkTool}
+import com.jnpersson.kmers.{Commands, HDFSUtil, IndexParams, ScallopExit, PairedEnd, RunCmd, Ungrouped, SparkConfiguration, SparkTool}
 import com.jnpersson.slacken.Taxonomy.Species
-import com.jnpersson.slacken.analysis.{MappingComparison, Metrics}
+import com.jnpersson.slacken.analysis.{MappingComparison}
 import org.apache.spark.sql.SparkSession
-import org.rogach.scallop.{ScallopOption, Subcommand}
+import org.rogach.scallop.Subcommand
 
 import java.io.FileNotFoundException
 import java.util.regex.PatternSyntaxException
@@ -32,7 +32,7 @@ import java.util.regex.PatternSyntaxException
 /** Command line parameters for Slacken */
 //noinspection TypeAnnotation
 class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends SparkConfiguration(args) {
-  version(s"Slacken ${getClass.getPackage.getImplementationVersion} (c) 2019-2024 Johan Nyström-Persson")
+  version(s"Slacken ${getClass.getPackage.getImplementationVersion} (c) 2019-2025 Johan Nyström-Persson")
   banner("Usage:")
 
   val taxonomy = opt[String](descr = "Path to taxonomy directory (nodes.dmp, merged.dmp and names.dmp)")
@@ -68,14 +68,14 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
     val inFiles = HDFSUtil.findFiles(location + "/library", ".fna")
     println(s"Discovered input files: $inFiles")
     val reader = k match {
-      case Some(k) => inputReader(inFiles, k, pairedEnd = false)
+      case Some(k) => inputReader(inFiles, k, Ungrouped)
       case None => inputReader(inFiles)
     }
     GenomeLibrary(reader, s"$location/seqid2taxid.map")
   }
 
   val taxonIndex = new Subcommand("taxonIndex") {
-    banner("Taxonomic minimizer-LCA index functions")
+    banner("Build and use taxonomic minimizer-LCA indexes for classifying sequences.")
     val location = trailArg[String](required = true, descr = "Path to location where index is stored").
       map(l => HDFSUtil.makeQualified(l))
 
@@ -83,7 +83,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
       KeyValueIndex.load(location(), getTaxonomy(location()))
 
     val build = new RunCmd("build") {
-      banner("Build a new index (library) from genomes")
+      banner("Build a new index from genomes with taxa.")
       val library = opt[String](required = true, descr = "Location of sequence files (directory containing library/)")
 
       def run(): Unit = {
@@ -98,7 +98,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
         val tax = getTaxonomy(location())
         val index = new KeyValueIndex(spark.emptyDataFrame, params, tax)
 
-        val recs = index.makeRecords(genomes, addRC = false)
+        val recs = index.makeRecords(genomes)
         val ni = index.withRecords(recs)
         ni.writeRecords(params.location)
         Taxonomy.copyToLocation(taxonomy(), location() + "_taxonomy")
@@ -109,19 +109,22 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
     addSubcommand(build)
 
     val classify = new RunCmd("classify") {
-      banner("Classify genomic sequences")
+      banner("Classify genomic sequences.")
 
       val minHitGroups = opt[Int](name = "minHits", descr = "Minimum hit groups (default 2)", default = Some(2))
       val inFiles = trailArg[List[String]](descr = "Sequences to be classified", default = Some(List()))
-      val paired = opt[Boolean](descr = "Inputs are paired-end reads", default = Some(false))
+      val paired = opt[Boolean](descr = "Inputs are paired-end reads", default = Some(false)).map(
+        if (_) PairedEnd else Ungrouped
+      )
       val unclassified = toggle(descrYes = "Output unclassified reads", default = Some(true))
       val output = opt[String](descr = "Output location", required = true)
+      val detailed = toggle(descrYes = "Output detailed results for individual reads", default = Some(true))
       val confidence = opt[List[Double]](
         descr = "Confidence thresholds (default 0.0, should be a space separated list with values in [0, 1])",
         default = Some(List(0.0)), short = 'c')
       val sampleRegex = opt[String](descr = "Regular expression for extracting sample ID from read header (e.g. \"@(.*):\")")
 
-      def cpar = ClassifyParams(minHitGroups(), unclassified(), confidence(), sampleRegex.toOption)
+      def cpar = ClassifyParams(minHitGroups(), unclassified(), confidence(), sampleRegex.toOption, detailed())
 
       validate (confidence) { cs =>
         cs.find(c => c < 0 || c > 1) match {
@@ -142,7 +145,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
       }
 
       val dynamic = new RunCmd("dynamic") {
-        banner("Two-step classification with dynamic index")
+        banner("Two-step classification using a static and a dynamic index (built on the fly).")
         val library = opt[String](required = true,
           descr = "Genome library location for index construction (directory containing library/)")
 
@@ -183,7 +186,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
           val i = index()
           val genomeLib = findGenomes(library(), Some(i.params.k))
           val goldStandardOpt = goldSet.toOption.map(x =>
-            DynamicGoldTaxonSet(x, promoteGoldSet.toOption, classifyWithGold()))
+            GoldSetOptions(x, promoteGoldSet.toOption, classifyWithGold()))
           val taxonCriteria = minCount.map(MinimizerTotalCount).
             orElse(reads.map(ClassifiedReadCount(_, readConfidence())).toOption).
             orElse(minDistinct.map(MinimizerDistinctCount).toOption).
@@ -192,12 +195,11 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
           val dyn = new Dynamic(i, genomeLib, rank(),
             taxonCriteria,
             cpar,
-            brackenLength.toOption, goldStandardOpt,
-            indexReports(),
+            goldStandardOpt,
             output())
 
           val inputs = inputReader(inFiles() ++ dynInFiles(), i.params.k, paired())
-          dyn.twoStepClassifyAndWrite(inputs, partitions())
+          dyn.twoStepClassifyAndWrite(inputs, partitions(), indexReports(), brackenLength.toOption)
         }
       }
       addSubcommand(dynamic)
@@ -212,7 +214,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
     addSubcommand(classify)
 
     val brackenWeights = new RunCmd("brackenWeights") {
-      banner("Generate a weights file (kmer_distrib) for use with Bracken")
+      banner("Generate a weights file (kmer_distrib) for use with Bracken.")
 
       val library = opt[String](descr = "Location of sequence files (directory containing library/)")
       val readLen = opt[Int](descr = "Read length (default 100)", default = Some(100))
@@ -229,7 +231,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
     addSubcommand(brackenWeights)
 
     val stats = new RunCmd("stats") {
-      banner("Get index statistics, optionally checking a genome library for coverage")
+      banner("Get index statistics, optionally checking a genome library for coverage.")
 
       val library = opt[String](descr = "Location of sequence files (directory containing library/) for coverage check")
 
@@ -255,7 +257,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
     addSubcommand(stats)
 
     val histogram = new RunCmd("histogram") {
-      banner("Get index statistics as a histogram")
+      banner("Get index statistics as histograms (minimizers by taxonomic depth, and taxa by taxonomic depth).")
 
 //      val output = opt[String](descr = "Output location", required = true) //TODO
       def run(): Unit = {
@@ -268,7 +270,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
     addSubcommand(histogram)
 
     val report = new RunCmd("report") {
-      banner("Generate an index contents report")
+      banner("Generate an index contents report (inspect the index).")
 
       val library = opt[String](descr = "Location of sequence files (directory containing library/)")
       val output = opt[String](descr = "Output location", required = true)
@@ -289,7 +291,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
   addSubcommand(taxonIndex)
 
   val compare = new RunCmd("compare") {
-    banner("Compare classifications")
+    banner("Compare classifications against a reference mapping.")
     val reference = opt[String](descr = "Reference mapping for comparison (TSV format)", required = true)
     val idCol = opt[Int](descr = "Read ID column in reference", default = Some(2))
     val taxonCol = opt[Int](descr = "Taxon column in reference", short = 'T', default = Some(3))
@@ -315,10 +317,21 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
   verify()
 }
 
-/** Implements the Kraken 2 method for taxonomic classification. */
+/**
+ * Slacken implements the Kraken 2 metagenomic classification algorithm on Spark,
+ * while also improving on it and supporting a wider parameter space.
+ * This is the main entry point for the Slacken Spark application.
+ */
 object Slacken extends SparkTool("Slacken") {
   def main(args: Array[String]): Unit = {
-    val conf = new SlackenConf(args)(sparkSession()).finishSetup()
-    Commands.run(conf)
+    try {
+      val conf = new SlackenConf(args)(sparkSession()).finishSetup()
+      Commands.run(conf)
+    } catch {
+      case ScallopExit(0) => //Normal return from main
+      case se@ScallopExit(code) =>
+        System.err.println(s"Exit code $code")
+        throw se
+    }
   }
 }

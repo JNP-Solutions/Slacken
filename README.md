@@ -1,6 +1,10 @@
-## Overview
+## Slacken
 
-Slacken implements metagenomic classification based on k-mers and minimizers. It implements the
+[![Build and test](https://github.com/jtnystrom/discount/actions/workflows/ci.yml/badge.svg)](https://github.com/jtnystrom/Discount/actions/workflows/ci.yml)
+[![Docker Pulls](https://badgen.net/docker/pulls/jtnystrom/slacken?icon=docker&label=pulls)](https://hub.docker.com/r/jtnystrom/slacken/)
+![GitHub License](https://img.shields.io/github/license/jnp-solutions/slacken)
+
+Slacken is a metagenomic profiler that classifies genomic sequences based on k-mers and minimizers. It implements the
 [Kraken 2](https://github.com/DerrickWood/kraken2)[1] algorithm, while also supporting a wider parameter space and additional 
 algorithms. In particular, it supports sample-tailored libraries, where the minimizer library is built on the fly as part 
 of read classification.
@@ -50,13 +54,21 @@ to download and extract the Spark distribution somewhere.
 * 16 GB or more of RAM (32 GB or more recommended).
 * A fast SSD drive for temporary space is very helpful. The amount of space required depends on the size of the 
 libraries and samples.
-* As of December 2024, Spark supports Java 8/11/17. Java 23 is unsupported. Please refer to the Spark documentation.
+* As of December 2024, Spark supports Java 8/11/17. Java 21 is unsupported. Please refer to the Spark documentation.
 
-Set up the environment:
+#### Download
 
-```commandline
-#path to the Spark distribution
-export SPARK_HOME=SPARK_HOME=/usr/local/spark-3.5.1-bin-hadoop3  
+The latest precompiled Slacken may be downloaded as a .zip from the 
+[Releases](https://github.com/JNP-Solutions/Slacken/releases). This is the easiest way to obtain Slacken.
+
+A [Docker image](https://hub.docker.com/r/jtnystrom/slacken) is also available. If you are using the Docker image,
+please refer to the instructions on that page. In this case you do not need to download Spark or Java.
+
+Unless you are using the Docker image, you should set up the environment:
+
+```
+#path to the Spark distribution (where you extracted your Spark download)
+export SPARK_HOME=/usr/local/spark-3.5.1-bin-hadoop3  
 
 #a location for scratch space on a fast hard drive
 export SLACKEN_TMP=/tmp
@@ -73,6 +85,9 @@ These options may also be permanently configured by editing `slacken.sh`.
 
 While Slacken is running, the Spark UI may be inspected at [http://localhost:4040](http://localhost:4040) if the process is running
 locally. We refer users to the Spark documentation for more details.
+
+Below, we walk through some common use cases step by step. For convenience, the complete list of Slacken commands is 
+also available on its own [wiki page](https://github.com/JNP-Solutions/Slacken/wiki/Slacken-commands-overview).
 
 ### Obtaining a pre-built genomic library
 

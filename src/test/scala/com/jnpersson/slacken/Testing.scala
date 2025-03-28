@@ -22,7 +22,7 @@ package com.jnpersson.slacken
 
 import com.jnpersson.kmers
 import com.jnpersson.kmers.minimizer._
-import com.jnpersson.kmers.{AnyMinSplitter, HDFSUtil, IndexParams, Inputs, TestGenerators, Testing => TTesting}
+import com.jnpersson.kmers.{AnyMinSplitter, IndexParams, Inputs, TestGenerators, Testing => TTesting}
 import com.jnpersson.slacken.Taxonomy.{NONE, ROOT, Rank, Root}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.scalacheck.{Gen, Shrink}
@@ -104,7 +104,7 @@ object Testing {
     for {
       kmersPerHit <- termsToSum(totalKmers, maxHitSize)
       taxa <- Gen.listOfN(kmersPerHit.size, Gen.oneOf(taxa))
-    } yield kmersPerHit.zip(taxa).map(kt => TaxonHit(Array(0), 0, kt._2, kt._1))
+    } yield kmersPerHit.zip(taxa).map(kt => TaxonHit(true, 0, kt._2, kt._1))
 
   def permutations[T](items: Seq[T]): Gen[Vector[T]] =
     permutations(items.toVector)
@@ -205,7 +205,7 @@ object TestData {
   }
 
   def defaultRecords(idx: KeyValueIndex, k: Int)(implicit spark: SparkSession): DataFrame =
-    idx.makeRecords(TestData.library(k), addRC = false)
+    idx.makeRecords(TestData.library(k))
 
   def indexWithRecords(k: Int, m: Int, s: Int, location: Option[String])(implicit spark: SparkSession): KeyValueIndex = {
     val i = index(k, m, s, location)

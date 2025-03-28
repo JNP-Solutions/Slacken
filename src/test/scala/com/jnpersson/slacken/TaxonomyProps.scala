@@ -19,7 +19,7 @@
 
 package com.jnpersson.slacken
 
-import com.jnpersson.slacken.Taxonomy.{ROOT, Root}
+import com.jnpersson.slacken.Taxonomy.ROOT
 import org.scalacheck.Gen
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers._

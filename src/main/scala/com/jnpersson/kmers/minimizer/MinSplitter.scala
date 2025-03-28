@@ -74,7 +74,7 @@ object MinSplitter {
   val largeThreshold = 5000000
 
   /** Code for invalid minimizers */
-  val INVALID: NTBitArray = null
+  val INVALID: NTBitArray = NTBitArray.empty
 }
 
 /**

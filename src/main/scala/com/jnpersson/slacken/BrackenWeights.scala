@@ -20,14 +20,15 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.kmers._
-import com.jnpersson.kmers.util.{KmerTable, NTBitArray}
+import com.jnpersson.kmers.util.KmerTable
 import com.jnpersson.slacken.Taxonomy.NONE
 import it.unimi.dsi.fastutil.ints.Int2IntMap
-import it.unimi.dsi.fastutil.objects.{Object2IntOpenCustomHashMap, Object2IntOpenHashMap}
+import it.unimi.dsi.fastutil.objects.Object2IntOpenCustomHashMap
 import it.unimi.dsi.fastutil.longs.LongArrays.HASH_STRATEGY
-import org.apache.spark.sql.functions.{collect_list, ifnull, lit, sum, udf}
+import org.apache.spark.sql.functions.{collect_list, ifnull, lit, regexp_replace, sum, udf}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 
+import java.util
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.{BitSet, mutable}
 
@@ -68,8 +69,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
    * @return
    */
   def distinctMinimizers(splitter: AnyMinSplitter, defaultValue: Array[Long]): Iterator[Array[Long]] = {
-    val noWhitespace = nucleotides.replaceAll("\\s+", "")
-    val segments = Supermers.splitByAmbiguity(noWhitespace, Supermers.nonAmbiguousRegex(splitter.k))
+    val segments = Supermers.splitByAmbiguity(nucleotides, splitter.k)
     val builder = KmerTable.builder(splitter.priorities.width, 10000)
 
     for { (seq, flag, _) <- segments } {
@@ -104,10 +104,10 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
     //Offsets in the fragment
     private var windowStart = 0 //inclusive
     private var windowEnd = kmersPerWindow // not inclusive
-    private var lastInWindow: TaxonHit = null //cache this for optimisation
+    private var lastInWindow: TaxonHit = _ //cache this for optimisation
 
     //Map taxon to k-mer count.
-    //This mutable maps updates to reflect the current window.
+    //This mutable map updates to reflect the current window.
     val countSummary = new it.unimi.dsi.fastutil.ints.Int2IntArrayMap(16) //specialised, very fast map
 
     //Is at least one k-mer from the hit contained in the window?
@@ -186,24 +186,29 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
     }
 
     val k = splitter.k
-    val segments = Supermers.splitByAmbiguity(nucleotides, Supermers.nonAmbiguousRegex(k))
+    val segments = Supermers.splitByAmbiguity(nucleotides, k)
 
     //Construct all super-mers, including quasi-supermers (NONE) for ambiguous regions
-    val empty = Array[Long]()
+
+    var first = true
+    var lastMinimizer = Array[Long]()
     segments.flatMap {
       case (seq, SEQUENCE_FLAG, pos) =>
         splitter.superkmerPositions(seq).map(x => {
           //Construct each minimizer hit.
           //Overloading the second argument (ordinal) to mean the absolute position in the fragment in this case
 
-          TaxonHit(x.rank, x.location + pos, lcaLookup.applyAsInt(x.rank), x.length - (k - 1))
+          val distinct = first || !util.Arrays.equals(x.rank, lastMinimizer)
+          first = false
+          lastMinimizer = x.rank
+          TaxonHit(distinct, x.location + pos, lcaLookup.applyAsInt(x.rank), x.length - (k - 1))
         }) ++
           //additional invalid k-mers that go into the next ambiguous segment, or past the end
-          Iterator(TaxonHit(empty, seq.length - (k - 1), Taxonomy.NONE, k - 1))
+          Iterator(TaxonHit(false, seq.length - (k - 1), Taxonomy.NONE, k - 1))
 
       case (seq, AMBIGUOUS_FLAG, pos) =>
         Iterator(
-          TaxonHit(empty, pos, Taxonomy.NONE, seq.length)
+          TaxonHit(false, pos, Taxonomy.NONE, seq.length)
         )
     }
   }
@@ -285,18 +290,15 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
    */
   def sufficientHitGroups(sortedHits: IndexedSeq[TaxonHit], minimum: Int): Boolean = {
     var hitCount = 0
-    var lastMin: Array[Long] = Array.empty
 
     var i = 0
     while (i < sortedHits.length) {
       //count separate hit groups (adjacent but with different minimizers) for each sequence, imitating kraken2 classify.cc
       val hit = sortedHits(i)
-      if (hit.taxon != Taxonomy.NONE &&
-        (hitCount == 0 || !java.util.Arrays.equals(hit.minimizer, lastMin))) {
+      if (hit.taxon != Taxonomy.NONE && hit.distinct) {
         hitCount += 1
         if (hitCount >= minimum) return true
       }
-      lastMin = hit.minimizer
       i += 1
     }
     false
@@ -330,16 +332,17 @@ class BrackenWeights(keyValueIndex: KeyValueIndex, readLen: Int)(implicit val sp
 
     val titlesTaxa = library.getTaxonLabels.toDF("header", "taxon")
 
-    val idSeqDF = library.inputs.getInputFragments(withRC = false, withAmbiguous = true)
+    val idSeqDF = library.inputs.getInputFragments(withAmbiguous = true)
     val presentTaxon = udf((x: Taxon) => taxa.contains(x))
 
     //Prepare the sequence for super-mer splitting and encoding
-    val noWhitespace = udf((x: NTSeq) => x.replaceAll("\\s+", ""))
     val readLen = this.readLen
 
     //Find all fragments of genomes
     val fragments = idSeqDF.join(titlesTaxa, List("header")).
-      select($"taxon", noWhitespace($"nucleotides").as("nucleotides"), $"header", $"location").
+      select($"taxon",
+        regexp_replace($"nucleotides", "\\s+", "").as("nucleotides"),
+        $"header", $"location").
       where(presentTaxon($"taxon")).
       as[TaxonFragment].
       flatMap(_.splitToMaxLength(FRAGMENT_MAX, readLen))
@@ -428,7 +431,6 @@ class BrackenWeights(keyValueIndex: KeyValueIndex, readLen: Int)(implicit val sp
     source.zip(counts).zip(readCounts).map { case ((s, c), r) => s"$s:$c:$r" }.mkString(" "))
 
   /** Write a report from the calculated bracken weights.
-   * Unpersists the data.
    */
   private def writeReport(collectedData: DataFrame, outputLocation: String): Unit = {
     //Form bracken output lines for each source taxon
