@@ -300,7 +300,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
 
     val keptPromoted = goldSetOpts.promoteRank match {
       case Some(r) =>
-        val kept = promoted.toList.filter(t => taxonomy.depth(t) >= r.depth)
+        val kept = promoted.filter(t => taxonomy.depth(t) >= r.depth)
         println(s"Keeping ${kept.size} taxa at rank $r and below from promoted set")
         kept
       case None => List()
