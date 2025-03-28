@@ -22,7 +22,7 @@ package com.jnpersson.slacken
 
 import com.jnpersson.kmers.TestGenerators._
 import com.jnpersson.kmers.minimizer._
-import com.jnpersson.kmers.{HDFSUtil, IndexParams, NTSeq, SparkSessionTestWrapper, Testing => DTesting}
+import com.jnpersson.kmers.{IndexParams, NTSeq, SparkSessionTestWrapper, Testing => DTesting}
 import com.jnpersson.slacken.Taxonomy.{NONE, Species}
 import org.apache.spark.sql.functions
 import org.apache.spark.sql.functions.count
@@ -98,9 +98,9 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
           val joint = genomesDS.join(labels, "header").select("taxon", "nucleotides").as[(Taxon, NTSeq)]
           val minimizers = idx.makeRecords(joint)
 
-          val cpar = ClassifyParams(2, true)
+          val cpar = ClassifyParams(2, withUnclassified = true)
           //The property of known reads classifying correctly.
-          val subjectsHits = idx.withRecords(minimizers).collectHitsBySequence(reads)
+          val subjectsHits = idx.withRecords(minimizers).collectHitsBySequence(reads, withOrdinal = false)
           cls.classifyHits(subjectsHits, cpar, 0.0).filter(hit => {
             //Check that each read got classified to the expected taxon. In the generated reads
             //the title contains the taxon, as a bookkeeping trick.
@@ -112,7 +112,7 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
           //the property of noise reads not classifying. Hard to check with random data for
           //small m. In the future we could generate better test data to get around this.
           if (m >= 30) {
-            val subjectsHits = idx.withRecords(minimizers).collectHitsBySequence(noiseReads)
+            val subjectsHits = idx.withRecords(minimizers).collectHitsBySequence(noiseReads, withOrdinal = false)
             cls.classifyHits(subjectsHits, cpar, 0.0).filter(r =>
               r.classified
             ).isEmpty should be(true)
@@ -168,7 +168,7 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
     val m = 31
     val s = 7
     val idx = TestData.index(k, m, s, None)
-    val fragments = TestData.inputs(k).getInputFragments(withRC = false, withAmbiguous = true).
+    val fragments = TestData.inputs(k).getInputFragments(withAmbiguous = true).
       map(f => f.copy(nucleotides = f.nucleotides.replaceAll("\\s+", "")))
 
     val spans = idx.getSpans(fragments, withTitle = true)
@@ -177,7 +177,7 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
       groupBy("title").agg(functions.sum("kmers")).
       as[(Taxon, Long)].collect()
 
-    kmers should contain theSameElementsAs(TestData.numberOf35Mers)
+    kmers should contain theSameElementsAs TestData.numberOf35Mers
   }
 
   test("Dynamic index") {
@@ -195,12 +195,12 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
       println(s"Testing: $c")
       val dyn = new Dynamic(idx, TestData.library(k),
         Species, c, cpar,
-        None, None, false, "")
+        None, "")
 
       //Testing the basic code path for dynamic classification.
       //The results aren't yet checked for correctness.
       val (records, taxa) = dyn.makeRecords(reads, None)
-      val hits = idx.withRecords(records).collectHitsBySequence(reads)
+      val hits = idx.withRecords(records).collectHitsBySequence(reads, cpar.perReadOutput)
     }
     reads.unpersist()
   }

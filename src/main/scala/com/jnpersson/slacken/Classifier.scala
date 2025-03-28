@@ -22,9 +22,9 @@ package com.jnpersson.slacken
 import com.jnpersson.kmers.minimizer.InputFragment
 import com.jnpersson.kmers.{HDFSUtil, Inputs, SeqTitle}
 import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
-import org.apache.spark.sql.functions.{count, desc}
+import org.apache.spark.sql.functions.{collect_list, count, desc, struct}
 
-import java.util
+import scala.collection.JavaConverters._
 
 
 /** A classified read.
@@ -53,10 +53,13 @@ final case class ClassifiedRead(sampleId: String, classified: Boolean, title: Se
  *                         taxon's clade)
  * @param sampleRegex      regular expression that identifies the sample ID of each read (for multi-sample mode).
  *                         e.g. ".*\\|(.*)\\|.*"
- *                         If none is specified, then single-sample mode is assumed.
+ *                         If none is specified, then single-sample mode is assumed. The first parenthesis group
+ *                         in the regex is used to extract the sample ID.
+ * @param perReadOutput    whether to output classification results, including hit groups, for every read. If false,
+ *                         only reports are output.
  */
 final case class ClassifyParams(minHitGroups: Int, withUnclassified: Boolean, thresholds: List[Double] = List(0.0),
-                                sampleRegex: Option[String] = None)
+                                sampleRegex: Option[String] = None, perReadOutput: Boolean = true)
 
 /** Routines for classifying reads using a taxonomic k-mer LCA index.
  * @param index Minimizer-LCA index
@@ -73,13 +76,13 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
 
    */
   def classifyAndWrite(inputs: Inputs, outputLocation: String, cpar: ClassifyParams): Unit = {
-    val subjects = inputs.getInputFragments(withRC = false, withAmbiguous = true)
-    val hits = index.collectHitsBySequence(subjects)
+    val subjects = inputs.getInputFragments(withAmbiguous = true)
+    val hits = index.collectHitsBySequence(subjects, cpar.perReadOutput)
     classifyHitsAndWrite(hits, outputLocation, cpar)
   }
 
   def classify(subjects: Dataset[InputFragment], cpar: ClassifyParams, threshold: Double): Dataset[ClassifiedRead] = {
-    val hits = index.collectHitsBySequence(subjects)
+    val hits = index.collectHitsBySequence(subjects, cpar.perReadOutput)
     classifyHits(hits, cpar, threshold)
   }
 
@@ -89,8 +92,12 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     val bcTax = index.bcTaxonomy
     val k = index.params.k
     val sre = cpar.sampleRegex.map(_.r)
+
     subjectsHits.map({ case (title, hits) =>
-      val sortedHits = hits.sortBy(_.ordinal)
+      if (cpar.perReadOutput) {
+        //The ordering of hits is not needed if we are not generating per read output
+        java.util.Arrays.sort(hits, Classifier.hitsComparator)
+      }
 
       val sample = sre match {
         case Some(re) => re.findFirstMatchIn(title).
@@ -98,7 +105,7 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
         case _ => "all"
       }
 
-      Classifier.classify(bcTax.value, sample, title, sortedHits, threshold, k, cpar)
+      Classifier.classify(bcTax.value, sample, title, hits, threshold, k, cpar)
     })
   }
 
@@ -147,17 +154,32 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     } else {
       reads.where($"classified" === true)
     }
-    val outputRows = keepLines.map(r => (r.outputLine, r.sampleId)).
-      toDF("classification", "sample")
 
     val classOutputLoc = s"${location}_classified"
-    //These tables will be relatively small. We coalesce to avoid generating a lot of small files
-    //in the case of an index with many partitions
-    outputRows.coalesce(1000).write.mode(SaveMode.Overwrite).
-      partitionBy("sample").
-      option("compression", "gzip").
-      text(classOutputLoc)
-    makeReportsFromClassifications(classOutputLoc)
+    if (cpar.perReadOutput) {
+      //Write the classification of every read along with hit details
+      val outputRows = keepLines.map(r => (r.outputLine, r.sampleId)).
+        toDF("classification", "sample")
+
+      //These tables will be relatively small. We coalesce to avoid generating a lot of small files
+      //in the case of an index with many partitions
+      outputRows.coalesce(1000).write.mode(SaveMode.Overwrite).
+        partitionBy("sample").
+        option("compression", "gzip").
+        text(classOutputLoc)
+      makeReportsFromClassifications(classOutputLoc)
+    } else {
+      //Write aggregate classification reports only
+      for {
+        (sample, countByTaxon) <- keepLines.groupBy("sampleId", "taxon").agg(count("*").as("count"))
+        .groupBy("sampleId").agg(collect_list(struct($"taxon".as("_1"), $"count".as("_2")))).
+        as[(String,Array[(Taxon, Long)])].toLocalIterator().asScala
+            } {
+        val report = new KrakenReport(index.taxonomy, countByTaxon)
+        val loc = s"$classOutputLoc/${sample}_kreport.txt"
+        HDFSUtil.usingWriter(loc, wr => report.print(wr))
+      }
+    }
   }
 
   /** For each subdirectory (corresponding to a sample), read back written classifications
@@ -177,12 +199,11 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
   /** Read back written classifications from writeOutput to produce a KrakenReport. */
   private def reportFromWrittenClassifications(location: String): KrakenReport = {
     val countByTaxon = spark.read.option("sep", "\t").csv(location).
-      map(x => x.getString(2).toInt).toDF("taxon").
+      select($"_c2".cast("int").as("taxon")).as[Taxon].
       groupBy("taxon").agg(count("*").as("count")).
       sort(desc("count")).as[(Taxon, Long)].collect()
-    new KrakenReport(index.bcTaxonomy.value, countByTaxon)
+    new KrakenReport(index.taxonomy, countByTaxon)
   }
-
 }
 
 object Classifier {
@@ -205,26 +226,30 @@ object Classifier {
     val classified = taxon != Taxonomy.NONE && sufficientHitGroups(sortedHits, cpar.minHitGroups)
 
     val reportTaxon = if (classified) taxon else Taxonomy.NONE
-    ClassifiedRead(sampleId, classified, title, reportTaxon, sortedHits,
-      totalSummary.lengthString(k), totalSummary.pairsInOrderString)
+    if (cpar.perReadOutput) {
+      ClassifiedRead(sampleId, classified, title, reportTaxon, sortedHits,
+        totalSummary.lengthString(k), totalSummary.pairsInOrderString)
+    } else {
+      ClassifiedRead(sampleId, classified, "", reportTaxon, Array.empty, "", "")
+    }
   }
 
   /** For the given set of sorted hits, was there a sufficient number of hit groups wrt the given minimum? */
-  def sufficientHitGroups(sortedHits: Array[TaxonHit], minimum: Int): Boolean = {
+  def sufficientHitGroups(hits: Array[TaxonHit], minimum: Int): Boolean = {
     var hitCount = 0
-    var lastMin = sortedHits(0).minimizer
 
     //count separate hit groups (adjacent but with different minimizers) for each sequence, imitating kraken2 classify.cc
     var h = 0
-    while (h < sortedHits.length) {
-      val hit = sortedHits(h)
-      if (hit.taxon != AMBIGUOUS_SPAN && hit.taxon != Taxonomy.NONE && hit.taxon != MATE_PAIR_BORDER &&
-        (hitCount == 0 || !util.Arrays.equals(hit.minimizer, lastMin))) {
+    while (h < hits.length && hitCount < minimum) {
+      val hit = hits(h)
+      if (hit.taxon != Taxonomy.NONE && hit.distinct) {
         hitCount += 1
       }
-      lastMin = hit.minimizer
       h += 1
     }
     hitCount >= minimum
   }
+
+  val hitsComparator = java.util.Comparator.comparingInt((hit: TaxonHit) => hit.ordinal)
+
 }

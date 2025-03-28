@@ -23,12 +23,12 @@ import com.jnpersson.kmers._
 import com.jnpersson.kmers.minimizer._
 import com.jnpersson.kmers.Helpers.randomTableName
 import com.jnpersson.kmers.Helpers.formatPerc
-
 import com.jnpersson.kmers.util.NTBitArray
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql._
 
+import java.util
 import scala.collection.mutable
 
 /** Metagenomic index compatible with the Kraken 2 algorithm.
@@ -108,11 +108,10 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
    * Construct records for a new index from genomes.
    *
    * @param library     Input data
-   * @param addRC       Whether to add reverse complements
    * @param taxonFilter If given, limit input sequences to only taxa in this set (and their descendants)
    * @return index records
    */
-  def makeRecords(library: GenomeLibrary, addRC: Boolean, taxonFilter: Option[mutable.BitSet] = None): DataFrame = {
+  def makeRecords(library: GenomeLibrary, taxonFilter: Option[mutable.BitSet] = None): DataFrame = {
     val input = taxonFilter match {
       case Some(tf) =>
         val titlesTaxa = library.getTaxonLabels.
@@ -121,11 +120,11 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
         println("Construct dynamic records from:")
         titlesTaxa.select(countDistinct($"header"), countDistinct($"taxon")).show()
 
-        library.inputs.getInputFragments(addRC).join(titlesTaxa, List("header")).
+        library.inputs.getInputFragments().join(titlesTaxa, List("header")).
           select("taxon", "nucleotides").as[(Taxon, NTSeq)].
           repartition(params.buckets, List(): _*)
       case None =>
-        library.joinSequencesAndLabels(addRC)
+        library.joinSequencesAndLabels()
     }
 
     val bcTax = this.bcTaxonomy
@@ -147,7 +146,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
     records.
       write.mode(SaveMode.Overwrite).
       option("path", location).
-      bucketBy(params.buckets, idColumnNames.head, idColumnNames.tail: _*).
+      bucketBy(params.buckets, idColumnNames(0), idColumnNames.drop(1): _*).
       saveAsTable(tableName)
   }
 
@@ -181,35 +180,83 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
     //Split input sequences by minimizer, optionally preserving ordinal of the super-mer and optionally sequence ID
     subjects.mapPartitions(fs => {
       val supermers = new Supermers(bcSplit.value, ni)
-      fs.flatMap(s =>
-        supermers.splitFragment(s).map(x =>
-          //Drop the sequence data
-          if (withTitle)
-            OrdinalSpan(x.segment.rank,
-              x.segment.nucleotides.size - (k - 1), x.flag, x.ordinal, x.seqTitle)
-          else
-            OrdinalSpan(x.segment.rank,
-              x.segment.nucleotides.size - (k - 1), x.flag, x.ordinal, null)
-        )
-      )
+
+      fs.flatMap(s => {
+        val sms = supermers.splitFragment(s)
+
+        new Iterator[OrdinalSpan] {
+          private var first = true
+          private var lastMinimizer = Array[Long]()
+
+          override def hasNext: Boolean =
+            sms.hasNext
+
+          override def next(): OrdinalSpan = {
+            val x = sms.next()
+            val flag = x.flag
+
+            //Track whether two consecutive valid minimizers are distinct. This allows us to count the number of
+            //hit groups later.
+            val distinct =
+              flag != AMBIGUOUS_FLAG && flag != MATE_PAIR_BORDER_FLAG &&
+                (first || !util.Arrays.equals(x.segment.rank, lastMinimizer))
+            val title = if (withTitle) x.seqTitle else null
+            if (flag != AMBIGUOUS_FLAG && flag != MATE_PAIR_BORDER_FLAG) {
+              lastMinimizer = x.segment.rank
+            }
+
+            first = false
+
+            OrdinalSpan(x.segment.rank, distinct, x.segment.nucleotides.size - (k - 1),
+              x.flag, x.ordinal, title)
+          }
+        }
+      })
     })
   }
+
+  /** Build a TaxonHit from an OrdinalSpan in spark SQL */
+  private def spanToHit(withOrdinal: Boolean): List[Column] =
+    List($"distinct",
+      if (withOrdinal) $"ordinal" else lit(0).as("ordinal"),
+      when($"flag" === lit(AMBIGUOUS_FLAG), lit(AMBIGUOUS_SPAN)).
+        when($"flag" === lit(MATE_PAIR_BORDER_FLAG), lit(MATE_PAIR_BORDER)).
+        when(isnotnull($"taxon"), $"taxon").
+        otherwise(lit(Taxonomy.NONE)).
+        as("taxon"),
+    $"kmers".as("count")
+  )
 
   /** Find TaxonHits from InputFragments and set their taxa, without grouping them by seqTitle. */
   def findHits(subjects: Dataset[InputFragment]): Dataset[TaxonHit] = {
     val spans = getSpans(subjects, withTitle = false)
-    //The 'subject' struct constructs an OrdinalSpan
+
     val taggedSpans = spans.select(
-      struct($"minimizer", $"kmers", $"flag", $"ordinal", $"seqTitle").as("subject") +:
+      Array($"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
         idColumnsFromMinimizer
         :_*)
-    val setTaxonUdf = udf((tax: Option[Taxon], span: OrdinalSpan) => span.toHit(tax))
 
-    //Shuffling of the index in this join can be avoided when the partitioning column
-    //and number of partitions is the same in both tables
     taggedSpans.join(records, idColumnNames, "left").
-      select(setTaxonUdf($"taxon", $"subject").as("hit")).
-      select($"hit.*").as[TaxonHit]
+      select(
+        spanToHit(false) : _*
+      ).as[TaxonHit]
+  }
+
+  /** Find TaxonHits from InputFragments and set their taxa, without grouping them by seqTitle.
+   * This version preserves each hit's minimizer.
+   */
+  def findHitsWithMinimizers(subjects: Dataset[InputFragment]): Dataset[(TaxonHit, Array[Long])] = {
+    val spans = getSpans(subjects, withTitle = false)
+
+    val taggedSpans = spans.select(
+      Array($"minimizer", $"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
+        idColumnsFromMinimizer
+        :_*)
+
+    taggedSpans.join(records, idColumnNames, "left").
+      select(
+        struct(spanToHit(false): _*).as("_1"), $"minimizer".as("_2")
+      ).as[(TaxonHit, Array[Long])]
   }
 
   /** Find the number of distinct minimizers for each of the given taxa */
@@ -219,36 +266,34 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
       /** Precompute these values and store them for reuse later */
       println(s"$precalcLocation didn't exist, creating now.")
       records.
-        groupBy("taxon").agg(functions.count_distinct(idColumns.head, idColumns.tail :_*).as("count")).
+        groupBy("taxon").agg(functions.count_distinct(idColumns(0), idColumns.drop(1) :_*).as("count")).
         coalesce(200).
         write.mode(SaveMode.Overwrite).option("sep", "\t").csv(precalcLocation)
     }
-    spark.read.option("sep", "\t").csv(precalcLocation).map(x =>
-      (x.getString(0).toInt, x.getString(1).toLong)).
-      toDF("taxon", "count").
+    spark.read.option("sep", "\t").csv(precalcLocation).
+      select($"_c0".cast("int").as("taxon"), $"_c1".cast("long").as("count")).
       join(taxa.toDF("taxon"), List("taxon")).as[(Taxon, Long)].
       collect()
   }
 
   /** Classify subject sequences (as a dataset) */
-  def collectHitsBySequence(subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit])] =
-    spansToGroupedHits(getSpans(subjects, withTitle = true))
+  def collectHitsBySequence(subjects: Dataset[InputFragment], withOrdinal: Boolean): Dataset[(SeqTitle, Array[TaxonHit])] =
+    spansToGroupedHits(getSpans(subjects, withTitle = true), withOrdinal)
 
   /** Group super-mers (minimizer spans) by sequence title and convert them to taxon hits.
    */
-  def spansToGroupedHits(subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit])] = {
+  def spansToGroupedHits(subjects: Dataset[OrdinalSpan], withOrdinal: Boolean): Dataset[(SeqTitle, Array[TaxonHit])] = {
     //The 'subject' struct constructs an OrdinalSpan
     val taggedSpans = subjects.select(
-      struct($"minimizer", $"kmers", $"flag", $"ordinal", $"seqTitle").as("subject") +:
+      Seq($"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
         idColumnsFromMinimizer
         :_*)
-    val setTaxonUdf = udf((tax: Option[Taxon], span: OrdinalSpan) => span.toHit(tax))
 
-    //Shuffling in this join can be avoided when the partitioning column
-    //and number of partitions is the same in both tables
     val taxonHits = taggedSpans.join(records, idColumnNames, "left").
-      select($"subject.seqTitle".as("seqTitle"),
-        setTaxonUdf($"taxon", $"subject").as("hit"))
+      select(
+        $"seqTitle",
+        struct(spanToHit(withOrdinal) : _*).as("hit")
+      )
 
     //Group all hits by sequence title again so that we can reassemble (the hits from) each sequence according
     // to the original order.
@@ -382,13 +427,13 @@ object KeyValueIndex {
 }
 
 /** A single hit group for a taxon and some number of k-mers
- * @param minimizer minimizer
+ * @param distinct whether the minimizer was distinct from the previous valid minimizer
  * @param ordinal the position of this hit in the sequence of hits in the query sequence
  *              (not same as position in sequence)
  * @param taxon the classified LCA taxon
  * @param count the number of k-mer hits
  * */
-final case class TaxonHit(minimizer: Array[Long], ordinal: Int, taxon: Taxon, count: Int) {
+final case class TaxonHit(distinct: Boolean, ordinal: Int, taxon: Taxon, count: Int) {
   def trueTaxon: Option[Taxon] = taxon match {
     case AMBIGUOUS_SPAN | MATE_PAIR_BORDER => None
     case _ => Some(taxon)

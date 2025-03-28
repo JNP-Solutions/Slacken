@@ -23,7 +23,7 @@ import com.jnpersson.kmers.minimizer._
 import com.jnpersson.kmers.Helpers.formatPerc
 import com.jnpersson.kmers.{HDFSUtil, Inputs}
 import com.jnpersson.slacken.Taxonomy.Rank
-import org.apache.spark.sql.functions.{approx_count_distinct, count, udf, concat_ws}
+import org.apache.spark.sql.functions.{count, udf, concat_ws}
 import org.apache.spark.sql.{DataFrame, SaveMode, Dataset, RelationalGroupedDataset, SparkSession, functions}
 
 import scala.collection.mutable
@@ -57,9 +57,9 @@ final case class Timer(task: String, start: Long) {
  * @param taxonFile Path to the text file to read taxa from (one per line)
  * @param promoteRank if supplied, taxa from the gold set that have no minimizers in the database will be
  * promoted to this rank at the highest, e.g. Genus
- * @param classifyWithGoldSet whether to classify using the gold set library, or just compare a detected taxon set with it
+ * @param classifyWith whether to classify using the gold set library, or just compare a detected taxon set with it
  */
-case class DynamicGoldTaxonSet(taxonFile: String, promoteRank: Option[Rank], classifyWithGoldSet: Boolean)
+final case class GoldSetOptions(taxonFile: String, promoteRank: Option[Rank], classifyWith: Boolean)
 
 /** Two-step classification of reads with dynamically generated indexes,
  * starting from a base index.
@@ -72,18 +72,14 @@ case class DynamicGoldTaxonSet(taxonFile: String, promoteRank: Option[Rank], cla
  * @param reclassifyRank           rank for the initial classification. Taxa at this level will be used to construct the second index
  * @param taxonCriteria            criteria for selecting taxa for inclusion in the dynamic index
  * @param cpar                     parameters for classification
- * @param dynamicBrackenReadLength read length for generating bracken weights for the second index (if any)
- * @param goldSet                  parameters for deciding whether to get stats or classify wrt gold standard
- * @param dynamicReports           whether to generate reports describing the dynamic index
+ * @param goldSetOpts              parameters for deciding whether to get stats or classify wrt gold standard
  * @param outputLocation           prefix location for output files
  */
 class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
               reclassifyRank: Rank,
               taxonCriteria: TaxonCriteria,
               cpar: ClassifyParams,
-              dynamicBrackenReadLength: Option[Int],
-              goldSet: Option[DynamicGoldTaxonSet],
-              dynamicReports: Boolean,
+              goldSetOpts: Option[GoldSetOptions],
               outputLocation: String)(implicit spark: SparkSession) {
 
   import spark.sqlContext.implicits._
@@ -97,16 +93,16 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   }
 
   private def minimizersInSubjects(subjects: Dataset[InputFragment]): RelationalGroupedDataset = {
-    val hits = base.findHits(subjects)
+    val hits = base.findHitsWithMinimizers(subjects)
 
     val bcTax = base.bcTaxonomy
     val rank = reclassifyRank
 
-     hits.flatMap(h =>
-        for {t <- h.trueTaxon
-             if bcTax.value.depth(t) >= rank.depth
-             } yield (t, h.minimizer)
-      ).
+     hits.flatMap { case (hit, min) =>
+       for {t <- hit.trueTaxon
+            if bcTax.value.depth(t) >= rank.depth
+            } yield (t, min)
+     }.
       toDF("taxon", "minimizer").groupBy("taxon")
   }
 
@@ -142,18 +138,6 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     classified.where($"classified" === true).
       select("taxon").
       groupBy("taxon").agg(count("*")).as[(Taxon, Long)].
-      collect()
-  }
-
-  /** Counting method that counts the number of reads classified per taxon, as well as
-   * distinct minimizers, to aid taxon set filtering */
-  def classifiedReadsPerTaxonWithDistinctMinimizers(subjects: Dataset[InputFragment]): Array[(Taxon, Long, Long)] = {
-    val initThreshold = 0.0
-    val cls = new Classifier(base)
-    val classified = cls.classify(subjects, cpar, initThreshold)
-    classified.where($"classified" === true).
-      flatMap(r => r.hits.map(hit => (r.taxon, hit.minimizer, r.title))).toDF("taxon", "minimizer", "title").
-      groupBy("taxon").agg(approx_count_distinct("title"), approx_count_distinct("minimizer")).as[(Taxon, Long, Long)].
       collect()
   }
 
@@ -278,7 +262,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     for {loc <- writeLocation}
       HDFSUtil.writeTextLines(loc, keepTaxa.iterator.map(_.toString))
 
-    for { gs <- goldSet } {
+    for { gs <- goldSetOpts} {
         val goldSet = readGoldSet(gs)
         val tp = keepTaxa.intersect(goldSet).size
         val fp = (keepTaxa -- keepTaxa.intersect(goldSet)).size
@@ -297,7 +281,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
 
   private lazy val taxonSetInLibrary = genomes.taxonSet(taxonomy)
 
-  def readGoldSet(goldSetOpts: DynamicGoldTaxonSet): mutable.BitSet = {
+  def readGoldSet(goldSetOpts: GoldSetOptions): mutable.BitSet = {
     val bcTax = base.bcTaxonomy
     val goldSet = mutable.BitSet.empty ++
       spark.read.csv(goldSetOpts.taxonFile).map(x => bcTax.value.primary(x.getString(0).toInt)).collect()
@@ -316,7 +300,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
 
     val keptPromoted = goldSetOpts.promoteRank match {
       case Some(r) =>
-        val kept = promoted.toList.filter(t => taxonomy.depth(t) >= r.depth)
+        val kept = promoted.filter(t => taxonomy.depth(t) >= r.depth)
         println(s"Keeping ${kept.size} taxa at rank $r and below from promoted set")
         kept
       case None => List()
@@ -331,9 +315,12 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
    *
    * @param inputs         Subjects to classify (reads)
    * @param partitions     Number of partitions for the dynamically generated index in step 2
+   * @param dynamicReports whether to generate reports describing the dynamic index
+   * @param dynamicBrackenReadLength read length for generating bracken weights for the second index (if any)
    */
-  def twoStepClassifyAndWrite(inputs: Inputs, partitions: Int): Unit = {
-    val reads = inputs.getInputFragments(withRC = false, withAmbiguous = true).
+  def twoStepClassifyAndWrite(inputs: Inputs, partitions: Int, dynamicReports: Boolean,
+                              dynamicBrackenReadLength: Option[Int]): Unit = {
+    val reads = inputs.getInputFragments(withAmbiguous = true).
       coalesce(partitions)
     val (records, usedTaxa) = makeRecords(reads, Some(outputLocation + "_taxonSet.txt"))
     if (dynamicReports || dynamicBrackenReadLength.nonEmpty) {
@@ -357,7 +344,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
       }
 
       val t = startTimer("Classify reads")
-      val hits = dynamicIndex.collectHitsBySequence(reads)
+      val hits = dynamicIndex.collectHitsBySequence(reads, cpar.perReadOutput)
       val cls = new Classifier(dynamicIndex)
       cls.classifyHitsAndWrite(hits, outputLocation, cpar)
       t.finish()
@@ -374,8 +361,8 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
    */
   def makeRecords(subjects: Dataset[InputFragment], setWriteLocation: Option[String]): (DataFrame, mutable.BitSet) = {
 
-    val taxonSet = goldSet match {
-      case Some(dgs@DynamicGoldTaxonSet(_, _, true)) =>
+    val taxonSet = goldSetOpts match {
+      case Some(dgs@GoldSetOptions(_, _, true)) =>
         val goldSet = readGoldSet(dgs)
         taxonomy.taxaWithDescendants(goldSet)
       case _ =>
@@ -383,7 +370,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
     }
 
     //Dynamically create a new index containing only the identified taxa
-    (base.makeRecords(genomes, addRC = false, Some(taxonSet)), taxonSet)
+    (base.makeRecords(genomes, Some(taxonSet)), taxonSet)
   }
 
 }
