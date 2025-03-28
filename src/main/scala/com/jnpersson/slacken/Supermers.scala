@@ -24,6 +24,7 @@ import com.jnpersson.kmers._
 import com.jnpersson.kmers.minimizer._
 import com.jnpersson.kmers.util.{BitRepresentation, NTBitArray}
 
+import java.util
 import scala.util.Random
 import scala.util.matching.Regex
 
@@ -56,6 +57,37 @@ final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializab
     for {
       ((segment, flag), index) <- flaggedSegments.zipWithIndex
     } yield OrdinalSupermer(segment, flag, index, sequence.header)
+  }
+
+  /** Convert an iterator of supermers into an iterator of ordinal spans, tracking distinct minimizers.
+   */
+  def spans(sms: Iterator[OrdinalSupermer], withTitle: Boolean, k: Int): Iterator[OrdinalSpan] =
+    new Iterator[OrdinalSpan] {
+      private var first = true
+      private var lastMinimizer = Array[Long]()
+
+      override def hasNext: Boolean =
+        sms.hasNext
+
+      override def next(): OrdinalSpan = {
+        val x = sms.next()
+        val flag = x.flag
+
+        //Track whether two consecutive valid minimizers are distinct. This allows us to count the number of
+        //hit groups later.
+        val distinct =
+          flag != AMBIGUOUS_FLAG && flag != MATE_PAIR_BORDER_FLAG &&
+            (first || !util.Arrays.equals(x.segment.rank, lastMinimizer))
+        val title = if (withTitle) x.seqTitle else null
+        if (flag != AMBIGUOUS_FLAG && flag != MATE_PAIR_BORDER_FLAG) {
+          lastMinimizer = x.segment.rank
+        }
+
+        first = false
+
+        OrdinalSpan(x.segment.rank, distinct, x.segment.nucleotides.size - (k - 1),
+          x.flag, x.ordinal, title)
+      }
   }
 
   /** Ensure that the minimizer has the required length */
@@ -110,8 +142,7 @@ object Supermers {
    * @return Tuples of fragments, their sequence flag, and their position
    *         ([[AMBIGUOUS_FLAG]] for ambiguous segments, otherwise [[SEQUENCE_FLAG]]).
    */
-  def splitByAmbiguity(sequence: NTSeq, k: Int): Iterator[(NTSeq, SegmentFlag, Int)] = {
-
+  def splitByAmbiguity(sequence: NTSeq, k: Int): Iterator[(NTSeq, SegmentFlag, Int)] =
     new Iterator[(NTSeq, SegmentFlag, Int)]  {
       private val matches = nonAmbiguousRegex.findAllMatchIn(sequence).buffered
       private var at = 0
@@ -140,7 +171,6 @@ object Supermers {
         }
       }
     }
-  }
 
   def enoughValidChars(test: String, min: Int): Boolean = {
     var i = 0
