@@ -20,7 +20,7 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.kmers.minimizer._
-import com.jnpersson.kmers.{Commands, HDFSUtil, IndexParams, InputGrouping, PairedEnd, RunCmd, Ungrouped, SparkConfiguration, SparkTool}
+import com.jnpersson.kmers.{Commands, HDFSUtil, IndexParams, ScallopExit, PairedEnd, RunCmd, Ungrouped, SparkConfiguration, SparkTool}
 import com.jnpersson.slacken.Taxonomy.Species
 import com.jnpersson.slacken.analysis.{MappingComparison, MinimizerMigration}
 import org.apache.spark.sql.SparkSession
@@ -366,7 +366,14 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
  */
 object Slacken extends SparkTool("Slacken") {
   def main(args: Array[String]): Unit = {
-    val conf = new SlackenConf(args)(sparkSession()).finishSetup()
-    Commands.run(conf)
+    try {
+      val conf = new SlackenConf(args)(sparkSession()).finishSetup()
+      Commands.run(conf)
+    } catch {
+      case ScallopExit(0) => //Normal return from main
+      case se@ScallopExit(code) =>
+        System.err.println(s"Exit code $code")
+        throw se
+    }
   }
 }
