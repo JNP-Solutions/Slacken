@@ -21,7 +21,7 @@ package com.jnpersson.kmers
 
 import com.jnpersson.kmers.minimizer._
 import com.jnpersson.kmers.minimizer.{Extended, MinimizerPriorities, SpacedSeed}
-import org.rogach.scallop.{ScallopConf, ScallopOption, Subcommand}
+import org.rogach.scallop.{Compat, ScallopConf, ScallopOption, Subcommand}
 
 import scala.util.Random
 
@@ -30,7 +30,8 @@ private[jnpersson] object Commands {
   def run(conf: ScallopConf): Unit = {
     conf.verify()
     val cmds = conf.subcommands.collect { case rc: RunCmd => rc }
-    if (cmds.isEmpty) {
+    if (cmds.isEmpty &&
+      !conf.args.contains("--help") && !conf.args.contains("-h")) {
       throw new Exception("No command supplied (please see --help). Nothing to do.")
     }
     for { c <- cmds } c.run()
@@ -110,6 +111,14 @@ class Configuration(args: Seq[String]) extends ScallopConf(args) {
 
   val sample = opt[Double](descr = "Fraction of reads to sample for minimizer frequency (default 0.01)",
     required = true, default = Some(0.01), hidden = true)
+
+  //Replace the exit handler. We do not want to call System.exit as we may be running inside a spark cluster
+  //that needs to terminate gracefully
+  exitHandler = (exitCode: Int) => {
+    if (exitCode != 0) {
+      throw new Exception(s"Exiting with error $exitCode")
+    }
+  }
 }
 
 /** Extra configuration options relating to advanced minimizer orderings */
