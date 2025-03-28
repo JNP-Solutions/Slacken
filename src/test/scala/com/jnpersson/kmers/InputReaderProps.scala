@@ -40,7 +40,7 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
   // Write a new temporary file with content
   def generateFile(content: String, extension: String): String = {
     val loc = Files.createTempFile(null, extension)
-    Files.writeString(loc, content)
+    Files.write(loc, content.getBytes())
     loc.toString
   }
 
