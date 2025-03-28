@@ -47,7 +47,7 @@ private[jnpersson] abstract class RunCmd(title: String) extends Subcommand(title
  * parsed.
  * @param code exit code (as it would have been passed to System.exit)
  */
-case class ScallopExit(code: Int) extends Exception
+final case class ScallopExitException(code: Int) extends Exception
 
 /**
  * Main command-line configuration
@@ -123,7 +123,7 @@ class Configuration(args: Seq[String]) extends ScallopConf(args) {
   //that needs to terminate gracefully. Throw an exception that can be caught in the main function
   //and handled there.
   exitHandler = (exitCode: Int) => {
-    throw ScallopExit(exitCode)
+    throw ScallopExitException(exitCode)
   }
 }
 

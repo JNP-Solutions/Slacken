@@ -205,38 +205,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
     //Split input sequences by minimizer, optionally preserving ordinal of the super-mer and optionally sequence ID
     subjects.mapPartitions(fs => {
       val supermers = new Supermers(bcSplit.value, ni)
-
-      fs.flatMap(s => {
-        val sms = supermers.splitFragment(s)
-
-        new Iterator[OrdinalSpan] {
-          private var first = true
-          private var lastMinimizer = Array[Long]()
-
-          override def hasNext: Boolean =
-            sms.hasNext
-
-          override def next(): OrdinalSpan = {
-            val x = sms.next()
-            val flag = x.flag
-
-            //Track whether two consecutive valid minimizers are distinct. This allows us to count the number of
-            //hit groups later.
-            val distinct =
-              flag != AMBIGUOUS_FLAG && flag != MATE_PAIR_BORDER_FLAG &&
-                (first || !util.Arrays.equals(x.segment.rank, lastMinimizer))
-            val title = if (withTitle) x.seqTitle else null
-            if (flag != AMBIGUOUS_FLAG && flag != MATE_PAIR_BORDER_FLAG) {
-              lastMinimizer = x.segment.rank
-            }
-
-            first = false
-
-            OrdinalSpan(x.segment.rank, distinct, x.segment.nucleotides.size - (k - 1),
-              x.flag, x.ordinal, title)
-          }
-        }
-      })
+      fs.flatMap(s => supermers.spans(supermers.splitFragment(s), withTitle, k))
     })
   }
 
@@ -416,19 +385,17 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
 
   import GenomeLibrary.numericalRankToStrUdf
 
-  def kmerDepthHistogram(): DataFrame = {
+  def kmerDepthHistogram(): DataFrame =
     kmersDepths.select("depth").groupBy("depth").count().
       sort("depth").
       withColumn("rank", numericalRankToStrUdf($"depth")).
       select("depth", "rank", "count")
-  }
 
-  def taxonDepthHistogram(): DataFrame = {
+  def taxonDepthHistogram(): DataFrame =
     taxonDepths.select("depth").groupBy("depth").count().
       sort("depth").
       withColumn("rank", numericalRankToStrUdf($"depth")).
       select("depth", "rank", "count")
-  }
 
   /**
    * Write the histogram of this data to HDFS.
