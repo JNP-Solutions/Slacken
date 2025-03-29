@@ -174,7 +174,7 @@ object InputReader {
 }
 
 /**
- * An sequence input converter that reads data from one file (or a pair of paired-end files) using a specific
+ * A sequence input converter that reads data from one file (or a pair of paired-end files) using a specific
  * Hadoop format, making the result available as Dataset[InputFragment]
  * @param file the file to read
  * @param k length of k-mers
@@ -255,7 +255,7 @@ abstract class PairedInputReader[R <: AnyRef](file1: String, k: Int, file2: Opti
     val p = parser
     /* As we currently have no input format that correctly handles paired reads, joining the reads by
        header is the best we can do (and still inexpensive in the big picture).
-       Otherwise it is hard to guarantee that they would be paired up correctly.
+       Otherwise, it is hard to guarantee that they would be paired up correctly.
        We remove the /1 and /2 suffixes from the headers if they are present, as they would break the join.
      */
     file2 match {

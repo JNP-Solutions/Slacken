@@ -38,7 +38,7 @@ package object kmers {
   /** Type of locations on sequences */
   type SeqLocation = Long
 
-  /** Internal type of abundance counts for k-mers. Even though this is is a Long,
+  /** Internal type of abundance counts for k-mers. Even though this is a Long,
    * some algorithms use 32-bit values, so overall only 32-bit counters are currently supported,
    * bounded by the two values below. */
   type Abundance = Long
