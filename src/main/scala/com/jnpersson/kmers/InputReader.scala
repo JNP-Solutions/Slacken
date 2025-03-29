@@ -132,7 +132,6 @@ class Inputs(val files: Seq[String], k: Int, maxReadLength: Int, inputGrouping: 
 
   /**
    * Parse all files in this set as InputFragments
-   * @param withRC whether to add reverse complement sequences
    * @param withAmbiguous whether to include ambiguous nucleotides. If not, the inputs will be split and only valid
    *                      nucleotides retained.
    * @return

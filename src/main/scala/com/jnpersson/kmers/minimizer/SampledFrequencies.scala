@@ -93,9 +93,8 @@ final case class SampledFrequencies(table: MinTable, minimizerCounts: Array[Int]
 
     val r = table.byPriority
     //Using the fastutils sort rather than scala array sort to avoid boxing of integers for this case
-    IntArrays.parallelQuickSort(r, new IntComparator {
-      override def compare(k1: Int, k2: Int): Int = Integer.compare(minimizerCounts(k1), minimizerCounts(k2))
-    })
+    IntArrays.parallelQuickSort(r,
+      (k1: Int, k2: Int) => Integer.compare(minimizerCounts(k1), minimizerCounts(k2)))
     r
   }
 

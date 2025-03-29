@@ -138,7 +138,6 @@ object Supermers {
    * Split a sequence into maximally long segments that are either unambiguous with at least one k-mer, or ambiguous.
    *
    * @param sequence the sequence to split.
-   * @param regex Regular expression to use for detecting non-ambiguous segments
    * @return Tuples of fragments, their sequence flag, and their position
    *         ([[AMBIGUOUS_FLAG]] for ambiguous segments, otherwise [[SEQUENCE_FLAG]]).
    */
