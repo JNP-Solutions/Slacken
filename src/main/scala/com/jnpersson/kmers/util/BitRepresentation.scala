@@ -138,8 +138,6 @@ object BitRepresentation {
 
   /**
    * Test whether a single character is encodable.
-   * @param char
-   * @return
    */
   def isValid(char: Char): Boolean = (char: @switch) match {
     case 'A' | 'a' | 'C' | 'c' | 'G' | 'g' | 'T' | 't' | 'U' | 'u' => true
