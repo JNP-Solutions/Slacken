@@ -240,7 +240,7 @@ class IndexedFastaReader extends RecordReader[Text, PartialSequence] {
  *
  * This algorithm tries to seek to the best position in the FAI file based on the current offset in the
  * fasta file, assuming the records are on average evenly spread out. This is to help performance in the case
- * where FAI files are huge and we would otherwise need to parse the whole thing for each split.
+ * where FAI files are huge, and we would otherwise need to parse the whole thing for each split.
  * Additional records may be included before or after, so the start position of each record should still be checked.
  *
  * @param path Path to the fai file
