@@ -20,7 +20,8 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.kmers.minimizer._
-import com.jnpersson.kmers.{Commands, HDFSUtil, IndexParams, ScallopExitException, PairedEnd, RunCmd, Ungrouped, SparkConfiguration, SparkTool}
+import com.jnpersson.kmers.{Commands, HDFSUtil, IndexParams, PairedEnd, RunCmd, ScallopExitException,
+  SparkConfiguration, SparkTool, Ungrouped}
 import com.jnpersson.slacken.Taxonomy.Species
 import com.jnpersson.slacken.analysis.{MappingComparison, MinimizerMigration}
 import org.apache.spark.sql.SparkSession
@@ -36,6 +37,8 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
   banner("Usage:")
 
   val taxonomy = opt[String](descr = "Path to taxonomy directory (nodes.dmp, merged.dmp and names.dmp)")
+
+  implicit val formats = SlackenMinimizerFormats
 
   override def defaultK: Int = 35
   override def defaultMinimizerWidth: Int = 31
@@ -92,7 +95,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 
         val params = IndexParams(
           spark.sparkContext.broadcast(
-            MinSplitter(seedMask(minimizerConfig().getSplitter(Some(genomes.inputs.files)).priorities), k())
+            MinSplitter(seedMask(SlackenMinimizerFormats.makeSplitter(SlackenConf.this).priorities), k())
           ), partitions(), location())
         println(s"Splitter ${params.splitter}")
 

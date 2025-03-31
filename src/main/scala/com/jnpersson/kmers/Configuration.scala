@@ -20,8 +20,8 @@
 package com.jnpersson.kmers
 
 import com.jnpersson.kmers.minimizer._
-import com.jnpersson.kmers.minimizer.{Extended, MinimizerPriorities, SpacedSeed}
-import org.rogach.scallop.{Compat, ScallopConf, ScallopOption, Subcommand}
+import com.jnpersson.kmers.minimizer.{MinimizerPriorities, SpacedSeed}
+import org.rogach.scallop.{ScallopConf, ScallopOption, Subcommand}
 
 import scala.util.Random
 
@@ -109,6 +109,7 @@ class Configuration(args: Seq[String]) extends ScallopConf(args) {
     descr = s"Number of masked out nucleotides in minimizer (spaced seed, default $defaultMinimizerSpaces)",
     default = Some(defaultMinimizerSpaces))
 
+  /** Apply a spaced seed mask to minimizer priorities */
   def seedMask(inner: MinimizerPriorities): MinimizerPriorities = {
     minimizerSpaces.toOption match {
       case None | Some(0) => inner
@@ -125,76 +126,4 @@ class Configuration(args: Seq[String]) extends ScallopConf(args) {
   exitHandler = (exitCode: Int) => {
     throw ScallopExitException(exitCode)
   }
-}
-
-/** Extra configuration options relating to advanced minimizer orderings */
-//noinspection TypeAnnotation
-trait AdvancedMinimizerOrderingsConfiguration {
-  this: SparkConfiguration =>
-
-  val normalize = opt[Boolean](descr = "Normalize k-mer orientation (forward/reverse complement)")
-
-  validate (k) { k =>
-    if (normalize() && (k % 2 == 0)) {
-      Left(s"--normalize is only available for odd values of k, but $k was given")
-    } else Right(Unit)
-  }
-
-  val extendMinimizers = opt[Int](descr = "Extended width of minimizers")
-
-  protected def extendedWithSuffix: Boolean = false
-
-  validate (extendMinimizers) { e =>
-    if (minimizerWidth() >= e) {
-      Left ("--extendMinimizers must be > m")
-    } else if (k() < e) {
-      Left("--extendMinimizers must be <= k")
-    } else Right(Unit)
-  }
-
-  protected def extendMinimizersIfConfigured(inner: MinimizerSource): MinimizerSource =
-    extendMinimizers.toOption match {
-      case Some(e) => Extended(inner, e, canonicalMinimizers, extendedWithSuffix)
-      case _ => inner
-    }
-
-  override def parseMinimizerSource: MinimizerSource = {
-    val inner = minimizers.toOption match {
-      case Some(path) => Path(path)
-      case _ => if (allMinimizers()) {
-        All
-      } else {
-        Bundled
-      }
-    }
-    extendMinimizersIfConfigured(inner)
-  }
-
-  def defaultAllMinimizers = false
-
-  val allMinimizers = toggle(name="allMinimizers", descrYes = "Use all m-mers as minimizers",
-    descrNo = "Use a provided or internal precomputed minimizer set", default = Some(defaultAllMinimizers))
-
-  val minimizers = opt[String](
-    descr = "File containing a set of minimizers to use (universal k-mer hitting set), or a directory of such universal hitting sets")
-
-  override val sample = opt[Double](descr = "Fraction of reads to sample for minimizer frequency (default 0.01)",
-    required = true, default = Some(0.01))
-
-  validate (sample) { s =>
-    if (s <= 0 || s > 1) {
-      Left(s"--sample must be > 0 and <= 1 ($s was given)")
-    } else Right(Unit)
-  }
-
-  override val ordering: ScallopOption[MinimizerOrdering] =
-    choice(Seq("frequency", "lexicographic", "given", "signature", "random", "xor"),
-      default = Some(defaultOrdering), descr = s"Minimizer ordering (default $defaultOrdering).").
-      map {
-        case "frequency" => Frequency(frequencyBySequence)
-        case "lexicographic" => Lexicographic
-        case "given" => Given
-        case "signature" => Signature
-        case "xor" | "random" => XORMask(defaultXORMask, canonicalMinimizers)
-      }
 }

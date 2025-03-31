@@ -160,7 +160,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
 
   /** Write records to the given location */
   def writeRecords(location: String): Unit = {
-    params.write(location, s"Properties for Slacken KeyValueIndex $location")
+    params.write(location, s"Properties for Slacken KeyValueIndex $location")(spark, SlackenMinimizerFormats)
     println(s"Saving index into ${params.buckets} partitions at $location")
 
     //A unique table name is needed to make saveAsTable happy, but we will not need it again
@@ -470,9 +470,9 @@ object KeyValueIndex {
   /** Load index from the given location */
   def load(location: String, taxonomy: Taxonomy)(implicit spark: SparkSession): KeyValueIndex = {
 
-    val params = IndexParams.read(location)
+    val params = IndexParams.read(location)(spark, SlackenMinimizerFormats)
     val sp = SparkTool.newSession(spark, params.buckets) //Ensure that new datasets have the same number of partitions
-    val i = new KeyValueIndex(spark.sqlContext.emptyDataFrame, params, taxonomy)(sp)
+    val i = new KeyValueIndex(spark.sqlContext.emptyDataFrame, params, taxonomy)
     i.withRecords(i.loadRecords())
   }
 }
