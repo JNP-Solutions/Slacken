@@ -81,21 +81,8 @@ object Testing {
     })
   }
 
-  def extendedTable(e: Int, m: Int): Gen[ExtendedTable] = {
-    val inner = TTesting.minTable(m)
-    for { canonical <- Gen.oneOf(true, false)
-          withSuf <- Gen.oneOf(true, false) }
-    yield ExtendedTable(inner, e, canonical, withSuf)
-  }
-
-  def minimizerPriorities(m: Int): Gen[MinimizerPriorities] = {
-    if (m >= 30) {
-      //ExtendedTable only works for somewhat large m
-      Gen.oneOf(TestGenerators.minimizerPriorities(m), extendedTable(m, 10))
-    } else {
+  def minimizerPriorities(m: Int): Gen[MinimizerPriorities] =
       kmers.TestGenerators.minimizerPriorities(m)
-    }
-  }
 
   /** Generate taxon hits from a read with taxa randomly selected from the given array and a
    * given number of total k-mers.

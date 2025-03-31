@@ -58,26 +58,6 @@ package object kmers {
       s"discount_$useRnd"
     }
 
-    private val formatsById = Map[String, SplitterFormat[_]](
-      "standard" -> new StandardFormat(),
-      "randomXOR" -> new RandomXORFormat(),
-      "extended" -> new ExtendedFormat())
-
-    private val formatsByCls = Map[Class[_], SplitterFormat[_]](
-      classOf[MinTable] -> new StandardFormat(),
-      classOf[RandomXOR] -> new RandomXORFormat(),
-      classOf[ExtendedTable] -> new ExtendedFormat())
-
-    /** Obtain a previously registered SplitterFormat by id */
-    def getFormat(id: String): SplitterFormat[_] = synchronized {
-      formatsById.getOrElse(id, throw new Exception(s"No such format $id"))
-    }
-
-    /** Obtain a previously registered SplitterFormat by class */
-    def getFormat[P <: MinimizerPriorities](cls: Class[_ <: P]): SplitterFormat[P] = synchronized {
-      formatsByCls.getOrElse(cls, throw new Exception(s"No format for class $cls")).asInstanceOf[SplitterFormat[P]]
-    }
-
     /** Format a fraction as a percentage string */
     def formatPerc(d: Double): String = "%.2f%%".format(d * 100)
   }

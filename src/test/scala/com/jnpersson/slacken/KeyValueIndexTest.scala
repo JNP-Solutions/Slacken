@@ -39,6 +39,8 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
   implicit val sp = spark
   import spark.sqlContext.implicits._
 
+  implicit val formats = SlackenMinimizerFormats
+
   val numberOfGenomes = 100
   //multiply by 8 to make the leaf node level approximately right sized
   val taxonomy = DTesting.getSingle(Testing.taxonomies(numberOfGenomes * 8))
