@@ -95,8 +95,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 
         val params = IndexParams(
           spark.sparkContext.broadcast(
-            MinSplitter(seedMask(SlackenMinimizerFormats.makeSplitter(SlackenConf.this).priorities), k())
-          ), partitions(), location())
+            SlackenMinimizerFormats.makeSplitter(SlackenConf.this)), partitions(), location())
         println(s"Splitter ${params.splitter}")
 
         val tax = getTaxonomy(location())
