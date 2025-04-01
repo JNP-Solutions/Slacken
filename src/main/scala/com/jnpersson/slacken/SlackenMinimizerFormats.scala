@@ -18,10 +18,12 @@ object SlackenMinimizerFormats extends MinimizerFormats[SlackenConf] {
   def makeSplitter(config: SlackenConf): MinSplitter[_ <: MinimizerPriorities] = {
     config.requireSuppliedK()
     val m = config.minimizerWidth()
+    val k = config.k()
     config.ordering() match {
       case XORMask(mask, canonical) =>
         //computed RandomXOR for a wide m
-        MinSplitter(RandomXOR(m, mask, canonical = canonical), config.k())
+        val s1 = MinSplitter(RandomXOR(m, mask, canonical = canonical), k)
+        MinSplitter(config.seedMask(s1.priorities), k)
       case _ => ???
     }
   }
