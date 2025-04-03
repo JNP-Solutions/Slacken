@@ -25,4 +25,4 @@ exec $SPARK/bin/spark-shell \
   --master $MASTER \
   --conf $MEMORY \
   --conf $LOCAL_DIR \
-  --jars "$SLACKEN_HOME/target/scala-2.12/Slacken-assembly-1.0.0.jar"
+  --jars "$SLACKEN_HOME/target/scala-2.12/Slacken-assembly-1.1.0.jar"
