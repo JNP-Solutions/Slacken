@@ -18,12 +18,98 @@
 package com.jnpersson.kmers.input
 
 import com.jnpersson.fastdoop.{FASTAshortInputFileFormat, FASTQInputFileFormat, IndexedFastaFormat, PartialSequence, QRecord, Record}
-import com.jnpersson.kmers.{SeqLocation, SeqTitle}
+import com.jnpersson.kmers.{HDFSUtil, SeqLocation, SeqTitle}
 import com.jnpersson.kmers.minimizer.InputFragment
 import org.apache.hadoop.conf.{Configuration => HConfiguration}
 import org.apache.hadoop.io.Text
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Dataset, SparkSession}
+
+
+/**
+ * A set of input files that can be parsed into [[InputFragment]]
+ *
+ * @param files files to read. A name of the format @list.txt will be parsed as a list of files.
+ * @param k length of k-mers
+ * @param maxReadLength max length of short sequences
+ * @param inputGrouping whether input files are paired-end reads. If so, they are expected to appear in sequence, so that
+ *                  the first file is a _1, the second a _2, the third a _1, etc.
+ * @param spark the SparkSession
+ */
+class FileInputs(val files: Seq[String], k: Int, maxReadLength: Int, inputGrouping: InputGrouping = Ungrouped)(implicit spark: SparkSession) {
+  protected val conf = new HConfiguration(spark.sparkContext.hadoopConfiguration)
+  import spark.sqlContext.implicits._
+
+  private val expandedFiles = files.toList.flatMap(f => {
+    if (f.startsWith("@")) {
+      println(s"Assuming that $f is a list of input files (using @ syntax)")
+      val realName = f.drop(1)
+      spark.read.textFile(realName).collect()
+    } else {
+      List(f)
+    }
+  })
+
+  /**
+   * By looking at the file name and checking for the presence of a .fai file in the case of fasta,
+   * obtain an appropriate InputReader for a single file.
+   */
+  def forFile(file: String): InputReader = {
+    if (file.toLowerCase.endsWith("fq") || file.toLowerCase.endsWith("fastq")) {
+      println(s"Assuming fastq format for $file, max length $maxReadLength")
+      new FastqShortInput(file, k, maxReadLength)
+    } else {
+      //Assume fasta format
+      val faiPath = file + ".fai"
+      if (HDFSUtil.fileExists(faiPath)) {
+        println(s"$faiPath found. Using indexed fasta format for $file")
+        new IndexedFastaInput(file, k)
+      } else {
+        println(s"$faiPath not found. Assuming simple fasta format for $file, max length $maxReadLength")
+        new FastaShortInput(file, k, maxReadLength)
+      }
+    }
+  }
+
+  /**
+   * By looking at the file name and checking for the presence of a .fai file in the case of fasta,
+   * obtain an appropriate InputReader for a single file.
+   * Read the files as paired-end reads if the second file was supplied.
+   */
+  def forPair(file: String, file2: String): PairedInputReader = {
+    println(s"Identified paired end inputs: $file, $file2")
+    new PairedInputReader(forFile(file), forFile(file2))
+  }
+
+  /**
+   * Parse all files in this set as InputFragments
+   * @param withAmbiguous whether to include ambiguous nucleotides. If not, the inputs will be split and only valid
+   *                      nucleotides retained.
+   * @return
+   */
+  def getInputFragments(withAmbiguous: Boolean = false, sampleFraction: Option[Double] = None): Dataset[InputFragment] = {
+    val readers = inputGrouping match {
+      case PairedEnd =>
+        if (files.size % 2 != 0) {
+          throw new Exception(
+            s"For paired end mode, please supply pairs of files (even number). ${files.size} files were supplied")
+        }
+        expandedFiles.grouped(2).map(pair => forPair(pair(0), pair(1))).toList
+      case _ =>
+        expandedFiles.map(forFile)
+    }
+    val fs = readers.map(_.getInputFragments(withAmbiguous, sampleFraction))
+    spark.sparkContext.union(fs.map(_.rdd)).toDS()
+  }
+
+  /**
+   * All sequence titles contained in this set of input files
+   */
+  def getSequenceTitles: Dataset[SeqTitle] = {
+    val titles = expandedFiles.map(forFile(_)).map(_.getSequenceTitles)
+    spark.sparkContext.union(titles.map(_.rdd)).toDS()
+  }
+}
 
 
 /**
@@ -76,6 +162,12 @@ final case class FragmentParser(k: Int) {
   }
 }
 
+/**
+ * A sequence input converter that reads data from one file using a specific
+ * Hadoop format, making the result available as Dataset[InputFragment]
+ * @param file the file to read
+ * @param k length of k-mers
+ */
 abstract class HadoopInputReader[R <: AnyRef](file: String, k: Int)(implicit spark: SparkSession) extends InputReader {
   import spark.sqlContext.implicits._
   protected val conf = new HConfiguration(sc.hadoopConfiguration)
