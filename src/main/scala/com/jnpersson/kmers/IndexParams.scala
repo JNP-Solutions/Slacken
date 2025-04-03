@@ -29,7 +29,7 @@ object IndexParams {
   val maxVersion = 1
 
   /** Read index parameters from a given location */
-  def read(location: String)(implicit spark: SparkSession): IndexParams = {
+  def read(location: String)(implicit spark: SparkSession, formats: MinimizerFormats[_]): IndexParams = {
     val props = HDFSUtil.readProperties(s"$location.properties")
     println(s"Index parameters for $location: $props")
     try {
@@ -39,7 +39,7 @@ object IndexParams {
         throw new Exception(s"A newer version of this software is needed to read $location. (Version $version, max supported version $maxVersion)")
       }
       val formatId = Option(props.getProperty("splitter")).getOrElse("standard")
-      val format = Helpers.getFormat(formatId)
+      val format = formats.getFormat(formatId)
       val splitter = format.readSplitter(location, props)
       IndexParams(spark.sparkContext.broadcast(splitter), numBuckets, location)
     } catch {
@@ -54,20 +54,15 @@ object IndexParams {
  * @param buckets The number of buckets (Spark partitions) to partition the index into -
  *                NB, not the same as minimizer bins
  * @param location The location (directory/prefix name) where the index is stored
+ * @param formats  The supported minimizer formats
   */
 final case class IndexParams(bcSplit: Broadcast[AnyMinSplitter], buckets: Int, location: String) {
 
-  def format: SplitterFormat[MinimizerPriorities] = {
-    splitter.priorities match {
-      case SpacedSeed(_, inner) => Helpers.getFormat(inner.getClass)
-      case _ =>     Helpers.getFormat(splitter.priorities.getClass)
-    }
-  }
   def splitter: AnyMinSplitter = bcSplit.value
   def k: Int = splitter.k
   def m: Int = splitter.priorities.width
 
-  def properties: Properties = {
+  def properties(format: SplitterFormat[_]): Properties = {
     val p = new Properties()
     p.setProperty("k", k.toString)
     p.setProperty("m", m.toString)
@@ -79,8 +74,14 @@ final case class IndexParams(bcSplit: Broadcast[AnyMinSplitter], buckets: Int, l
   }
 
   /** Write index parameters to a given location */
-  def write(newLocation: String, comment: String)(implicit spark: SparkSession): Unit = {
-    val p = properties
+  def write(newLocation: String, comment: String)(implicit spark: SparkSession, formats: MinimizerFormats[_]): Unit = {
+    val format =
+      splitter.priorities match {
+        case SpacedSeed(_, inner) => formats.getFormat(inner)
+        case _ => formats.getFormat(splitter.priorities)
+      }
+
+    val p = properties(format)
     splitter.priorities match {
       case SpacedSeed(s, inner) =>
         p.setProperty("minimizerSpaces", s.toString)
@@ -91,21 +92,19 @@ final case class IndexParams(bcSplit: Broadcast[AnyMinSplitter], buckets: Int, l
     HDFSUtil.writeProperties(s"$newLocation.properties", p, comment)
   }
 
-  override def toString: String = properties.toString
+  override def toString: String = s"${bcSplit.value.getClass.getName},$k,$m,$buckets"
 
   def compatibilityCheck(other: IndexParams, strict: Boolean): Unit = {
     if (this eq other) return //Trivially compatible
 
-    if (k != other.k || m != other.m) {
+    if (k != other.k || m != other.m)
       throw new Exception(s"Issue for $location and ${other.location}: Index parameters incompatible: $this and $other.")
-    }
-    if (splitter != other.splitter && strict) {
-      throw new Exception(s"Issue for $location and ${other.location}: Two indexes use different minimizer schemes / splitters. Indexes are incompatible. ")
-    }
 
-    if (buckets != other.buckets) {
+    if (splitter != other.splitter && strict)
+      throw new Exception(s"Issue for $location and ${other.location}: Two indexes use different minimizer schemes / splitters. Indexes are incompatible. ")
+
+    if (buckets != other.buckets)
       println(s"Warning for $location and ${other.location}: number of index buckets is different ($buckets and ${other.buckets}). Operations may be slow.")
-    }
 
   }
 }

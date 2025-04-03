@@ -19,7 +19,6 @@
 
 package com.jnpersson.kmers
 
-import com.jnpersson.kmers.util.NTBitArray
 import org.apache.spark.sql.SparkSession
 
 /** Provides classes for hashing k-mers and nucleotide sequences. Hashing is done by identifying minimizers.
@@ -27,14 +26,14 @@ import org.apache.spark.sql.SparkSession
  * super-mers of length >= k (super k-mers) where all k-mers share the same minimizer.
  */
 package object minimizer {
-  /** Type of a compacted hash (minimizer) */
+  /** The type of a compacted hash (minimizer) */
   type BucketId = Long
 
   /** For [[RandomXOR]] ordering */
   //from mmscanner.h in kraken2
   val DEFAULT_TOGGLE_MASK = 0xe37e28c4271b5a2dL
 
-  /** A type of ordering of a minimizer set */
+  /** An ordering of a minimizer set */
   sealed trait MinimizerOrdering
 
   /** Ordering by frequency (rare to common)
@@ -84,37 +83,6 @@ package object minimizer {
     /** Convert a MinimizerPriorities to a MinSplitter using this source */
     def toSplitter(priorities: MinimizerPriorities, k: Int)(implicit spark: SparkSession): MinSplitter[_ <: MinimizerPriorities] =
       MinSplitter(priorities, k)
-  }
-
-  /**
-   * A file, or a directory containing multiple files with names like minimizers_{k}_{m}.txt,
-   * in which case the best file will be selected. These files may specify an ordering.
-   *
-   * @param path the file, or directory to scan
-   */
-  final case class Path(path: String) extends MinimizerSource {
-    override def load(k: Int, m: Int)(implicit spark: SparkSession): Array[Int] = {
-      val s = new Sampling()
-      val use = s.readMotifList(path, k, m).collect()
-      println(s"${use.length}/${theoreticalMax(m)} $m-mers will become minimizers (loaded from $path)")
-      use
-    }
-  }
-
-  /**
-   * Bundled minimizers on the classpath (only available for some values of k and m).
-   */
-  case object Bundled extends MinimizerSource {
-    override def load(k: Int, m: Int)(implicit spark: SparkSession): Array[Int] = {
-      BundledMinimizers.getMinimizers(k, m) match {
-        case Some(internalMinimizers) =>
-          println(s"${internalMinimizers.length}/${theoreticalMax(m)} $m-mers will become minimizers(loaded from classpath)")
-          internalMinimizers.map(NTBitArray.encode(_).toInt)
-        case _ =>
-          throw new Exception(s"No classpath minimizers found for k=$k, m=$m. Please specify minimizers with --minimizers\n" +
-            "or --allMinimizers for all m-mers.")
-      }
-    }
   }
 
   /**

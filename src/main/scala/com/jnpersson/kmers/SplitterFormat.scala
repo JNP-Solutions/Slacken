@@ -24,6 +24,9 @@ import org.apache.spark.sql.SparkSession
 
 import java.util.Properties
 
+/** Logic for persisting minimizer formats (ordering and parameters) to files.
+ * @param P the type of MinimizerPriorities that is being managed.
+ */
 trait SplitterFormat[P <: MinimizerPriorities] {
   def id: String
 
@@ -37,42 +40,17 @@ trait SplitterFormat[P <: MinimizerPriorities] {
 
   def read(location: String, props: Properties)(implicit spark: SparkSession): P
 
-  def decorate(priorities: P, props: Properties)(implicit spark: SparkSession): MinimizerPriorities = {
+  def decorate(priorities: P, props: Properties): MinimizerPriorities =
     Option(props.getProperty("minimizerSpaces")) match {
       case None | Some("0") => priorities
       case Some(s) => SpacedSeed(s.toInt, priorities)
     }
-  }
 
   def readAndDecorate(location: String, props: Properties)(implicit spark: SparkSession): MinimizerPriorities =
     decorate(read(location, props), props)
 
   def readSplitter(location: String, props: Properties)(implicit spark: SparkSession): AnyMinSplitter =
     MinSplitter(readAndDecorate(location, props), props.getProperty("k").toInt)
-}
-
-class StandardFormat extends SplitterFormat[MinTable] {
-  val id = "standard"
-
-  /**
-   * Write a MinTable's minimizer ordering to a file
-   * @param table The ordering to write
-   * @param location Prefix of the location to write to. A suffix will be appended to this name.
-   */
-  def write(table: MinTable, props: Properties, location: String)(implicit spark: SparkSession): Unit = {
-    val persistLoc = s"${location}_minimizers.txt"
-    HDFSUtil.writeTextLines(persistLoc, table.humanReadableIterator)
-    println(s"Saved ${table.byPriority.length} minimizers to $persistLoc")
-  }
-
-  def read(location: String, props: Properties)(implicit spark: SparkSession): MinTable = {
-    val minLoc = s"${location}_minimizers.txt"
-    val s = new Sampling
-    val use = s.readMotifList(minLoc).collect()
-    println(s"${use.length} motifs will be used (loaded from $minLoc)")
-    val tableWidth = s.readMotifWidth(minLoc)
-    MinTable.usingRaw(use, tableWidth)
-  }
 }
 
 class RandomXORFormat extends SplitterFormat[RandomXOR] {

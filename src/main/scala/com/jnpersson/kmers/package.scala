@@ -38,7 +38,7 @@ package object kmers {
   /** Type of locations on sequences */
   type SeqLocation = Long
 
-  /** Internal type of abundance counts for k-mers. Even though this is is a Long,
+  /** Internal type of abundance counts for k-mers. Even though this is a Long,
    * some algorithms use 32-bit values, so overall only 32-bit counters are currently supported,
    * bounded by the two values below. */
   type Abundance = Long
@@ -56,26 +56,6 @@ package object kmers {
       val rnd = scala.util.Random.nextLong()
       val useRnd = if (rnd < 0) - rnd else rnd
       s"discount_$useRnd"
-    }
-
-    private val formatsById = Map[String, SplitterFormat[_]](
-      "standard" -> new StandardFormat(),
-      "randomXOR" -> new RandomXORFormat(),
-      "extended" -> new ExtendedFormat())
-
-    private val formatsByCls = Map[Class[_], SplitterFormat[_]](
-      classOf[MinTable] -> new StandardFormat(),
-      classOf[RandomXOR] -> new RandomXORFormat(),
-      classOf[ExtendedTable] -> new ExtendedFormat())
-
-    /** Obtain a previously registered SplitterFormat by id */
-    def getFormat(id: String): SplitterFormat[_] = synchronized {
-      formatsById.getOrElse(id, throw new Exception(s"No such format $id"))
-    }
-
-    /** Obtain a previously registered SplitterFormat by class */
-    def getFormat[P <: MinimizerPriorities](cls: Class[_ <: P]): SplitterFormat[P] = synchronized {
-      formatsByCls.getOrElse(cls, throw new Exception(s"No format for class $cls")).asInstanceOf[SplitterFormat[P]]
     }
 
     /** Format a fraction as a percentage string */

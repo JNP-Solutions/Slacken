@@ -116,7 +116,7 @@ object NTBitArray {
   }
 
   /** Populate a new NTBitArray with a single right-aligned long, shifting it to be left-aligned.
-   * Only well defined when the data fits inside a positive long, i.e. size <= 31.
+   * Only well-defined when the data fits inside a positive long, i.e. size <= 31.
    * The inverse mapping is [[NTBitArray.toLong]]. */
   def fromLong(data: Long, size: Int): NTBitArray = {
     val shift = (32 - size) * 2
@@ -459,7 +459,7 @@ final case class NTBitArray(data: Array[Long], size: Int) extends Ordered[NTBitA
    * @param k k
    * @param orientation orientation filter for k-mers
    * @param provider function to generate extra (tag) data for the k-mer starting at each column (offset). By
-   *                        default no extra data is generated.
+   *                        default, no extra data is generated.
    */
   def writeKmersToBuilder(destination: KmerTableBuilder, k: Int, orientation: Orientation,
                           provider: RowTagProvider = EmptyRowTagProvider): Unit = {
