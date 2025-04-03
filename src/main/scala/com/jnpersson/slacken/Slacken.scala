@@ -17,9 +17,10 @@
 
 package com.jnpersson.slacken
 
+import com.jnpersson.kmers.input.{PairedEnd, Ungrouped}
 import com.jnpersson.kmers.minimizer._
-import com.jnpersson.kmers.{Commands, HDFSUtil, IndexParams, PairedEnd, RunCmd, ScallopExitException,
-  SparkConfiguration, SparkTool, Ungrouped}
+import com.jnpersson.kmers.{Commands, HDFSUtil, IndexParams, RunCmd, ScallopExitException,
+  SparkConfiguration, SparkTool}
 import com.jnpersson.slacken.Taxonomy.Species
 import com.jnpersson.slacken.analysis.{MappingComparison, MinimizerMigration}
 import org.apache.spark.sql.SparkSession

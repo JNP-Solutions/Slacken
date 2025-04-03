@@ -18,6 +18,7 @@
 package com.jnpersson.kmers
 
 import com.globalmentor.apache.hadoop.fs.BareLocalFileSystem
+import com.jnpersson.kmers.input.{FileInputs, InputGrouping, Ungrouped}
 import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.sql.SparkSession
 
@@ -55,10 +56,10 @@ class SparkConfiguration(args: Array[String])(implicit val spark: SparkSession) 
     opt[Int](descr = "Number of shuffle partitions/parquet buckets for indexes (default 200)", default = Some(200))
 
   def inputReader(files: Seq[String], grouping: InputGrouping = Ungrouped) =
-    new Inputs(files, k(), maxSequenceLength(), grouping)
+    new FileInputs(files, k(), maxSequenceLength(), grouping)
 
   def inputReader(files: Seq[String], k: Int, grouping: InputGrouping) =
-    new Inputs(files, k, maxSequenceLength(), grouping)
+    new FileInputs(files, k, maxSequenceLength(), grouping)
 
   def finishSetup(): this.type = {
     verify()

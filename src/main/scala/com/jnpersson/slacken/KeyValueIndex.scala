@@ -21,6 +21,7 @@ import com.jnpersson.kmers._
 import com.jnpersson.kmers.minimizer._
 import com.jnpersson.kmers.Helpers.randomTableName
 import com.jnpersson.kmers.Helpers.formatPerc
+import com.jnpersson.kmers.input.FileInputs
 import com.jnpersson.kmers.util.NTBitArray
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.functions._
@@ -53,7 +54,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
   /** Sanity check input data.
    * Validates that all input sequences have minimizers.
    */
-  def checkInput(inputs: Inputs): Unit = {
+  def checkInput(inputs: FileInputs): Unit = {
     val fragments = inputs.getInputFragments().map(x => (x.header, x.nucleotides))
 
     /* Check if there are input sequences with no valid minimizers.
