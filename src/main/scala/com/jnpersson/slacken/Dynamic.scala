@@ -19,7 +19,8 @@ package com.jnpersson.slacken
 
 import com.jnpersson.kmers.minimizer._
 import com.jnpersson.kmers.Helpers.formatPerc
-import com.jnpersson.kmers.{HDFSUtil, Inputs}
+import com.jnpersson.kmers.HDFSUtil
+import com.jnpersson.kmers.input.FileInputs
 import com.jnpersson.slacken.Taxonomy.Rank
 import org.apache.spark.sql.functions.{count, udf, concat_ws}
 import org.apache.spark.sql.{DataFrame, SaveMode, Dataset, RelationalGroupedDataset, SparkSession, functions}
@@ -316,7 +317,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
    * @param dynamicReports whether to generate reports describing the dynamic index
    * @param dynamicBrackenReadLength read length for generating bracken weights for the second index (if any)
    */
-  def twoStepClassifyAndWrite(inputs: Inputs, partitions: Int, dynamicReports: Boolean,
+  def twoStepClassifyAndWrite(inputs: FileInputs, partitions: Int, dynamicReports: Boolean,
                               dynamicBrackenReadLength: Option[Int]): Unit = {
     val reads = inputs.getInputFragments(withAmbiguous = true).
       coalesce(partitions)

@@ -17,8 +17,9 @@
 
 package com.jnpersson.slacken
 
+import com.jnpersson.kmers.input.FileInputs
 import com.jnpersson.kmers.minimizer.InputFragment
-import com.jnpersson.kmers.{HDFSUtil, Inputs, SeqTitle}
+import com.jnpersson.kmers.{HDFSUtil, SeqTitle}
 import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
 import org.apache.spark.sql.functions.{collect_list, count, desc, struct}
 
@@ -73,7 +74,7 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
    * @param cpar           classification parameters
 
    */
-  def classifyAndWrite(inputs: Inputs, outputLocation: String, cpar: ClassifyParams): Unit = {
+  def classifyAndWrite(inputs: FileInputs, outputLocation: String, cpar: ClassifyParams): Unit = {
     val subjects = inputs.getInputFragments(withAmbiguous = true)
     val hits = index.collectHitsBySequence(subjects, cpar.perReadOutput)
     classifyHitsAndWrite(hits, outputLocation, cpar)
