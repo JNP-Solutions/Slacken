@@ -42,4 +42,4 @@ exec $SPARK_HOME/bin/spark-submit \
   --conf $MEMORY \
   --conf $LOCAL_DIR \
   --master $SPARK_MASTER \
-  --class com.jnpersson.slacken.Slacken $SLACKEN_HOME/target/scala-2.12/Slacken-assembly-1.0.0.jar $*
+  --class com.jnpersson.slacken.Slacken $SLACKEN_HOME/target/scala-2.12/Slacken-assembly-1.1.0.jar $*
