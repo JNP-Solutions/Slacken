@@ -62,11 +62,6 @@ class SparkConfiguration(args: Array[String])(implicit val spark: SparkSession) 
   def inputReader(files: Seq[String], k: Int, grouping: InputGrouping) =
     new Inputs(files, k, maxSequenceLength(), grouping)
 
-  def minimizerConfig(): MinimizerConfig = {
-    requireSuppliedK()
-    new MinimizerConfig(k(), parseMinimizerSource, minimizerWidth(), ordering(), sample(), maxSequenceLength())
-  }
-
   def finishSetup(): this.type = {
     verify()
     spark.conf.set("spark.sql.shuffle.partitions", partitions())

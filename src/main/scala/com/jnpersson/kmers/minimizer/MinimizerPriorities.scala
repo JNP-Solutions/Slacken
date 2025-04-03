@@ -215,7 +215,7 @@ final case class MinTable(byPriority: Array[Int], width: Int, override val numLa
   def motifArraysIterator: Iterator[NTBitArray] =
     byPriority.iterator.map(x => NTBitArray.fromLong(x, width))
 
-  /** Motifs as human readable strings in priority order */
+  /** Motifs as human-readable strings in priority order */
   def humanReadableIterator: Iterator[NTSeq] =
     motifArraysIterator.map(decoder.get.toString)
 

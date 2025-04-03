@@ -263,7 +263,7 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
   }
 
   /** Find the ancestor of the query at the given level, if it exists. Searches upward.
-   * If there are sub-levels such as S2, S1 etc, the first hit in the path to root will be returned.
+   * If there are sublevels such as S2, S1 etc, the first hit in the path to root will be returned.
    * @param query taxon to search from
    * @param rank rank to find ancestor at
    * @return ancestor at the given level, if it exists
