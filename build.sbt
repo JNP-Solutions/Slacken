@@ -14,6 +14,8 @@ javacOptions ++= Seq("--release=8")
 
 resolvers += "Spark Packages Repo" at "https://dl.bintray.com/spark-packages/maven"
 
+resolvers += Resolver.mavenLocal
+
 libraryDependencies += "org.rogach" %% "scallop" % "latest.integration"
 
 libraryDependencies += "it.unimi.dsi" % "fastutil" % "latest.integration"
@@ -27,6 +29,8 @@ libraryDependencies += "org.apache.spark" %% "spark-sql" % sparkVersion % "provi
 
 //For Windows, to remove the dependency on winutils.exe for local filesystem access
 libraryDependencies += "com.globalmentor" % "hadoop-bare-naked-local-fs" % "latest.integration"
+
+libraryDependencies += "com.atgenomix.seqslab.plugins" % "seqslab-operator-plugin-api" % "3.1.2"
 
 Compile / unmanagedResourceDirectories += { baseDirectory.value / "resources" }
 
