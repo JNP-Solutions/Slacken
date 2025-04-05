@@ -366,14 +366,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
  */
 object Slacken extends SparkTool("Slacken") {
   def main(args: Array[String]): Unit = {
-    try {
-      val conf = new SlackenConf(args)(sparkSession()).finishSetup()
-      Commands.run(conf)
-    } catch {
-      case ScallopExitException(0) => //Normal return from main
-      case se@ScallopExitException(code) =>
-        System.err.println(s"Exit code $code")
-        throw se
-    }
+    val conf = new SlackenConf(args)(sparkSession()).finishSetup()
+    Commands.run(conf)
   }
 }

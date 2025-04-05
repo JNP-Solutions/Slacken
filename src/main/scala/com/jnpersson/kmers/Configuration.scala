@@ -26,14 +26,22 @@ import scala.util.Random
 /** Runnable commands for a command-line tool */
 private[jnpersson] object Commands {
   def run(conf: ScallopConf): Unit = {
-    conf.verify()
-    val cmds = conf.subcommands.collect { case rc: RunCmd => rc }
-    if (cmds.isEmpty &&
-      !conf.args.contains("--help") && !conf.args.contains("-h")) {
-      conf.printHelp()
-      throw new Exception("No command supplied. Nothing to do.")
+    try {
+      conf.verify()
+      val cmds = conf.subcommands.collect { case rc: RunCmd => rc }
+      if (cmds.isEmpty &&
+        !conf.args.contains("--help") && !conf.args.contains("-h")) {
+        conf.printHelp()
+        throw new Exception("No command supplied. Nothing to do.")
+      }
+      for {c <- cmds} c.run()
+    } catch {
+      case ScallopExitException(0) =>
+      //Scallop tried to exit, clean return. Do not call System.exit as we may be in a Spark driver
+      case se@ScallopExitException(code) =>
+        System.err.println(s"Exit code $code")
+        throw se
     }
-    for { c <- cmds } c.run()
   }
 }
 
