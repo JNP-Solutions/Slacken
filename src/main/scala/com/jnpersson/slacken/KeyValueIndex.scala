@@ -27,7 +27,6 @@ import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql._
 
-import java.util
 import scala.collection.mutable
 
 /** Metagenomic index compatible with the Kraken 2 algorithm.
@@ -466,9 +465,19 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
 }
 
 object KeyValueIndex {
-  /** Load index from the given location */
-  def load(location: String, taxonomy: Taxonomy)(implicit spark: SparkSession): KeyValueIndex = {
 
+  /** Get the Taxonomy from an index's default taxonomy location */
+  def getTaxonomy(indexLocation: String)(implicit spark: SparkSession) =
+    Taxonomy.load(s"${indexLocation}_taxonomy")
+
+  /** Load a KeyValueIndex together with its taxonomy from a given location */
+  def load(location: String)(implicit spark: SparkSession): KeyValueIndex = {
+    val tax = getTaxonomy(location)
+    load(location, tax)
+  }
+
+  /** Load index from the given location with a given taxonomy */
+  def load(location: String, taxonomy: Taxonomy)(implicit spark: SparkSession): KeyValueIndex = {
     val params = IndexParams.read(location)(spark, SlackenMinimizerFormats)
     val sp = SparkTool.newSession(spark, params.buckets) //Ensure that new datasets have the same number of partitions
     val i = new KeyValueIndex(spark.sqlContext.emptyDataFrame, params, taxonomy)

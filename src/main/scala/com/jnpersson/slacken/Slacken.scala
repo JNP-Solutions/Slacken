@@ -17,17 +17,17 @@
 
 package com.jnpersson.slacken
 
-import com.jnpersson.kmers.input.{PairedEnd, Ungrouped}
+import com.jnpersson.kmers.input.{DirectInputs, PairedEnd, Ungrouped}
 import com.jnpersson.kmers.minimizer._
-import com.jnpersson.kmers.{Commands, HDFSUtil, IndexParams, RunCmd, ScallopExitException,
-  SparkConfiguration, SparkTool}
+import com.jnpersson.kmers.{Commands, HDFSUtil, IndexParams, RunCmd, ScallopExitException, SparkConfiguration, SparkTool}
 import com.jnpersson.slacken.Taxonomy.Species
 import com.jnpersson.slacken.analysis.{MappingComparison, MinimizerMigration}
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.rogach.scallop.Subcommand
 
 import java.io.FileNotFoundException
 import java.util.regex.PatternSyntaxException
+
 
 /** Command line parameters for Slacken */
 //noinspection TypeAnnotation
@@ -54,7 +54,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
     case Some(l) => Taxonomy.load(l)
     case _ =>
       try {
-        Taxonomy.load(s"${indexLocation}_taxonomy")
+        KeyValueIndex.getTaxonomy(indexLocation)
       } catch {
         case fnf: FileNotFoundException =>
           Console.err.println(s"Taxonomy not found: ${fnf.getMessage}. Please specify the taxonomy location with --taxonomy.")
@@ -225,7 +225,8 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 
       def run(): Unit = {
         val i = index()
-        val inputs = inputReader(inFiles(), i.params.k, paired())
+        val inputs = inputReader(inFiles(), i.params.k, paired()).
+          getInputFragments(true)
         val cls = new Classifier(i)
         cls.classifyAndWrite(inputs, output(), cpar)
       }
@@ -375,4 +376,55 @@ object Slacken extends SparkTool("Slacken") {
         handleScallopException(se)
     }
   }
+}
+
+/**
+ * Functions for API/interactive use, as opposed to CLI.
+ *
+ * @param indexLocation HDFS location where the taxon-LCA index is stored
+ * @param detailed      whether to generate detailed output (otherwise, only reports will be generated)
+ * @param sampleRegex   regular expression to group reads by sample. Applied to read header to extract sample ID.
+ * @param confidence    confidence score to classify for (default 0)
+ * @param minHitGroups  minimum number of hit groups (default 2)
+ * @param unclassified  whether to include unclassified reads in the result
+ * @param spark
+ * @return
+ */
+class Slacken(indexLocation: String,
+              detailed: Boolean,
+              sampleRegex: Option[String],
+              confidence: Double = 0, minHitGroups: Int = 2,
+              unclassified: Boolean = false)(implicit spark: SparkSession) {
+
+  val index = KeyValueIndex.load(indexLocation)
+  if (confidence < 0 || confidence > 1) {
+    throw new Exception(s"--confidence values must be >= 0 and <= 1 ($confidence was given)")
+  }
+  val cls = new Classifier(index)
+  def cpar = ClassifyParams(minHitGroups, unclassified, List(confidence), sampleRegex, detailed)
+
+  /**
+   * Classify reads.
+   *
+   * @param reads reads to classify
+   * @return a dataframe populated with [[ClassifiedRead]] objects.
+   */
+  def classifyReads(reads: DataFrame)(implicit spark: SparkSession): DataFrame = {
+    val inputs = DirectInputs.forDataFrame(reads)
+    val cls = new Classifier(index)
+    cls.classify(inputs.getInputFragments(true, None), cpar, confidence).toDF()
+  }
+
+  /**
+   * Group reads by sample ID and write output files for each.
+   *
+   * @param classified a dataframe populated with [[ClassifiedRead]] objects.
+   * @param location   location to write outputs to (directory prefix)
+   */
+  def writeReports(classified: DataFrame, location: String)(implicit spark: SparkSession): Unit = {
+    import spark.sqlContext.implicits._
+    val clReads = classified.as[ClassifiedRead]
+    cls.writeForSamples(clReads, location, confidence, cpar)
+  }
+
 }

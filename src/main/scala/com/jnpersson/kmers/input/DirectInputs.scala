@@ -25,20 +25,20 @@ import org.apache.spark.sql.functions.lit
 /**
  * Routines for parsing input from a DataFrame directly.
  */
-class DirectInputs(withAmbiguous: Boolean, sampleFraction: Option[Double])(implicit spark: SparkSession) {
+object DirectInputs {
 
   /** Read inputs directly from a DataFrame.
    * The DataFrame must have the following columns:
    * header, nucleotides, (optionally) nucleotides2
    */
-  def forDataFrame(data: DataFrame): InputReader =
+  def forDataFrame(data: DataFrame)(implicit spark: SparkSession) : InputReader =
     new DirectInputReader(data)
 
   /** Read paired-end reads directly from DataFrames.
    * The DataFrames must have the following columns:
    * header, nucleotides, (optionally) nucleotides2
    */
-  def forPair(data1: DataFrame, data2: DataFrame): PairedInputReader =
+  def forPair(data1: DataFrame, data2: DataFrame)(implicit spark: SparkSession) : PairedInputReader =
     new PairedInputReader(forDataFrame(data1), forDataFrame(data2))
 
 }
