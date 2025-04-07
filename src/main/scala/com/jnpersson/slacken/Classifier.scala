@@ -74,9 +74,8 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
    * @param cpar           classification parameters
 
    */
-  def classifyAndWrite(inputs: FileInputs, outputLocation: String, cpar: ClassifyParams): Unit = {
-    val subjects = inputs.getInputFragments(withAmbiguous = true)
-    val hits = index.collectHitsBySequence(subjects, cpar.perReadOutput)
+  def classifyAndWrite(inputs: Dataset[InputFragment], outputLocation: String, cpar: ClassifyParams): Unit = {
+    val hits = index.collectHitsBySequence(inputs, cpar.perReadOutput)
     classifyHitsAndWrite(hits, outputLocation, cpar)
   }
 
@@ -140,7 +139,7 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
    * @param threshold      the confidence threshold that was used in this classification
    * @param cpar           parameters for classification
    */
-  private def writeForSamples(reads: Dataset[ClassifiedRead], outputLocation: String, threshold: Double, cpar: ClassifyParams): Unit = {
+  def writeForSamples(reads: Dataset[ClassifiedRead], outputLocation: String, threshold: Double, cpar: ClassifyParams): Unit = {
     val thresholds = cpar.thresholds
     // find the maximum number of digits after the decimal point for values in the threshold list
     // to enable proper sorting of file names with threshold values
