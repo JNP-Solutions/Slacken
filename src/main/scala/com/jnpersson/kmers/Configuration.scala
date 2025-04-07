@@ -33,7 +33,7 @@ private[jnpersson] object Commands {
       conf.printHelp()
       throw new Exception("No command supplied. Nothing to do.")
     }
-    for { c <- cmds } c.run()
+    for {c <- cmds} c.run()
   }
 }
 
