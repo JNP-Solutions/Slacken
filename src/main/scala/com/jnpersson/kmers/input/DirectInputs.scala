@@ -61,7 +61,7 @@ class DirectInputReader(data: DataFrame)(implicit spark: SparkSession) extends I
    */
   override protected[input] def getFragments(): Dataset[InputFragment] = {
     val hasN2 = data.columns.contains("nucleotides2")
-    data.select($"header",  lit(1L), $"nucleotides",
+    data.select($"header", lit(1L).as("location"), $"nucleotides",
       if (hasN2) $"nucleotides2" else lit(null)).as[InputFragment]
   }
 }

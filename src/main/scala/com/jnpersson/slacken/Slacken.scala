@@ -381,7 +381,7 @@ object Slacken extends SparkTool("Slacken") {
 /**
  * Functions for API/interactive use, as opposed to CLI.
  *
- * @param indexLocation HDFS location where the taxon-LCA index is stored
+ * @param index         minimizer-LCA index
  * @param detailed      whether to generate detailed output (otherwise, only reports will be generated)
  * @param sampleRegex   regular expression to group reads by sample. Applied to read header to extract sample ID.
  * @param confidence    confidence score to classify for (default 0)
@@ -390,13 +390,30 @@ object Slacken extends SparkTool("Slacken") {
  * @param spark
  * @return
  */
-class Slacken(indexLocation: String,
+class Slacken(index: KeyValueIndex,
               detailed: Boolean,
               sampleRegex: Option[String],
-              confidence: Double = 0, minHitGroups: Int = 2,
-              unclassified: Boolean = false)(implicit spark: SparkSession) {
+              confidence: Double, minHitGroups: Int,
+              unclassified: Boolean)(implicit spark: SparkSession) {
 
-  val index = KeyValueIndex.load(indexLocation)
+  /**
+   * Location-based constructor.
+   *
+   * @param indexLocation HDFS location where the taxon-LCA index is stored
+   * @param detailed      whether to generate detailed output (otherwise, only reports will be generated)
+   * @param sampleRegex   regular expression to group reads by sample. Applied to read header to extract sample ID.
+   * @param confidence    confidence score to classify for (default 0)
+   * @param minHitGroups  minimum number of hit groups (default 2)
+   * @param unclassified  whether to include unclassified reads in the result
+   * @param spark
+   * @return
+   */
+  def this(indexLocation: String, detailed: Boolean,
+           sampleRegex: Option[String],
+           confidence: Double, minHitGroups: Int,
+           unclassified: Boolean)(implicit spark: SparkSession) =
+    this(KeyValueIndex.load(indexLocation), detailed, sampleRegex, confidence, minHitGroups, unclassified)
+
   if (confidence < 0 || confidence > 1) {
     throw new Exception(s"--confidence values must be >= 0 and <= 1 ($confidence was given)")
   }
@@ -426,5 +443,4 @@ class Slacken(indexLocation: String,
     val clReads = classified.as[ClassifiedRead]
     cls.writeForSamples(clReads, location, confidence, cpar)
   }
-
 }
