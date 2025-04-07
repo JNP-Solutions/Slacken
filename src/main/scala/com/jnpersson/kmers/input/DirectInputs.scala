@@ -59,6 +59,9 @@ class DirectInputReader(data: DataFrame)(implicit spark: SparkSession) extends I
    * Read sequence data as fragments from the input files, removing any newlines.
    * @return
    */
-  override protected[input] def getFragments(): Dataset[InputFragment] =
-    data.select($"header",  lit(1L), $"nucleotides", $"nucleotides2").as[InputFragment]
+  override protected[input] def getFragments(): Dataset[InputFragment] = {
+    val hasN2 = data.columns.contains("nucleotides2")
+    data.select($"header",  lit(1L), $"nucleotides",
+      if (hasN2) $"nucleotides2" else lit(null)).as[InputFragment]
+  }
 }
