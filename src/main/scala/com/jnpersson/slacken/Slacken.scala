@@ -437,10 +437,12 @@ class Slacken(index: KeyValueIndex,
    *
    * @param classified a dataframe populated with [[ClassifiedRead]] objects.
    * @param location   location to write outputs to (directory prefix)
+   * @return file names of generated report files
    */
-  def writeReports(classified: DataFrame, location: String)(implicit spark: SparkSession): Unit = {
+  def writeReports(classified: DataFrame, location: String)(implicit spark: SparkSession): Iterable[String] = {
     import spark.sqlContext.implicits._
     val clReads = classified.as[ClassifiedRead]
-    cls.writeForSamples(clReads, location, confidence, cpar)
+    val samples = cls.perSampleOutput(clReads, location, confidence, cpar)
+    samples.map(s => Classifier.reportOutputLocation(location, s))
   }
 }
