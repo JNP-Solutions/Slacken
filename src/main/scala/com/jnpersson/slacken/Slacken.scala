@@ -384,8 +384,8 @@ object Slacken extends SparkTool("Slacken") {
  * @param index         minimizer-LCA index
  * @param detailed      whether to generate detailed output (otherwise, only reports will be generated)
  * @param sampleRegex   regular expression to group reads by sample. Applied to read header to extract sample ID.
- * @param confidence    confidence score to classify for (default 0)
- * @param minHitGroups  minimum number of hit groups (default 2)
+ * @param confidence    confidence score to classify for (the default value is 0)
+ * @param minHitGroups  minimum number of hit groups (the default value is 2)
  * @param unclassified  whether to include unclassified reads in the result
  * @param spark
  * @return
@@ -402,9 +402,9 @@ class Slacken(index: KeyValueIndex,
    * @param indexLocation HDFS location where the taxon-LCA index is stored
    * @param detailed      whether to generate detailed output (otherwise, only reports will be generated)
    * @param sampleRegex   regular expression to group reads by sample. Applied to read header to extract sample ID.
-   * @param confidence    confidence score to classify for (default 0)
-   * @param minHitGroups  minimum number of hit groups (default 2)
-   * @param unclassified  whether to include unclassified reads in the result
+   * @param confidence    confidence score to classify for (the default value is 0)
+   * @param minHitGroups  minimum number of hit groups (the default value is 2)
+   * @param unclassified  whether to include unclassified reads in the result (false by default)
    * @param spark
    * @return
    */
@@ -423,12 +423,16 @@ class Slacken(index: KeyValueIndex,
   /**
    * Classify reads.
    *
-   * @param reads reads to classify
+   * @param reads reads to classify (R1 or singles)
+   * @param reads2 optionally, R2 reads to classify in the case of paired-end reads.
    * @return a dataframe populated with [[ClassifiedRead]] objects.
    */
-  def classifyReads(reads: DataFrame)(implicit spark: SparkSession): DataFrame = {
-    val inputs = DirectInputs.forDataFrame(reads)
+  def classifyReads(reads: DataFrame, reads2: Option[DataFrame] = None)(implicit spark: SparkSession): DataFrame = {
     val cls = new Classifier(index)
+    val inputs = reads2 match {
+      case Some(r2) => DirectInputs.forPairs(reads, r2)
+      case None => DirectInputs.forDataFrame(reads)
+    }
     cls.classify(inputs.getInputFragments(true, None), cpar, confidence).toDF()
   }
 
@@ -442,7 +446,7 @@ class Slacken(index: KeyValueIndex,
   def writeReports(classified: DataFrame, location: String)(implicit spark: SparkSession): Iterable[String] = {
     import spark.sqlContext.implicits._
     val clReads = classified.as[ClassifiedRead]
-    val samples = cls.perSampleOutput(clReads, location, confidence, cpar)
+    val samples = cls.writePerSampleOutput(clReads, location, confidence, cpar)
     samples.map(s => Classifier.reportOutputLocation(location, s))
   }
 }
