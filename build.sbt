@@ -1,6 +1,6 @@
 name := "Slacken"
 
-version := "1.1.0"
+version := "1.1.0_sl"
 
 scalaVersion := "2.12.18"
 
