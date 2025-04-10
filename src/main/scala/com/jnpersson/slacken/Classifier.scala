@@ -123,7 +123,7 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     try {
       for {t <- cpar.thresholds} {
         val classified = classifyHits(subjectsHits, cpar, t)
-        perSampleOutput(classified, outputLocation, t, cpar)
+        writePerSampleOutput(classified, outputLocation, t, cpar)
       }
     } finally {
       subjectsHits.unpersist()
@@ -142,8 +142,8 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
    * @param cpar           parameters for classification
    * @return               the sample IDs that were discovered and processed, or "all" if not using multi-sample mode
    */
-  def perSampleOutput(reads: Dataset[ClassifiedRead], outputLocation: String, threshold: Double,
-                        cpar: ClassifyParams): Iterable[String] = {
+  def writePerSampleOutput(reads: Dataset[ClassifiedRead], outputLocation: String, threshold: Double,
+                           cpar: ClassifyParams): Iterable[String] = {
     val thresholds = cpar.thresholds
     // find the maximum number of digits after the decimal point for values in the threshold list
     // to enable proper sorting of file names with threshold values
@@ -224,6 +224,7 @@ object Classifier {
   def reportOutputLocation(baseLocation: String, sampleId: String) =
     s"$baseLocation/${sampleId}_kreport.txt"
 
+  /** Location where per-read outputs are written for a given report. */
   def perReadOutputsFromReportFile(reportName: String) = {
     val part2 = reportName.split("/")(1)
     val sample = part2.substring(0, part2.length - "_kreport.txt".length)
