@@ -17,7 +17,8 @@
 
 package com.jnpersson.slacken
 
-import com.jnpersson.kmers.{Inputs, NTSeq}
+import com.jnpersson.kmers.NTSeq
+import com.jnpersson.kmers.input.FileInputs
 import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.functions.{count, udf}
 import org.apache.spark.sql.{Dataset, SparkSession}
@@ -30,7 +31,7 @@ import scala.collection.mutable
  * @param inputs Input genome sequence files
  * @param labelFile Path to a file labelling each sequence with a taxon (2-column TSV)
  */
-final case class GenomeLibrary(inputs: Inputs, labelFile: String) {
+final case class GenomeLibrary(inputs: FileInputs, labelFile: String) {
   def taxonSet(taxonomy: Taxonomy)(implicit spark: SparkSession): mutable.BitSet = {
     import spark.sqlContext.implicits._
 
