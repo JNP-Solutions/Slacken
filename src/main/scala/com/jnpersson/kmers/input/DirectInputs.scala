@@ -38,7 +38,7 @@ object DirectInputs {
    * The DataFrames must have the following columns:
    * header, nucleotides, (optionally) nucleotides2
    */
-  def forPair(data1: DataFrame, data2: DataFrame)(implicit spark: SparkSession) : PairedInputReader =
+  def forPairs(data1: DataFrame, data2: DataFrame)(implicit spark: SparkSession) : PairedInputReader =
     new PairedInputReader(forDataFrame(data1), forDataFrame(data2))
 
 }
@@ -61,7 +61,10 @@ class DirectInputReader(data: DataFrame)(implicit spark: SparkSession) extends I
    */
   override protected[input] def getFragments(): Dataset[InputFragment] = {
     val hasN2 = data.columns.contains("nucleotides2")
-    data.select($"header", lit(1L).as("location"), $"nucleotides",
+    val hasLocation = data.columns.contains("location")
+    data.select($"header",
+      if (hasLocation) $"location" else lit(1L),
+      $"nucleotides",
       if (hasN2) $"nucleotides2" else lit(null)).as[InputFragment]
   }
 }
