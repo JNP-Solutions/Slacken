@@ -102,10 +102,13 @@ abstract class InputReader(implicit spark: SparkSession) {
 class PairedInputReader(lhs: InputReader, rhs: InputReader)(implicit spark: SparkSession) extends InputReader {
   import spark.sqlContext.implicits._
 
-  protected[input] def getFragments: Dataset[InputFragment] = {
-    def removeSuffix(f: InputFragment, suffix: String) =
-      f.copy(header = f.header.replaceAll(suffix + "$", ""))
+  private def removeSuffix(header: String, suffix: String): String =
+    header.replaceAll(suffix + "$", "")
 
+  private def removeSuffix(f: InputFragment, suffix: String): InputFragment =
+    f.copy(header = removeSuffix(f.header, suffix))
+
+  protected[input] def getFragments: Dataset[InputFragment] = {
     /* As we currently have no input format that correctly handles paired reads, joining the reads by
           header is the best we can do (and still inexpensive in the big picture).
           Otherwise, it is hard to guarantee that they would be paired up correctly.
@@ -118,5 +121,5 @@ class PairedInputReader(lhs: InputReader, rhs: InputReader)(implicit spark: Spar
   }
 
   override def getSequenceTitles: Dataset[SeqTitle] =
-    lhs.getSequenceTitles
+    lhs.getSequenceTitles.map(header => removeSuffix(header, "/1"))
 }
