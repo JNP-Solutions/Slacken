@@ -14,7 +14,14 @@ javacOptions ++= Seq("--release=8")
 
 resolvers += "Spark Packages Repo" at "https://dl.bintray.com/spark-packages/maven"
 
-resolvers += Resolver.mavenLocal
+resolvers += "Atgenomix GitHub repo" at "https://maven.pkg.github.com/atgenomix/_"
+
+credentials += Credentials(
+  "GitHub Package Registry",
+  "maven.pkg.github.com",
+  "_",
+  sys.env("GITHUB_TOKEN")
+)
 
 libraryDependencies += "org.rogach" %% "scallop" % "latest.integration"
 

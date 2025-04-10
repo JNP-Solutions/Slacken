@@ -1,6 +1,10 @@
 ARG base_image=ghcr.io/atgenomix/runtime/base:1.5_20.04
+ARG GITHUB_TOKEN
 FROM --platform=$BUILDPLATFORM sbtscala/scala-sbt:eclipse-temurin-17.0.14_7_1.10.10_2.12.20 AS build
 ARG base_image
+ARG GITHUB_TOKEN
+
+ENV GITHUB_TOKEN=${GITHUB_TOKEN}
 
 WORKDIR /build/
 COPY build.sbt /build/
@@ -13,7 +17,6 @@ RUN sbt assembly
 
 FROM ${base_image}
 ARG base_image
-
 ARG version=1.1.0_sl
 
 # metadata
