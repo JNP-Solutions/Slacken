@@ -28,6 +28,8 @@ def logRef(x: Int) = safeLog(refVector(x))
 
 /** Compare a single sample (bracken format) against the reference */
 def compareBrackenSample(file: String): Unit = {
+  //This file is already assumed to be filtered at species level.
+
   def lines = Source.fromFile(file).getLines.drop(1)
   val sampleVector = vector(lines)
   val addedReads = lines.map(l => l.split("\t")(4).toLong).sum
