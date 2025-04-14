@@ -26,4 +26,4 @@ SLACKEN_TMP=/data/slacken_scratch
 exec docker run -e SLACKEN_MEMORY=$SLACKEN_MEMORY -p 4040:4040 \
   -e SLACKEN_TMP=$SLACKEN_TMP \
   -v $SLACKEN_DATA:/data:rw \
-  jtnystrom/slacken:1.1.0 $*
+  jnpsolutions/slacken:1.1.0 $*
