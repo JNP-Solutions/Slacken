@@ -28,12 +28,6 @@ MEMORY="spark.driver.memory=$SLACKEN_MEMORY"
 #Scratch space location. This has a big effect on performance; should ideally be a fast SSD or similar.
 LOCAL_DIR="spark.local.dir=/$SLACKEN_TMP"
 
-#Max size of input splits in bytes. A smaller number reduces memory usage but increases the number of
-#partitions for the first stage. If this variable is unset, Spark's default of 128 MB will be used.
-#SPLIT="spark.hadoop.mapreduce.input.fileinputformat.split.maxsize=$((64 * 1024 * 1024))"
-
-#--conf $SPLIT
-
 #On Windows: Change bin/spark-submit to bin/spark-submit.cmd.
 
 exec $SPARK_HOME/bin/spark-submit \
