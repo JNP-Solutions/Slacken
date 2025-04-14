@@ -1,7 +1,7 @@
 ## Slacken
 
 [![Build and test](https://github.com/JNP-Solutions/Slacken/actions/workflows/scala.yml/badge.svg)](https://github.com/jtnystrom/Discount/actions/workflows/ci.yml)
-[![Docker Pulls](https://badgen.net/docker/pulls/jtnystrom/slacken?icon=docker&label=pulls)](https://hub.docker.com/r/jtnystrom/slacken/)
+[![Docker Pulls](https://badgen.net/docker/pulls/jnpsolutions/slacken?icon=docker&label=pulls)](https://hub.docker.com/r/jtnystrom/slacken/)
 ![GitHub License](https://img.shields.io/github/license/jnp-solutions/slacken)
 
 Slacken is a metagenomic profiler that classifies genomic sequences based on k-mers and minimizers. It implements the
@@ -61,7 +61,7 @@ libraries and samples.
 The latest precompiled Slacken may be downloaded as a .zip from the 
 [Releases](https://github.com/JNP-Solutions/Slacken/releases). This is the easiest way to obtain Slacken.
 
-A [Docker image](https://hub.docker.com/r/jtnystrom/slacken) is also available. If you are using the Docker image,
+A [Docker image](https://hub.docker.com/r/jnpsolutions/slacken) is also available. If you are using the Docker image,
 please refer to the instructions on that page. In this case you do not need to download Spark or Java.
 
 Unless you are using the Docker image, you should set up the environment:
