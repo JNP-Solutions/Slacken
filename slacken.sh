@@ -30,10 +30,14 @@ LOCAL_DIR="spark.local.dir=/$SLACKEN_TMP"
 
 #On Windows: Change bin/spark-submit to bin/spark-submit.cmd.
 
+#Make sure that generated files are group-writable when we are running from Docker
+UMASK="spark.hadoop.fs.permissions.umask-mode=002"
+
 exec $SPARK_HOME/bin/spark-submit \
   --conf spark.driver.maxResultSize=2g \
   --driver-java-options -Dlog4j.configuration="file:$SLACKEN_HOME/log4j.properties" \
   --conf $MEMORY \
   --conf $LOCAL_DIR \
+  --conf $UMASK \
   --master $SPARK_MASTER \
   --class com.jnpersson.slacken.Slacken $SLACKEN_HOME/target/scala-2.12/Slacken-assembly-1.1.0.jar $*
