@@ -33,7 +33,7 @@ Copyright (c) Johan Nyström-Persson 2019-2025.
   - [Use with Bracken](#use-with-bracken)
   - [Classifying reads (2-step/dynamic)](#classifying-reads-using-a-dynamic-index-2-step-method)
 3. [Technical details](#technical-details)
-  - [Running with a Spark distribution](#running-with-a-spark distribution)
+  - [Running with a Spark distribution](#running-with-a-spark-distribution)
 -   [Running on AWS Elastic MapReduce or large clusters](#running-on-aws-elastic-mapreduce-or-large-clusters)
   - [Building a library](#building-a-library)
   - [Discrepancies between Slacken and Kraken 2](#discrepancies-between-slacken-and-kraken-2)
@@ -323,7 +323,7 @@ If `-classify-with-gold` is not given but `-g` is, then the detected taxon set w
 ## Technical details
 
 
-### Running with a local Spark cluster
+### Running with a spark Distribution
 
 Running with your own Spark distribution, without the Docker image, provides additional flexibility of configuration for
 advanced users. This works on Linux, Mac and Windows but requires a little more configuration.
