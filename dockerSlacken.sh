@@ -23,7 +23,10 @@ SLACKEN_TMP=/data/slacken_scratch
 # -v /data/on/host:/data2:rw
 # to expose the /data/on/host directory as /data2 inside Slacken
 
+#We run docker as root:current user to make newly created files writable by the user's group
+
 exec docker run -e SLACKEN_MEMORY=$SLACKEN_MEMORY -p 4040:4040 \
+  -u $(id -u root):$(id -g ${USER}) \
   -e SLACKEN_TMP=$SLACKEN_TMP \
   -v $SLACKEN_DATA:/data:rw \
   jnpsolutions/slacken:1.1.0 $*
