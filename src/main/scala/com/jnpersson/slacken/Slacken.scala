@@ -328,10 +328,8 @@ object Slacken extends SparkTool("Slacken") {
       val conf = new SlackenConf(args)(sparkSession()).finishSetup()
       Commands.run(conf)
     } catch {
-      case ScallopExitException(0) => //Normal return from main
-      case se@ScallopExitException(code) =>
-        System.err.println(s"Exit code $code")
-        throw se
+      case se: ScallopExitException =>
+        handleScallopException(se)
     }
   }
 }
