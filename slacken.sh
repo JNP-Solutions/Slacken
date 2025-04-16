@@ -26,7 +26,7 @@ SLACKEN_MEMORY=${SLACKEN_MEMORY:-16g}
 MEMORY="spark.driver.memory=$SLACKEN_MEMORY"
 
 #Scratch space location. This has a big effect on performance; should ideally be a fast SSD or similar.
-LOCAL_DIR="spark.local.dir=/$SLACKEN_TMP"
+LOCAL_DIR="spark.local.dir=$SLACKEN_TMP"
 
 #On Windows: Change bin/spark-submit to bin/spark-submit.cmd.
 
