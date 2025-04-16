@@ -10,8 +10,7 @@ algorithms. In particular, it supports sample-tailored libraries, where the mini
 of read classification. The end result is a classification for each read, as well as a summary report that shows the number of reads
 and the fraction of reads assigned to each taxon. 
 
-Slacken is based on Apache Spark and is thus a distributed application,
-rather than run on a single machine as Kraken 2 does. Slacken can run on a single machine but it can
+Slacken is based on Apache Spark and is thus a distributed application. It can run on a single machine but it can
 also scale to a cluster with hundreds or thousands of machines. It does not keep all data in RAM during processing but
 processes data in batches.
 
@@ -46,8 +45,8 @@ Copyright (c) Johan Nyström-Persson 2019-2025.
 
 Minimal single-machine prerequisites:
 * 16 GB or more of RAM (32 GB or more recommended).
-* A fast SSD drive for temporary space is very helpful. The amount of space required depends on the size of the 
-libraries and samples. At least 500 GB of space will be needed for this guide.
+* A fast SSD drive for temporary space. The amount of space required depends on the size of the 
+libraries and samples, and the commands you want to run. At least 500 GB of space will be needed for this guide.
 * The docker command on a Linux machine. (If you do not use Linux, or if you want to avoid Docker, please refer to
   [Running with a Spark distribution](#running-with-a-spark-distribution) below).
 
@@ -130,7 +129,7 @@ When the command has finished, the following files will be generated:
 
 In multi-sample mode (see below), instead of `all` we would see one report and one directory per sample ID.
 
-If we wish, we can now run bracken:
+If we wish, we can now run [Bracken](https://github.com/jenniferlu717/Bracken):
 
 ```commandline
 bracken -d standard-224c/std_35_31_s7_bracken -r 150 -i sample0_c0.15_classified/all_kreport.txt  -o sample0_c0.15_classified/all_bracken
@@ -139,13 +138,13 @@ bracken -d standard-224c/std_35_31_s7_bracken -r 150 -i sample0_c0.15_classified
 After Slacken has terminated, there may sometimes be some temporary files in `slacken_scratch`. It is safe to delete these.
 
 
-#### Perform dynamic (2-step) classification:
+#### Perform dynamic (2-step) classification, optionally with Bracken:
 
 2-step classification first performs an initial classification to identify a taxon set, and then builds a second library 
 on the fly. It then classifies all reads again using this second library.
 
-2-step classification creates a lot of temporary files. To run this example, you need to have an additional 700 GB of free 
-space in the data directory. 
+2-step classification creates a lot of temporary files. To run this example, you need to have an additional 1 TB of free 
+space in the data directory (or 250 GB without `--bracken-length`).
 
 ```commandline
 dockerSlacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify \
@@ -158,7 +157,7 @@ dockerSlacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify \
 
 Here, `--reads 100` is the threshold for including a taxon in the initial set (R100).
 `-l /data/standard-224c` indicates where genomes for library building may be found.
-`--bracken-length` specifies that Bracken weights for the given read length should be generated. That can be slow, and
+`--bracken-length` specifies that Bracken weights for the given read length (150) should be generated. That can be slow, and
 also requires extra space, so we recommend omitting `--bracken-length` when Bracken is not needed.
 
 When the command has finished, the following files will be generated:
@@ -166,14 +165,27 @@ When the command has finished, the following files will be generated:
 * `sample0_R100_c0.15_classified/all_kreport.txt` will be a Kraken-style report.
 * `sample0_R100_c0.15_classified/sample=all` is a directory with txt.gz files. These contain detailed classifications 
 for each read.
-* if you ran with --bracken-length
+* `sample0_R100_taxonSet.txt` is the set of taxa that was detected by the R100 heuristic and included in the second 
+library.
+* `sample0_R100/database150mers.kmer_distrib` will be generated if you ran with `--bracken-length 150`.
 
-This concludes the quick start guide.
+If you generated database150mers.kmer_distrib, we can now run Bracken using the following command:
+
+```commandline
+bracken -d sample0_R100 -r 150 -i sample0_R100_c0.15_classified/all_kreport.txt \
+  -o sample0_R100_c0.15_classified/all_bracken
+```
+
+This concludes the quick start guide. If you have problems getting Slacken to work, we are happy to answer queries to 
+the best of our ability. Feel free to open an issue in this repo, or email us directly (johan@jnpsolutions.io).
 
 ## Common usage 
 
 Below, we describe the most common commands in more detail. For convenience, the complete list of Slacken commands is
 also available on its own [wiki page](https://github.com/JNP-Solutions/Slacken/wiki/Slacken-commands-overview).
+
+In the following examples we are using `slacken.sh` to invoke Slacken. If you prefer to use the Docker version, 
+you can replace that with `dockerSlacken.sh`.
 
 ### Obtaining a pre-built genomic library
 
@@ -277,7 +289,7 @@ Where:
 * --sample-regex is the multisample regular expression (see above)
 * --reads 100 is the taxon heuristic (see below)
 * --bracken-length is the optional read length to use for building bracken weights for the dynamic library. 
-If omitted, no weights will be built.
+If omitted, no weights will be built (and can not be built later).
 * k2 is a directory that contains library/ with the genomes that were used to build the static minimizer index. A subset 
 of these will be used to build the dynamic index.
 
