@@ -48,7 +48,7 @@ Minimal single-machine prerequisites:
 * A fast SSD drive for temporary space. The amount of space required depends on the size of the 
 libraries and samples, and the commands you want to run. At least 500 GB of space will be needed for this guide.
 * The docker command on a Linux machine. (If you do not use Linux, or if you want to avoid Docker, please refer to
-  [Running with a Spark distribution](#running-with-a-spark-distribution) below).
+  [Running with a Spark distribution](#running-with-a-spark-distribution) below.)
 
 #### Download
 
@@ -57,7 +57,9 @@ The latest precompiled Slacken may be downloaded as a .zip from the
 
 Also, pull the Docker image from [DockerHub](https://hub.docker.com/r/jnpsolutions/slacken):
 
-`docker pull jnpsolutions/slacken:latest`
+```commandline
+docker pull jnpsolutions/slacken:latest
+```
 
 Set up the environment:
 
@@ -113,7 +115,7 @@ dockerSlacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify -p \
 ```
 
 In this command, `standard-224c/std_35_31_s7` is the location of the pre-built library. `-p` indicates that we wish to 
-classify paired-end reads. 0.15 is the confidence threshold for calling a read, as in Kraken 2.
+classify paired-end reads. 0.15 is the confidence threshold for classifying a read, as in Kraken 2.
 
 If you get error messages about files not existing or not being readable, check that you put the files inside the SLACKEN_DATA 
 directory that you specified above. Inside Docker, that will show up as /data. Depending on the file's location, symbolic
@@ -156,7 +158,7 @@ dockerSlacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify \
 ```
 
 Here, `--reads 100` is the threshold for including a taxon in the initial set (R100).
-`-l /data/standard-224c` indicates where genomes for library building may be found.
+`-l /data/standard-224c` is required, and indicates where genomes for library building may be found.
 `--bracken-length` specifies that Bracken weights for the given read length (150) should be generated. That can be slow, and
 also requires extra space, so we recommend omitting `--bracken-length` when Bracken is not needed.
 
@@ -185,7 +187,7 @@ Below, we describe the most common commands in more detail. For convenience, the
 also available on its own [wiki page](https://github.com/JNP-Solutions/Slacken/wiki/Slacken-commands-overview).
 
 In the following examples we are using `slacken.sh` to invoke Slacken. If you prefer to use the Docker version, 
-you can replace that with `dockerSlacken.sh`.
+please use `dockerSlacken.sh` instead.
 
 ### Obtaining a pre-built genomic library
 
@@ -205,7 +207,7 @@ these libraries may also be accessed directly from the public S3 bucket without 
 
 The "1-step" classification corresponds to the standard Kraken 2 method. It classifies reads based on the pre-built library only.
 
-```
+```commandline
 ./slacken.sh taxonIndex mySlackenLib classify -o test_class \
  testData/SRR094926_10k.fasta 
 ```
@@ -220,7 +222,7 @@ be `standard-224c/std_35_31_s7`.
 
 To classify mate pairs, the `-p` flag may be used. Input files are then expected to be paired up in sequence:
 
-```
+```commandline
 ./slacken.sh taxonIndex mySlackenLib classify -p -o test_class \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq 
 ```
@@ -236,7 +238,7 @@ Samples are identified by means of a regular expression that extracts the sample
 
 For example:
 
-```
+```commandline
 ./slacken.sh taxonIndex mySlackenLib classify -p \
  --sample-regex "(S[0-9]+)" -o test_class \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq
@@ -259,7 +261,7 @@ They can be used directly with Bracken to re-estimate taxon abundances in a taxo
 
 For example:
 
-```
+```commandline
 ./slacken.sh taxonIndex mySlackenLib brackenWeights --read-len 150
 ```
 
@@ -277,21 +279,22 @@ and used to classify the reads for the final result.
 
 For example (100 reads heuristic, multi-sample mode):
 
-```
+```commandline
 ./slacken.sh taxonIndex mySlackenLib classify -p \
- --sample-regex "(S[0-9]+)" -o test_class \
-  dynamic --reads 100 -l k2 --bracken-length 150 \
+  --output test_class \
+  dynamic --reads 100 --library k2 --bracken-length 150 \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq
 ```
 
 Where:
 
-* --sample-regex is the multisample regular expression (see above)
-* --reads 100 is the taxon heuristic (see below)
-* --bracken-length is the optional read length to use for building bracken weights for the dynamic library. 
-If omitted, no weights will be built (and can not be built later).
-* k2 is a directory that contains library/ with the genomes that were used to build the static minimizer index. A subset 
-of these will be used to build the dynamic index.
+* `--library` is required to specify the location of genomes. Here, k2 is a directory that contains library/ with the genomes that were used to build the static minimizer index. A subset
+  of these will be used to build the dynamic index.
+* `--reads 100` is the taxon heuristic (see below)
+* `--bracken-length` is the optional read length to use for building bracken weights for the dynamic library. 
+This is slow and requires a lot of temporary space. If omitted, no weights will be built (and can not be built later).
+
+Dynamic classification also accepts other flags like `--sample-regex` (see above)
 
 #### Heuristics
 
@@ -322,7 +325,7 @@ a library can be built from those taxa during classification by supplying:
 
 For example:
 
-```
+```commandline
 ./slacken.sh taxonIndex mySlackenLib classify -p \
  --sample-regex "(S[0-9]+)" -o test_class \
   dynamic --classify-with-gold -g goldSet.txt -l k2 --bracken-length 150 \
@@ -340,7 +343,7 @@ If `-classify-with-gold` is not given but `-g` is, then the detected taxon set w
 Running with your own Spark distribution, without the Docker image, provides additional flexibility of configuration for
 advanced users. This works on Linux, Mac and Windows but requires a little more configuration.
 Unlike with the Docker image, Slacken would be able to access all files that you have access to, not just Docker mounted
-ones like `/data`.
+volumes like `/data`.
 
 Software dependencies:
 * [Spark](https://spark.apache.org/downloads.html) 3.5.0 or later (pre-built, for Scala 2.12. The Scala 2.13 version is not compatible.) It is sufficient
@@ -349,7 +352,7 @@ Software dependencies:
 
 Set up the environment:
 
-```
+```commandline
 #path to the Spark distribution (where you extracted your Spark download)
 export SPARK_HOME=/usr/local/spark-3.5.1-bin-hadoop3  
 
@@ -383,7 +386,9 @@ Copy `slacken-aws.sh.template` to a new file, e.g. `slacken-aws.sh` and edit the
 some settings such as the S3 bucket to use for the Slacken jar. Then, create the AWS EMR cluster. You will receive a
 cluster ID, either from the web GUI or from the CLI. Set the `AWS_EMR_CLUSTER` environment variable to this id:
 
-```export AWS_EMR_CLUSTER=j-abc123...```
+```commandline
+export AWS_EMR_CLUSTER=j-abc123...
+```
 
 `slacken-aws.sh` may then be invoked in the same way as `slacken.sh` in the examples above, with the difference that
 instead of running Slacken locally, the script will create a step on your EMR cluster.
@@ -437,7 +442,7 @@ logic for building the "refseq prefer complete" library. Please refer to README.
 
 After the input files have been prepared as above, the index may be built:
 
-```
+```commandline
 ./slacken.sh  -p 2000 -k 35 -m 31 -t k2/taxonomy taxonIndex mySlackenLib \
   build -l k2 
 ```
