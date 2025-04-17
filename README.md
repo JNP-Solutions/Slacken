@@ -55,10 +55,14 @@ libraries and samples, and the commands you want to run. At least 500 GB of spac
 The latest precompiled Slacken may be downloaded as a .zip from the
 [Releases](https://github.com/JNP-Solutions/Slacken/releases). This is the easiest way to obtain Slacken. Download Slacken 1.1.0 and unzip the release.
 
+```commandline
+curl -LO https://github.com/JNP-Solutions/Slacken/releases/download/v1.1.0/Slacken-1.1.0.zip && \
+unzip Slacken-1.1.0.zip
+```
 Also, pull the Docker image from [DockerHub](https://hub.docker.com/r/jnpsolutions/slacken):
 
 ```commandline
-docker pull jnpsolutions/slacken:latest
+docker pull jnpsolutions/slacken:1.1.0
 ```
 
 Set up the environment:
@@ -75,14 +79,14 @@ export SLACKEN_MEMORY=32g
 In order to extract the library, your data location should have at least 500 GB of free space. Please set the path as appropriate on your own system.
 
 Check that Slacken can successfully run and display a help message: 
-`./dockerSlacken.sh --help`
+`./Slacken/dockerSlacken.sh --help`
 
 These options may also be permanently configured by editing `dockerSlacken.sh`.
 
 It may be helpful to put this script in your `$PATH`, e.g.:
 
 ```commandline
-  ln -s $(pwd)/dockerSlacken.sh $HOME/bin
+  ln -s $(pwd)/Slacken/dockerSlacken.sh $HOME/bin
 ```
 
 Download the pre-built library, e.g. using curl, to the previously specified data location.
@@ -277,19 +281,19 @@ For this method, first, a static minimizer library must be built as usual, follo
 to sketch the taxon set in the sample/samples being classified by using a user-specified heuristic. During classification, a second minimizer library is built on the fly
 and used to classify the reads for the final result. 
 
-For example (100 reads heuristic, multi-sample mode):
+For example (100 reads heuristic):
 
 ```commandline
 ./slacken.sh taxonIndex mySlackenLib classify -p \
-  --output test_class \
-  dynamic --reads 100 --library k2 --bracken-length 150 \
+  --o test_class \
+  dynamic --reads 100 --library standard-224c --bracken-length 150 \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq
 ```
 
 Where:
 
-* `--library` is required to specify the location of genomes. Here, k2 is a directory that contains library/ with the genomes that were used to build the static minimizer index. A subset
-  of these will be used to build the dynamic index.
+* `--library` is required to specify the location of genomes. Here, standard-224c is a directory that contains library/ with the 
+genomes that were used to build the static minimizer index. A subset of these will be used to build the dynamic index.
 * `--reads 100` is the taxon heuristic (see below)
 * `--bracken-length` is the optional read length to use for building bracken weights for the dynamic library. 
 This is slow and requires a lot of temporary space. If omitted, no weights will be built (and can not be built later).
@@ -328,7 +332,7 @@ For example:
 ```commandline
 ./slacken.sh taxonIndex mySlackenLib classify -p \
  --sample-regex "(S[0-9]+)" -o test_class \
-  dynamic --classify-with-gold -g goldSet.txt -l k2 --bracken-length 150 \
+  dynamic --classify-with-gold -g goldSet.txt --library standard-224c --bracken-length 150 \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq
 ```
 
