@@ -21,15 +21,15 @@ USER root
 RUN mkdir /scratch
 RUN chown spark:spark /scratch
 USER spark
-ENV SLACKEN_TMP /scratch
+ENV SLACKEN_TMP=/scratch
 
-ENV SLACKEN_HOME /opt/slacken
+ENV SLACKEN_HOME=/opt/slacken
 
 #Consider also setting SLACKEN_MEMORY while running, e.g. with -e SLACKEN_MEMORY=32g (more is better).
 
 #The web interface may be accessed on this port while Slacken is running.
 #Run with -p 4040:4040
-ENV SPARK_LOCAL_IP 0.0.0.0
+ENV SPARK_LOCAL_IP=0.0.0.0
 EXPOSE 4040
 
 ENTRYPOINT ["/opt/slacken/slacken.sh"]
