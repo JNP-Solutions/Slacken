@@ -14,9 +14,8 @@ Slacken is based on Apache Spark and is thus a distributed application. It can r
 also scale to a cluster with hundreds or thousands of machines. It does not keep all data in RAM during processing but
 processes data in batches.
 
-We do not currently support translated mode (protein/AA sequence classification) but only nucleotide sequences.
-
-Slacken has its own database format (Parquet based) and unfortunately can not use pre-built Kraken 2 databases as they are.
+We do not currently support translated mode (protein/AA sequence classification) but only nucleotide sequences. Also, 
+Slacken has its own database format (Parquet based) and can not use pre-built Kraken 2 databases as they are.
 
 For more motivation and details, please see our [preprint](https://www.biorxiv.org/content/10.1101/2024.12.22.629657) on BioRXiv.
 
@@ -44,11 +43,12 @@ Copyright (c) Johan Nyström-Persson 2019-2025.
 ## Quick start using Docker on Linux
 
 Minimal single-machine prerequisites:
-* 16 GB or more of RAM (32 GB or more recommended).
+* 16 GB or more of free RAM (32 GB or more recommended).
 * A fast SSD drive for temporary space. The amount of space required depends on the size of the 
 libraries and samples, and the commands you want to run. At least 500 GB of space will be needed for this guide.
-* The docker command on a Linux machine. (If you do not use Linux, or if you want to avoid Docker, please refer to
-  [Running with a Spark distribution](#running-with-a-spark-distribution) below.)
+* We assume that you are running Linux and have Docker installed. We have tested with Docker v26.1. If you do not use Linux, or if you want to avoid Docker, please refer to
+  [Running with a Spark distribution](#running-with-a-spark-distribution) below.
+* If you want to run Bracken, we assume that you have it installed.
 
 #### Download
 
@@ -86,10 +86,10 @@ These options may also be permanently configured by editing `dockerSlacken.sh`.
 It may be helpful to put this script in your `$PATH`, e.g.:
 
 ```commandline
-  ln -s $(pwd)/Slacken/dockerSlacken.sh $HOME/bin
+  export PATH=$PATH:$(pwd)/Slacken
 ```
 
-Download the pre-built library, e.g. using curl, to the previously specified data location.
+Download the pre-built library to the previously specified data location.
 After successful extraction, we delete the tar.gz to free up some space.
 
 ```commandline
@@ -105,8 +105,7 @@ curl -LO https://s3.amazonaws.com/slacken-sbi/cami2/strain/sample0/anonymous_rea
 curl -LO https://s3.amazonaws.com/slacken-sbi/cami2/strain/sample0/anonymous_reads.part_002.fq
 ```
 
-Note that Slacken currently does not support compressed (e.g. gz or bz2) input files. We are planning to support this in 
-the next major version. Currently you will have to uncompress such files before classifying them.
+Slacken currently does not support compressed (e.g. gz or bz2) input files. 
 
 #### Perform read classification (1-step):
 
@@ -141,7 +140,8 @@ If we wish, we can now run [Bracken](https://github.com/jenniferlu717/Bracken):
 bracken -d standard-224c/std_35_31_s7_bracken -r 150 -i sample0_c0.15_classified/all_kreport.txt  -o sample0_c0.15_classified/all_bracken
 ```
 
-After Slacken has terminated, there may sometimes be some temporary files in `slacken_scratch`. It is safe to delete these.
+After Slacken has terminated, there will sometimes be some temporary files in `slacken_scratch` 
+(in the location you specified as `SLACKEN_DATA`). They can be deleted.
 
 
 #### Perform dynamic (2-step) classification, optionally with Bracken:
@@ -161,9 +161,11 @@ dockerSlacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify \
     /data/anonymous_reads.part_001.fq /data/anonymous_reads.part_002.fq 
 ```
 
-Here, `--reads 100` is the threshold for including a taxon in the initial set (R100).
-`-l /data/standard-224c` is required, and indicates where genomes for library building may be found.
-`--bracken-length` specifies that Bracken weights for the given read length (150) should be generated. That can be slow, and
+Here, 
+
+* `--reads 100` is the threshold for including a taxon in the initial set (R100).
+* `-l /data/standard-224c` is required, and indicates where genomes for library building may be found.
+* `--bracken-length 150` specifies that Bracken weights for the given read length (150) should be generated. That can be slow, and
 also requires extra space, so we recommend omitting `--bracken-length` when Bracken is not needed.
 
 When the command has finished, the following files will be generated:
@@ -213,14 +215,14 @@ The "1-step" classification corresponds to the standard Kraken 2 method. It clas
 
 ```commandline
 ./slacken.sh taxonIndex mySlackenLib classify -o test_class \
- testData/SRR094926_10k.fasta 
+ sample1.fasta 
 ```
 
 Where
 
 * `mySlackenLib` is the location where the library was built. For the pre-built library, this would 
 be `standard-224c/std_35_31_s7`.
-* `SRR094926_10k.fasta` is the file with reads to be classified. Any number of files may be supplied.
+*  `sample1.fasta` is the file with reads to be classified. Any number of files may be supplied.
 * `test_class` is the directory where the output will be stored. Individual read classifications and a file 
 `test_class_kreport.txt` will be created.
 
@@ -251,9 +253,10 @@ For example:
 With this regular expression, a read with the ID `@S0R5/1` in a fastq file would be assigned to sample `S0`,
 the ID `@S2R5/1` would be assigned to sample `S2`, and so on. 
 
-For NCBI SRA-style headers of the form `@ERR234359.1`, a regex like 
+As another example, samples from the NCBI Sequencing Read Archive (SRA) might have headers of the form 
+`@ERR234359.1`. Here, a regex like 
 
-`--sample-regex "@(.+)\."` 
+`--sample-regex "(.+)\."` 
 
 would do the job. In this case the sample ID is `ERR234359`.
 
@@ -369,7 +372,7 @@ export SLACKEN_MEMORY=32g
 ```
 
 Check that it works:
-`./slacken.sh --help`
+`./slacken.sh --help`. 
 
 These options may also be permanently configured by editing `slacken.sh`.
 
@@ -464,7 +467,8 @@ per output file)
 We have found that 2000 partitions is suitable for the standard library, and 30,000 is reasonable for a large library 
 with 1.8 TB of FASTA input sequences.
 
-More help: `./slacken.sh --help`
+More help: `./slacken.sh --help` (or see the equivalent [wiki page](https://github.com/JNP-Solutions/Slacken/wiki/Slacken-commands-overview)).
+
 
 ### Discrepancies between Slacken and Kraken 2
 
@@ -482,6 +486,8 @@ the database contains a very large number of taxa, may be more precise.
 
 * From the NCBI taxonomy, Kraken 2 currently reads only names.dmp and nodes.dmp, whereas Slacken also reads merged.dmp 
 to correctly handle merged taxa. Canonical taxon IDs will be output in the results.
+
+We are happy to provide the code that we used for debugging Kraken 2 minimizer detection on request. 
 
 ### Compiling
 
