@@ -30,6 +30,7 @@ Copyright (c) Johan Nyström-Persson 2019-2025.
   - [Multi-sample mode](#multi-sample-mode)
   - [Use with Bracken](#use-with-bracken)
   - [Classifying reads (2-step/dynamic)](#classifying-reads-using-a-dynamic-index-2-step-method)
+  - [Troubleshooting](#troubleshooting)
 3. [Technical details](#technical-details)
   - [Running with a Spark distribution](#running-with-a-spark-distribution)
 -   [Running on AWS Elastic MapReduce or large clusters](#running-on-aws-elastic-mapreduce-or-large-clusters)
@@ -340,6 +341,21 @@ For example:
 ```
 
 If `-classify-with-gold` is not given but `-g` is, then the detected taxon set will be compared with the gold set.
+
+### Troubleshooting
+
+When getting error messages from Slacken/Spark/Java, it is helpful to locate the first error message that occurred. 
+Often the root cause can be found there.
+
+#### java.lang.ArrayIndexOutOfBoundsException: Index 3080012 out of bounds for length 3080008
+
+Messages of this type may indicate that the taxonomy used is not compatible with either the library or the taxon set being 
+used. Make sure you are not mixing two different taxonomies.
+
+####  java.lang.OutOfMemoryError: Java heap space
+
+Not enough memory. Increase the amount of memory available to Slacken via the SLACKEN_MEMORY variable (if you are 
+running on a single machine. Otherwise, use the method appropriate to your cluster.)
 
 
 ## Technical details
