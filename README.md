@@ -1,6 +1,6 @@
 ## Slacken
 
-[![Build and test](https://github.com/jtnystrom/discount/actions/workflows/ci.yml/badge.svg)](https://github.com/jtnystrom/Discount/actions/workflows/ci.yml)
+[![Build and test](https://github.com/JNP-Solutions/Slacken/actions/workflows/scala.yml/badge.svg)](https://github.com/jtnystrom/Discount/actions/workflows/ci.yml)
 [![Docker Pulls](https://badgen.net/docker/pulls/jtnystrom/slacken?icon=docker&label=pulls)](https://hub.docker.com/r/jtnystrom/slacken/)
 ![GitHub License](https://img.shields.io/github/license/jnp-solutions/slacken)
 
@@ -9,7 +9,7 @@ Slacken is a metagenomic profiler that classifies genomic sequences based on k-m
 algorithms. In particular, it supports sample-tailored libraries, where the minimizer library is built on the fly as part 
 of read classification.
 
-For more motivation and details, please see our [preprint](https://www.biorxiv.org/content/10.1101/2024.12.22.629657v1) on BioRXiv.
+For more motivation and details, please see our [preprint](https://www.biorxiv.org/content/10.1101/2024.12.22.629657) on BioRXiv.
 
 Copyright (c) Johan Nyström-Persson 2019-2025.
 
