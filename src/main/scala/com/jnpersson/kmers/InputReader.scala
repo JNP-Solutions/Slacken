@@ -94,6 +94,10 @@ class Inputs(val files: Seq[String], k: Int, maxReadLength: Int, inputGrouping: 
   protected val conf = new HConfiguration(spark.sparkContext.hadoopConfiguration)
   import spark.sqlContext.implicits._
 
+  /** Clone this Inputs with a different value of k. */
+  def withK(newK: Int): Inputs =
+    new Inputs(files, newK, maxReadLength, inputGrouping)
+
   private val expandedFiles = files.toList.flatMap(f => {
     if (f.startsWith("@")) {
       println(s"Assuming that $f is a list of input files (using @ syntax)")
