@@ -470,7 +470,7 @@ object KeyValueIndex {
 
     val params = IndexParams.read(location)(spark, SlackenMinimizerFormats)
     val sp = SparkTool.newSession(spark, params.buckets) //Ensure that new datasets have the same number of partitions
-    val i = new KeyValueIndex(spark.sqlContext.emptyDataFrame, params, taxonomy)
+    val i = new KeyValueIndex(spark.sqlContext.emptyDataFrame, params, taxonomy)(sp)
     i.withRecords(i.loadRecords())
   }
 }
