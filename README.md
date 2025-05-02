@@ -23,7 +23,7 @@ Copyright (c) Johan Nyström-Persson 2019-2025.
 
 ## Contents
 1. [Quick start using Docker on Linux](#quick-start-using-docker-on-linux)
-2. [Common usage](#common-usage-)
+2. [Common usage](#common-usage)
   - [Introduction](#introduction)
   - [Pre-built genomic libraries](#obtaining-a-pre-built-genomic-library)
   - [Classifying reads (1-step)](#classifying-reads-1-step)
@@ -188,7 +188,7 @@ bracken -d sample0_R100 -r 150 -i sample0_R100_c0.15_classified/all_kreport.txt 
 This concludes the quick start guide. If you have problems getting Slacken to work, we are happy to answer queries to 
 the best of our ability. Feel free to open an issue in this repo, or email us directly (johan@jnpsolutions.io).
 
-## Common usage 
+## Common usage
 
 Below, we describe the most common commands in more detail. For convenience, the complete list of Slacken commands is
 also available on its own [wiki page](https://github.com/JNP-Solutions/Slacken/wiki/Slacken-commands-overview).
