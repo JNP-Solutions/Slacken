@@ -415,7 +415,10 @@ class BrackenWeights(keyValueIndex: KeyValueIndex, readLen: Int)(implicit val sp
   def buildAndWriteWeights(library: GenomeLibrary, taxa: BitSet, outputLocation: String, gradual: Boolean = false): Unit = {
     val tempLocation = outputLocation + "_tmp"
     val reads =
-      if (gradual) buildWeightsGradually(library, taxa, tempLocation) else buildWeights(library, taxa)
+      if (gradual)
+        buildWeightsGradually(library, taxa, tempLocation)
+      else
+        buildWeights(library, taxa).cache()
     try {
       writeKmerDistrib(groupData(reads), outputLocation)
     } finally {
