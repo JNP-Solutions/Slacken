@@ -357,6 +357,11 @@ used. Make sure you are not mixing two different taxonomies.
 Not enough memory. Increase the amount of memory available to Slacken via the SLACKEN_MEMORY variable (if you are 
 running on a single machine. Otherwise, use the method appropriate to your cluster.)
 
+#### java.io.IOException: Input path does not exist
+
+If you are running Slacken with Docker, this error can occur when you are trying to access files outside the `/data`
+directory. The Docker container can only see volumes that you have mounted, and also can only write to these locations. 
+It is possible to supply multiple directories by passing additional `-v` arguments to Docker.
 
 ## Technical details
 
