@@ -1,7 +1,7 @@
 ## Slacken
 
 [![Build and test](https://github.com/JNP-Solutions/Slacken/actions/workflows/scala.yml/badge.svg)](https://github.com/jtnystrom/Discount/actions/workflows/ci.yml)
-[![Docker Pulls](https://badgen.net/docker/pulls/jnpsolutions/slacken?icon=docker&label=pulls)](https://hub.docker.com/r/jtnystrom/slacken/)
+[![Docker Pulls](https://badgen.net/docker/pulls/jnpsolutions/slacken?icon=docker&label=pulls)](https://hub.docker.com/r/jnpsolutions/slacken/)
 ![GitHub License](https://img.shields.io/github/license/jnp-solutions/slacken)
 
 Slacken is a metagenomic profiler that classifies genomic sequences based on k-mers and minimizers. It implements the
@@ -10,8 +10,8 @@ algorithms. In particular, it supports sample-tailored libraries, where the mini
 of read classification. The end result is a classification for each read, as well as a summary report that shows the number of reads
 and the fraction of reads assigned to each taxon. 
 
-Slacken is based on Apache Spark and is thus a distributed application. It can run on a single machine but it can
-also scale to a cluster with hundreds or thousands of machines. It does not keep all data in RAM during processing but
+Slacken is based on Apache Spark and is thus a distributed application. It can run on a single machine, but can
+also scale to a cluster with hundreds or thousands of machines. It does not keep all data in RAM during processing, but
 processes data in batches.
 
 We do not currently support translated mode (protein/AA sequence classification) but only nucleotide sequences. Also, 
@@ -361,7 +361,7 @@ running on a single machine. Otherwise, use the method appropriate to your clust
 ## Technical details
 
 
-### Running with a spark Distribution
+### Running with a Spark Distribution
 
 Running with your own Spark distribution, without the Docker image, provides additional flexibility of configuration for
 advanced users. This works on Linux, Mac and Windows but requires a little more configuration.
