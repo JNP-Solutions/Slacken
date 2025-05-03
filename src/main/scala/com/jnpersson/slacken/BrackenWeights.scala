@@ -45,18 +45,17 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
    * splits will overlap by k-1 letters.
    */
   def splitToMaxLength(max: Int, k: Int): Iterator[TaxonFragment] = {
+    def safeEnd(end: Int) =
+      if (end > nucleotides.length) nucleotides.length else end
+
     if (nucleotides.length <= max)
       Iterator(this)
-    else {
-      def safeEnd(end: Int) =
-        if (end > nucleotides.length) nucleotides.length else end
-
+    else
       //Each subfragment will contain (max - k) k-mers and (k-1) bps overlapping with the following subfragment
       for {
         start <- Iterator.range(0, nucleotides.length - k + 1, max - (k - 1)) //starting positions of k-mers
         f = TaxonFragment(taxon, nucleotides.substring(start, safeEnd(start + max)), header, location + start)
       } yield f
-    }
   }
 
   /**
@@ -70,13 +69,12 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
     val segments = Supermers.splitByAmbiguity(nucleotides, splitter.k)
     val builder = KmerTable.builder(splitter.priorities.width, 10000)
 
-    for { (seq, flag, _) <- segments } {
-      if (flag == SEQUENCE_FLAG) {
-        val it = splitter.superkmerPositions(seq)
-        while (it.hasNext) {
-          builder.addLongs(it.next().rank)
-        }
-      }
+    for {
+      (seq, flag, _) <- segments
+      if flag == SEQUENCE_FLAG
+      sm <- splitter.superkmerPositions(seq)
+    } {
+      builder.addLongs(sm.rank)
     }
 
     val r = builder.result(true).distinctKmers
@@ -170,7 +168,11 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
   }
 
   /** Generate all TaxonHits from the fragment by combining the LCA taxa with the minimizers,
-   * building super-mers. */
+   * building super-mers.
+   * @param minimizers Minimizers in this fragment
+   * @param lcas Lca taxa of the minimizers, as fetched from the index. Corresponds position by position to minimizers.
+   * @param splitter The splitter
+   */
   def taxonHits(minimizers: Array[Array[Long]], lcas: Array[Taxon],
                 splitter: AnyMinSplitter): Iterator[TaxonHit] = {
 
@@ -201,7 +203,8 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
           lastMinimizer = x.rank
           TaxonHit(distinct, x.location + pos, lcaLookup.applyAsInt(x.rank), x.length - (k - 1))
         }) ++
-          //additional invalid k-mers that go into the next ambiguous segment, or past the end
+          //additional invalid k-mers that go into the next ambiguous segment, or past the end.
+          //The total k-mer count has to be correct, or we can't simulate all reads from the sequence later.
           Iterator(TaxonHit(false, seq.length - (k - 1), Taxonomy.NONE, k - 1))
 
       case (seq, AMBIGUOUS_FLAG, pos) =>
@@ -244,11 +247,9 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
     }).buffered
 
     /*
-        Sum up consecutive identical classifications to reduce the amount of data generated.
+        Pre-sum consecutive identical classifications to reduce the total amount of data emitted to Spark.
     This exploits the fact that we know each fragment can only classify to relatively few taxa
     (must be some taxon in its lineage, which is usually < 30).
-    At the same time this is cheaper than building a full hash map and counting each distinct value
-    (which Spark should do anyway)
      */
 
     new Iterator[(Taxon, Taxon, Long)] {
