@@ -53,6 +53,8 @@ class FragmentWindow(private var hits: Iterator[TaxonHit], kmersPerWindow: Int) 
   //This mutable map updates to reflect the current window.
   val countSummary = new it.unimi.dsi.fastutil.ints.Int2IntArrayMap(16) //specialised, very fast map
 
+  var numHitGroups = 0
+
   //Is at least one k-mer from the hit contained in the window?
   //Compare the final possible k-mer start with the bounds.
   private def inWindow(hit: TaxonHit) =
@@ -65,15 +67,23 @@ class FragmentWindow(private var hits: Iterator[TaxonHit], kmersPerWindow: Int) 
   private def passedWindow(hit: TaxonHit) =
     hit.ordinal + (hit.count - 1) < windowStart
 
+  //Mutating buffer that reflects hits in the current window
   val currentWindow: mutable.ArrayBuffer[TaxonHit] = {
     val (window, rem) = hits.span(inWindow)
     hits = rem
     window.to[ArrayBuffer]
   }
 
+  //Populate the initial state
+  for {
+    h <- currentWindow
+    if h.distinct && h.taxon != NONE
+  } {
+    numHitGroups += 1
+  }
+
   lastInWindow = currentWindow.last
 
-  //Populate the initial state
   for {
     h <- currentWindow
     kmerStart <- h.ordinal until h.ordinal + h.count
@@ -100,18 +110,26 @@ class FragmentWindow(private var hits: Iterator[TaxonHit], kmersPerWindow: Int) 
     //Did the first hit pass out of the window?
     if (passedWindow(currentWindow.head)) {
       currentWindow.remove(0)
+      if (remove.distinct && remove.taxon != NONE) {
+        numHitGroups -= 1
+      }
     }
 
     //Did a new hit move into the window?
     if (lastInWindow.ordinal + lastInWindow.count < windowEnd) {  //no longer touching the boundary
-      if (hits.hasNext) currentWindow += hits.next()
+      if (hits.hasNext) {
+        val add = hits.next()
+        currentWindow += add
+        if (add.distinct && add.taxon != NONE) {
+          numHitGroups += 1
+        }
+      }
       lastInWindow = currentWindow.last
     }
 
     //increment one taxon
     countSummary.put(lastInWindow.taxon, countSummary.applyAsInt(lastInWindow.taxon) + 1)
   }
-
 }
 
 /**
@@ -240,12 +258,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
     //classify the corresponding minimizers.
     Iterator.range(0, nucleotides.length - readLen + 1).map(start => { // inclusive
       if (start > 0) hitWindow.advance()
-
-      val inWindow = hitWindow.currentWindow
-      val destTaxon = if (inWindow.nonEmpty)
-        classify(lca, inWindow, hitWindow.countSummary)
-      else
-        Taxonomy.NONE
+      val destTaxon = classify(lca, hitWindow.numHitGroups, hitWindow.countSummary)
       (taxon, destTaxon)
     })
   }
@@ -253,36 +266,17 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
   /** Classify a single read efficiently.
    * This is a simplified version of [[Classifier$.classify]].
    * @param lca LCA calculator
-   * @param sortedHits hits in this read. Used for sufficientHitGroups only. Counts will not be used.
+   * @param numHitGroups number of distinct hit groups in the read
    * @param summary taxon to k-mer count lookup map for this read
    */
-  def classify(lca: LowestCommonAncestor, sortedHits: IndexedSeq[TaxonHit], summary: Int2IntMap): Taxon = {
+  def classify(lca: LowestCommonAncestor, numHitGroups: Int, summary: Int2IntMap): Taxon = {
     // confidence threshold is irrelevant for this purpose, as when we are self-classifying a library,
     // all the taxa that we hit should be in the same clade
     val confidenceThreshold = 0.0
     val minHitGroups = 2
     val reportTaxon = lca.resolveTree(summary, confidenceThreshold)
-    val classified = sufficientHitGroups(sortedHits, minHitGroups)
+    val classified = numHitGroups >= minHitGroups
     if (classified) reportTaxon else Taxonomy.NONE
-  }
-
-  /** For the given set of sorted hits, was there a sufficient number of hit groups wrt the given minimum?
-   * This is a simplified version of [[Classifier.sufficientHitGroups()]] for this special use case.
-   */
-  def sufficientHitGroups(sortedHits: IndexedSeq[TaxonHit], minimum: Int): Boolean = {
-    var hitCount = 0
-
-    var i = 0
-    while (i < sortedHits.length) {
-      //count separate hit groups (adjacent but with different minimizers) for each sequence, imitating kraken2 classify.cc
-      val hit = sortedHits(i)
-      if (hit.taxon != Taxonomy.NONE && hit.distinct) {
-        hitCount += 1
-        if (hitCount >= minimum) return true
-      }
-      i += 1
-    }
-    false
   }
 }
 
