@@ -23,13 +23,96 @@ import com.jnpersson.slacken.Taxonomy.NONE
 import it.unimi.dsi.fastutil.ints.Int2IntMap
 import it.unimi.dsi.fastutil.objects.Object2IntOpenCustomHashMap
 import it.unimi.dsi.fastutil.longs.LongArrays.HASH_STRATEGY
-import org.apache.spark.sql.functions.{collect_list, ifnull, lit, regexp_replace, sum, udf}
+import org.apache.spark.sql.functions.{collect_list, count, ifnull, lit, regexp_replace, sum, udf}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 
 import java.util
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.{BitSet, mutable}
 
+
+/** Sliding window corresponding to a list of taxon hits. Each hit is a super-mer with some number of k-mers.
+ * Each window position corresponds to one read.
+ *
+ * Assumptions:
+ * Positions refer to k-mer starting positions.
+ * hits are sorted in order ("ordinal" which means absolute position here).
+ * Every k-mer in the fragment is accounted for in some hit.
+ * NONE hits are inserted to account for ambiguous regions (quasi-supermers with the correct length).
+ *
+ * @param hits hits in the fragment
+ */
+class FragmentWindow(private var hits: Iterator[TaxonHit], kmersPerWindow: Int) {
+
+  //Offsets in the fragment
+  private var windowStart = 0 //inclusive
+  private var windowEnd = kmersPerWindow // not inclusive
+  private var lastInWindow: TaxonHit = _ //cache this for optimisation
+
+  //Map taxon to k-mer count.
+  //This mutable map updates to reflect the current window.
+  val countSummary = new it.unimi.dsi.fastutil.ints.Int2IntArrayMap(16) //specialised, very fast map
+
+  //Is at least one k-mer from the hit contained in the window?
+  //Compare the final possible k-mer start with the bounds.
+  private def inWindow(hit: TaxonHit) =
+    hit.ordinal < windowEnd
+
+  private def inWindow(pos: Int) =
+    pos >= windowStart && pos < windowEnd
+
+  //Has the hit already passed through the window (i.e., is it behind it?)
+  private def passedWindow(hit: TaxonHit) =
+    hit.ordinal + (hit.count - 1) < windowStart
+
+  val currentWindow: mutable.ArrayBuffer[TaxonHit] = {
+    val (window, rem) = hits.span(inWindow)
+    hits = rem
+    window.to[ArrayBuffer]
+  }
+
+  lastInWindow = currentWindow.last
+
+  //Populate the initial state
+  for {
+    h <- currentWindow
+    kmerStart <- h.ordinal until h.ordinal + h.count
+    if inWindow(kmerStart)
+  } {
+    countSummary.put(h.taxon, countSummary.applyAsInt(h.taxon) + 1)
+  }
+
+
+  /** Move the window one step forward. */
+  def advance(): Unit = {
+    //Decrement one taxon
+    val remove = currentWindow.head
+
+    val updated = countSummary.applyAsInt(remove.taxon) - 1
+    if (updated > 0)
+      countSummary.put(remove.taxon, updated)
+    else
+      countSummary.remove(remove.taxon)
+
+    windowStart += 1
+    windowEnd += 1
+
+    //Did the first hit pass out of the window?
+    if (passedWindow(currentWindow.head)) {
+      currentWindow.remove(0)
+    }
+
+    //Did a new hit move into the window?
+    if (lastInWindow.ordinal + lastInWindow.count < windowEnd) {  //no longer touching the boundary
+      if (hits.hasNext) currentWindow += hits.next()
+      lastInWindow = currentWindow.last
+    }
+
+    //increment one taxon
+    countSummary.put(lastInWindow.taxon, countSummary.applyAsInt(lastInWindow.taxon) + 1)
+  }
+
+}
 
 /**
  * A fragment of a genome.
@@ -84,89 +167,6 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
     } else r
   }
 
-  /** Sliding window corresponding to a list of hits. Each hit is a super-mer with some number of k-mers.
-   * Each window position corresponds to one read.
-   *
-   * Assumptions:
-   * Positions refer to k-mer starting positions.
-   * hits are sorted in order ("ordinal" which means absolute position here).
-   * Every k-mer in the fragment is accounted for in some hit.
-   * NONE hits are inserted to account for ambiguous regions (quasi-supermers with the correct length).
-   *
-   * @param hits hits in the fragment
-   */
-  class FragmentWindow(private var hits: Iterator[TaxonHit], kmersPerWindow: Int) {
-
-    //Offsets in the fragment
-    private var windowStart = 0 //inclusive
-    private var windowEnd = kmersPerWindow // not inclusive
-    private var lastInWindow: TaxonHit = _ //cache this for optimisation
-
-    //Map taxon to k-mer count.
-    //This mutable map updates to reflect the current window.
-    val countSummary = new it.unimi.dsi.fastutil.ints.Int2IntArrayMap(16) //specialised, very fast map
-
-    //Is at least one k-mer from the hit contained in the window?
-    //Compare the final possible k-mer start with the bounds.
-    private def inWindow(hit: TaxonHit) =
-      hit.ordinal < windowEnd
-
-    private def inWindow(pos: Int) =
-      pos >= windowStart && pos < windowEnd
-
-    //Has the hit already passed through the window (i.e., is it behind it?)
-    private def passedWindow(hit: TaxonHit) =
-      hit.ordinal + (hit.count - 1) < windowStart
-
-    val currentWindow: mutable.ArrayBuffer[TaxonHit] = {
-      val (window, rem) = hits.span(inWindow)
-      hits = rem
-      window.to[ArrayBuffer]
-    }
-
-    lastInWindow = currentWindow.last
-
-    //Populate the initial state
-    for {
-      h <- currentWindow
-      kmerStart <- h.ordinal until h.ordinal + h.count
-      if inWindow(kmerStart)
-    } {
-      countSummary.put(h.taxon, countSummary.applyAsInt(h.taxon) + 1)
-    }
-
-
-    /** Move the window one step forward. */
-    def advance(): Unit = {
-      //Decrement one taxon
-      val remove = currentWindow.head
-
-      val updated = countSummary.applyAsInt(remove.taxon) - 1
-      if (updated > 0)
-        countSummary.put(remove.taxon, updated)
-      else
-        countSummary.remove(remove.taxon)
-
-      windowStart += 1
-      windowEnd += 1
-
-      //Did the first hit pass out of the window?
-      if (passedWindow(currentWindow.head)) {
-        currentWindow.remove(0)
-      }
-
-      //Did a new hit move into the window?
-      if (lastInWindow.ordinal + lastInWindow.count < windowEnd) {  //no longer touching the boundary
-        if (hits.hasNext) currentWindow += hits.next()
-        lastInWindow = currentWindow.last
-      }
-
-      //increment one taxon
-      countSummary.put(lastInWindow.taxon, countSummary.applyAsInt(lastInWindow.taxon) + 1)
-    }
-
-  }
-
   /** Generate all TaxonHits from the fragment by combining the LCA taxa with the minimizers,
    * building super-mers.
    * @param minimizers Minimizers in this fragment
@@ -216,16 +216,18 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
 
   /**
    * Generate reads from the fragment then classify them according to the LCAs.
+   * This simulates all reads from a given genome (in the source taxon) and calculates which taxa they would have been
+   * classified to (the destination taxa).
    *
    * @param taxonomy   the taxonomy
    * @param minimizers all minimizers encountered in this fragment (to be paired with LCAs)
    * @param lcas       all LCAs of minimizers encountered in this fragment, in the same order as minimizers
    * @param splitter   the minimizer scheme
    * @param readLen    length of reads to be generated
-   * @return an iterator of (source taxon, destination taxon, number of reads classified to destination taxon)
+   * @return an iterator of (source taxon, destination taxon)
    */
   def readClassifications(taxonomy: Taxonomy, minimizers: Array[Array[Long]], lcas: Array[Taxon],
-                          splitter: AnyMinSplitter, readLen: Int): Iterator[(Taxon, Taxon, Long)] = {
+                          splitter: AnyMinSplitter, readLen: Int): Iterator[(Taxon, Taxon)] = {
 
     val k = splitter.k
     val lca = new LowestCommonAncestor(taxonomy)
@@ -236,36 +238,16 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
 
     //For each window corresponding to a read (start and end),
     //classify the corresponding minimizers.
-    val classifications = Iterator.range(0, nucleotides.length - readLen + 1).map(start => { // inclusive
+    Iterator.range(0, nucleotides.length - readLen + 1).map(start => { // inclusive
       if (start > 0) hitWindow.advance()
 
       val inWindow = hitWindow.currentWindow
-      if (inWindow.nonEmpty) {
-        val dest = classify(lca, inWindow, hitWindow.countSummary)
-        dest
-      } else Taxonomy.NONE
-    }).buffered
-
-    /*
-        Pre-sum consecutive identical classifications to reduce the total amount of data emitted to Spark.
-    This exploits the fact that we know each fragment can only classify to relatively few taxa
-    (must be some taxon in its lineage, which is usually < 30).
-     */
-
-    new Iterator[(Taxon, Taxon, Long)] {
-      def hasNext: Boolean =
-        classifications.hasNext
-
-      def next: (Taxon, Taxon, Long) = {
-        val x = classifications.next()
-        var count = 1L
-        while (classifications.hasNext && classifications.head == x) {
-          classifications.next()
-          count += 1
-        }
-        (taxon, x, count)
-      }
-    }
+      val destTaxon = if (inWindow.nonEmpty)
+        classify(lca, inWindow, hitWindow.countSummary)
+      else
+        Taxonomy.NONE
+      (taxon, destTaxon)
+    })
   }
 
   /** Classify a single read efficiently.
@@ -318,7 +300,8 @@ class BrackenWeights(keyValueIndex: KeyValueIndex, readLen: Int)(implicit val sp
 
   import spark.sqlContext.implicits._
 
-  //Split into subfragments of maximum this length for performance reasons
+  //Split into subfragments of maximum this length for performance reasons. Otherwise, temporary
+  //arrays and maps used to track minimizers and LCA taxa of each fragment could become too large.
   final val FRAGMENT_MAX = 1024 * 1024
 
   /**
@@ -369,13 +352,14 @@ class BrackenWeights(keyValueIndex: KeyValueIndex, readLen: Int)(implicit val sp
       flatMap { case (header, location, taxon, nts, ms, ts) =>
         val f = TaxonFragment(taxon, nts, header, location)
         f.readClassifications(bcTaxonomy.value, ms, ts, bcSplit.value, readLen)
-      }.toDF("source","dest","count").groupBy("dest","source").agg(sum("count").as("count"))
+      }.toDF("source", "dest").groupBy("dest", "source").agg(count("*").as("count"))
   }
 
-  /** For a set of taxa, gradually classify all reads from all genomes (to reduce the impact of node interruption),
+  /** For a set of taxa, gradually classify all reads from all genomes (to reduce the impact of Spark node interruption),
    * writing the results to a temporary parquet table.
+   * This means that we do not need to redo all the work that has been done if a node vanishes, only the latest batch.
    * @param library source of genomes
-   * @param taxa taxa to include
+   * @param taxa taxa to include in this batch
    * @param tempLocation location to write the temporary table
    * @return the resulting table
    */
