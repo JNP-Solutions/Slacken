@@ -221,8 +221,7 @@ The "1-step" classification corresponds to the standard Kraken 2 method. It clas
 
 Where
 
-* `mySlackenLib` is the location where the library was built. For the pre-built library, this would 
-be `standard-224c/std_35_31_s7`.
+* `/data/standard-224c/std_35_31_s7` is the location of a pre-built library.
 *  `sample1.fasta` is the file with reads to be classified. Any number of files may be supplied.
 * `test_class` is the directory where the output will be stored. Individual read classifications and a file 
 `test_class_kreport.txt` will be created.
