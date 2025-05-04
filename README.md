@@ -155,7 +155,7 @@ space in the data directory (or 250 GB without `--bracken-length`).
 
 ```commandline
 dockerSlacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify \
- -o /data/sample0_R100 -p -c 0.15 \
+ -o /data/sample0_R100 -c 0.15 -p \
   dynamic \
     --reads 100 --bracken-length 150 \
     -l /data/standard-224c \
