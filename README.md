@@ -155,7 +155,7 @@ space in the data directory (or 250 GB without `--bracken-length`).
 
 ```commandline
 dockerSlacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify \
- -o /data/sample0_R100 -c 0.15 -p \
+ -o /data/sample0_R100 -c 0.15 -p -- \
   dynamic \
     --reads 100 --bracken-length 150 \
     -l /data/standard-224c \
@@ -215,7 +215,7 @@ these libraries may also be accessed directly from the public S3 bucket without 
 The "1-step" classification corresponds to the standard Kraken 2 method. It classifies reads based on the pre-built library only.
 
 ```commandline
-./slacken.sh taxonIndex mySlackenLib classify -o test_class \
+./slacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify -o test_class \
  sample1.fasta 
 ```
 
@@ -230,7 +230,7 @@ be `standard-224c/std_35_31_s7`.
 To classify mate pairs, the `-p` flag may be used. Input files are then expected to be paired up in sequence:
 
 ```commandline
-./slacken.sh taxonIndex mySlackenLib classify -p -o test_class \
+./slacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify -p -o test_class \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq 
 ```
 
@@ -246,7 +246,7 @@ Samples are identified by means of a regular expression that extracts the sample
 For example:
 
 ```commandline
-./slacken.sh taxonIndex mySlackenLib classify -p \
+./slacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify -p \
  --sample-regex "(S[0-9]+)" -o test_class \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq
 ```
@@ -267,14 +267,17 @@ Slacken can produce [Bracken](https://github.com/jenniferlu717/Bracken)[2] weigh
 They can be used directly with Bracken to re-estimate taxon abundances in a taxon profiles and correct for database bias.
 (Bracken is an external tool developed by Jennifer Lu et al. For more details, please refer to their paper and GitHub site.)
 
-For example:
+For example, for read length 150:
 
 ```commandline
-./slacken.sh taxonIndex mySlackenLib brackenWeights --read-len 150
+./slacken.sh taxonIndex /data/standard-224c/std_35_31_s7 brackenWeights \
+ -l /data/standard-224c --read-len 150
 ```
 
-This will generate the file `mySlackenLib_bracken/database150mers.kmer_distrib`. Bracken can now
-simply be invoked with `bracken -d mySlackenLib_bracken -r 150 ...`. 
+Here, `-l` indicates the directory containing `library/` with the genomes that were used to build the index.
+
+This will generate the file `/data/standard-224c/std_35_31_s7_bracken/database150mers.kmer_distrib`. Bracken can now
+simply be invoked with `bracken -d /data/standard-224c/std_35_31_s7_bracken -r 150 ...`. 
 
 ### Classifying reads using a dynamic index (2-step method)
 
@@ -288,8 +291,8 @@ and used to classify the reads for the final result.
 For example (100 reads heuristic):
 
 ```commandline
-./slacken.sh taxonIndex mySlackenLib classify -p \
-  --o test_class \
+./slacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify -p \
+  -o test_class -- \
   dynamic --reads 100 --library standard-224c --bracken-length 150 \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq
 ```
@@ -334,8 +337,8 @@ a library can be built from those taxa during classification by supplying:
 For example:
 
 ```commandline
-./slacken.sh taxonIndex mySlackenLib classify -p \
- --sample-regex "(S[0-9]+)" -o test_class \
+./slacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify -p \
+ -o test_class -- \
   dynamic --classify-with-gold -g goldSet.txt --library standard-224c --bracken-length 150 \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq
 ```
