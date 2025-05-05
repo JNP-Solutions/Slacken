@@ -178,7 +178,7 @@ for each read.
 library.
 * `sample0_R100/database150mers.kmer_distrib` will be generated if you ran with `--bracken-length 150`.
 
-If you generated database150mers.kmer_distrib, we can now run Bracken using the following command:
+If we generated database150mers.kmer_distrib, we can now run Bracken using the following command:
 
 ```commandline
 bracken -d sample0_R100 -r 150 -i sample0_R100_c0.15_classified/all_kreport.txt \
