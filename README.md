@@ -519,11 +519,15 @@ Prerequisites:
 * Java 17 or later
 * The [sbt](https://www.scala-sbt.org/) build tool.
 
-To build the jar file: `sbt assembly`. The output will be in `target/scala-2.12/Slacken-assembly-0.1.0.jar`.
+To build the jar file: `sbt assembly`. The resulting jar will be in `target/scala-2.12/Slacken-assembly-x.x.x.jar` for 
+Slacken version x.x.x.
 
 To just compile class files: `sbt compile`
 
 To run tests: `sbt test`
+
+To build the Docker image: `docker build -t jnpsolutions/slacken:latest`. 
+(You would have to edit the `dockerSlacken.sh` script to run this image using the given tag.)
 
 ### Citation
 
