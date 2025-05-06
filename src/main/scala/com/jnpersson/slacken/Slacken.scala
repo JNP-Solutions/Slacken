@@ -136,11 +136,11 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
       )
       val unclassified = toggle(descrYes = "Output unclassified reads", default = Some(true))
       val output = opt[String](descr = "Output location", required = true)
-      val detailed = toggle(descrYes = "Output detailed results for individual reads", default = Some(true))
+      val detailed = toggle(descrYes = "Output results for individual reads, in addition to reports", default = Some(true))
       val confidence = opt[List[Double]](
         descr = "Confidence thresholds (default 0.0, should be a space separated list with values in [0, 1])",
         default = Some(List(0.0)), short = 'c')
-      val sampleRegex = opt[String](descr = "Regular expression for extracting sample ID from read header (e.g. \"@(.*):\")")
+      val sampleRegex = opt[String](descr = "Regular expression for extracting sample ID from read header (e.g. \"(.*)\\.\"). Enables multi-sample mode.")
 
       def cpar = ClassifyParams(minHitGroups(), unclassified(), confidence(), sampleRegex.toOption, detailed())
 
