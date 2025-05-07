@@ -22,44 +22,40 @@ import com.jnpersson.kmers.{Commands, HDFSUtil, IndexParams, MinimizerCLIConf, P
 import com.jnpersson.slacken.Taxonomy.Species
 import com.jnpersson.slacken.analysis.{MappingComparison, MinimizerMigration}
 import org.apache.spark.sql.SparkSession
-import org.rogach.scallop.Subcommand
+import org.rogach.scallop.{ScallopConf, Subcommand}
 
 import java.io.FileNotFoundException
 import java.util.regex.PatternSyntaxException
 
-/** Command line parameters for Slacken */
+/** Command line options for commands that require an explicit taxonomy */
+trait RequireTaxonomy {
+  this: ScallopConf =>
+
+  val taxonomy = opt[String](descr = "Path to taxonomy directory (nodes.dmp, merged.dmp and names.dmp)",
+    required = true)
+  def getTaxonomy(implicit spark: SparkSession) = Taxonomy.load(taxonomy())
+}
+
+/** Command line options for Slacken */
 //noinspection TypeAnnotation
-class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends SparkConfiguration(args)
-  with MinimizerCLIConf {
+class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends SparkConfiguration(args) {
   version(s"Slacken ${getClass.getPackage.getImplementationVersion} (c) 2019-2025 Johan Nyström-Persson")
   banner("Usage:")
 
-  val taxonomy = opt[String](descr = "Path to taxonomy directory (nodes.dmp, merged.dmp and names.dmp)")
-
   implicit val formats = SlackenMinimizerFormats
 
-  override def defaultK: Int = 35
-  override def defaultMinimizerWidth: Int = 31
-  override def defaultMinimizerSpaces: Int = 7
-  override def defaultOrdering: String = "xor"
   override def defaultMaxSequenceLength: Int = 100000000 //100M bps
 
-  override def defaultXORMask: Long = DEFAULT_TOGGLE_MASK
-  override def canonicalMinimizers: Boolean = true
-  override def frequencyBySequence: Boolean = true
+  /** Get the Taxonomy from the index's default location */
+  def getTaxonomy(indexLocation: String) =
+    try {
+      Taxonomy.load(s"${indexLocation}_taxonomy")
+    } catch {
+      case fnf: FileNotFoundException =>
+        Console.err.println(s"Taxonomy not found: ${fnf.getMessage}. Please specify the taxonomy location with --taxonomy.")
+        throw fnf
 
-  /** Get the Taxonomy from the default location or from the user-overridden location */
-  def getTaxonomy(indexLocation: String) = taxonomy.toOption match {
-    case Some(l) => Taxonomy.load(l)
-    case _ =>
-      try {
-        Taxonomy.load(s"${indexLocation}_taxonomy")
-      } catch {
-        case fnf: FileNotFoundException =>
-          Console.err.println(s"Taxonomy not found: ${fnf.getMessage}. Please specify the taxonomy location with --taxonomy.")
-          throw fnf
-      }
-  }
+    }
 
   /** Find genome library files (.fna) in a directory and construct a GenomeLibrary
    * @param location directory to search
@@ -80,8 +76,18 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
     def index() =
       KeyValueIndex.load(location(), getTaxonomy(location()))
 
-    val build = new RunCmd("build") {
+    val build = new RunCmd("build") with MinimizerCLIConf with RequireTaxonomy {
       banner("Build a new index from genomes with taxa.")
+
+      override def defaultK: Int = 35
+      override def defaultMinimizerWidth: Int = 31
+      override def defaultMinimizerSpaces: Int = 7
+      override def defaultOrdering: String = "xor"
+
+      override def defaultXORMask: Long = DEFAULT_TOGGLE_MASK
+      override def canonicalMinimizers: Boolean = true
+      override def frequencyBySequence: Boolean = true
+
       val library = opt[String](required = true, descr = "Location of sequence files (directory containing library/)")
       val check = opt[Boolean](descr = "Only check input files for consistency", hidden = true, default = Some(false))
 
@@ -90,11 +96,10 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 
         val params = IndexParams(
           spark.sparkContext.broadcast(
-            SlackenMinimizerFormats.makeSplitter(SlackenConf.this)), partitions(), location())
+            SlackenMinimizerFormats.makeSplitter(this)), partitions(), location())
         println(s"Splitter ${params.splitter}")
 
-        val tax = getTaxonomy(location())
-        val index = new KeyValueIndex(spark.emptyDataFrame, params, tax)
+        val index = new KeyValueIndex(spark.emptyDataFrame, params, getTaxonomy)
 
         if (check()) {
           index.checkInput(genomes.inputs)
@@ -104,7 +109,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
           ni.writeRecords(params.location)
           Taxonomy.copyToLocation(taxonomy(), location() + "_taxonomy")
           ni.showIndexStats(None)
-          GenomeLibrary.inputStats(genomes.labelFile, tax)
+          GenomeLibrary.inputStats(genomes.labelFile, SlackenConf.this.getTaxonomy(location()))
         }
       }
     }
@@ -312,7 +317,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
   }
   addSubcommand(taxonIndex)
 
-  val compare = new RunCmd("compare") {
+  val compare = new RunCmd("compare") with RequireTaxonomy {
     banner("Compare classifications against a reference mapping.")
     val reference = opt[String](descr = "Reference mapping for comparison (TSV format)", required = true)
     val idCol = opt[Int](descr = "Read ID column in reference", default = Some(2))
@@ -322,10 +327,11 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 
     val multiDirs = opt[List[String]](descr = "Directories of multi-sample mapping data to compare")
     val testFiles = opt[List[String]](descr = "Mapping files to compare")
+
     requireOne(multiDirs, testFiles)
 
     def run(): Unit = {
-      val t = spark.sparkContext.broadcast(Taxonomy.load(taxonomy()))
+      val t = spark.sparkContext.broadcast(getTaxonomy)
       val mc = new MappingComparison(t, idCol(), taxonCol(), header(), 10, multiDirs.isDefined)
       if (testFiles.isDefined) {
         mc.processFiles(testFiles(), output(), reference())
@@ -336,12 +342,12 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
   }
   addSubcommand(compare)
 
-  val inputCheck = new RunCmd("inputCheck") {
+  val inputCheck = new RunCmd("inputCheck") with RequireTaxonomy {
     banner("Inspect input data.")
     val labels = opt[String](descr = "Path to sequence taxonomic label file")
 
     def run(): Unit = {
-      val t = getTaxonomy(taxonomy())
+      val t = getTaxonomy
       for { l <- labels } {
         GenomeLibrary.inputStats (l, t)
       }
