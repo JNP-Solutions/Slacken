@@ -67,15 +67,19 @@ class Configuration(args: Seq[String]) extends ScallopConf(args) {
     } else Right(Unit)
   }
 
-  def defaultOrdering: String = "lexicographic"
+  protected def defaultOrdering: String = "lexicographic"
+
+  protected def orderingChoices: Seq[String] = Seq("lexicographic", "random", "xor")
+
+  protected def parseOrdering: String => MinimizerOrdering = _ match {
+    case "lexicographic" => Lexicographic
+    case "xor" | "random" => XORMask(defaultXORMask, canonicalMinimizers)
+  }
 
   val ordering: ScallopOption[MinimizerOrdering] =
-    choice(Seq("lexicographic", "random", "xor"),
+    choice(orderingChoices,
       default = Some(defaultOrdering), hidden = true).
-      map {
-        case "lexicographic" => Lexicographic
-        case "xor" | "random" => XORMask(defaultXORMask, canonicalMinimizers)
-      }
+      map(parseOrdering)
 
   /** For the frequency ordering, whether to sample by sequence */
   protected def frequencyBySequence: Boolean = false
@@ -114,9 +118,6 @@ class Configuration(args: Seq[String]) extends ScallopConf(args) {
       case Some(s) => SpacedSeed(s, inner)
     }
   }
-
-  val sample = opt[Double](descr = "Fraction of reads to sample for minimizer frequency (default 0.01)",
-    required = true, default = Some(0.01), hidden = true)
 
   //Replace the exit handler. We do not want to call System.exit as we may be running inside a spark cluster
   //that needs to terminate gracefully. Throw an exception that can be caught in the main function
