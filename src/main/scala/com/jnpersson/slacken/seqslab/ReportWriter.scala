@@ -17,17 +17,14 @@
 
 package com.jnpersson.slacken.seqslab
 
-import com.atgenomix.seqslab.piper.engine
-import com.atgenomix.seqslab.piper.engine.Type.FQN
-import com.atgenomix.seqslab.piper.engine.actor.Utils.{getLastName, getOutputSourceInfo}
-import com.atgenomix.seqslab.piper.plugin.api.{DataSource, OperatorContext, PiperValue, PluginContext}
+import com.atgenomix.seqslab.piper.plugin.api.{DataSource, OperatorContext, PluginContext}
 import com.atgenomix.seqslab.piper.plugin.api.writer.{Writer, WriterSupport}
 import com.jnpersson.slacken.Slacken
 import com.jnpersson.slacken.seqslab.ReportWriterFactory.ReportWriter
-import org.apache.spark.SparkContext
 import org.apache.spark.sql.{Dataset, Row}
 
 import java.lang
+import scala.collection.JavaConverters._
 
 
 object ReportWriterFactory {
@@ -36,18 +33,17 @@ object ReportWriterFactory {
     */
   private class ReportWriter(pluginCtx: PluginContext, operatorCtx: OperatorContext) extends Writer {
 
-    val fqn: FQN = operatorCtx.asInstanceOf[engine.SeqslabOperatorContext].fqn
-    val piperValue: PiperValue = operatorCtx.asInstanceOf[engine.SeqslabOperatorContext].outputs.get(fqn)
-    assert(piperValue != null, "CsvWriter: piperValue is null")
-    val dataSource: DataSource = getOutputSourceInfo(getLastName(fqn), piperValue).headOption
-      .map(_._2)
-      .getOrElse(throw new RuntimeException(s"CsvWriter: no DataSource for $fqn"))
+    val dataSource: DataSource = operatorCtx.getDataSource()
+    val url: String = dataSource.getUrl()
 
     override def init(): Writer = this
+
     override def getDataSource: DataSource = dataSource
+
     override def call(t1: Dataset[Row], t2: lang.Boolean): Void = {
       val className = this.getClass.getSimpleName
       val properties = operatorCtx.getProperties.asScala
+
       val delimiter = properties.get(s"$className:delimiter").map(_.asInstanceOf[String]).getOrElse(",")
       val header = properties.get(s"$className:header").map(_.asInstanceOf[String]).getOrElse("true")
       val partitionNum = properties.get(s"$className:partitionNum").map(_.asInstanceOf[String].toInt).getOrElse(1)
@@ -58,6 +54,7 @@ object ReportWriterFactory {
       null
     }
     override def getOperatorContext: OperatorContext = operatorCtx
+
     override def close(): Unit = ()
   }
 }
