@@ -26,20 +26,18 @@ SLACKEN_MEMORY=${SLACKEN_MEMORY:-16g}
 MEMORY="spark.driver.memory=$SLACKEN_MEMORY"
 
 #Scratch space location. This has a big effect on performance; should ideally be a fast SSD or similar.
-LOCAL_DIR="spark.local.dir=/$SLACKEN_TMP"
-
-#Max size of input splits in bytes. A smaller number reduces memory usage but increases the number of
-#partitions for the first stage. If this variable is unset, Spark's default of 128 MB will be used.
-#SPLIT="spark.hadoop.mapreduce.input.fileinputformat.split.maxsize=$((64 * 1024 * 1024))"
-
-#--conf $SPLIT
+LOCAL_DIR="spark.local.dir=$SLACKEN_TMP"
 
 #On Windows: Change bin/spark-submit to bin/spark-submit.cmd.
+
+#Make sure that generated files are group-writable when we are running from Docker
+UMASK="spark.hadoop.fs.permissions.umask-mode=002"
 
 exec $SPARK_HOME/bin/spark-submit \
   --conf spark.driver.maxResultSize=2g \
   --driver-java-options -Dlog4j.configuration="file:$SLACKEN_HOME/log4j.properties" \
   --conf $MEMORY \
   --conf $LOCAL_DIR \
+  --conf $UMASK \
   --master $SPARK_MASTER \
   --class com.jnpersson.slacken.Slacken $SLACKEN_HOME/target/scala-2.12/Slacken-assembly-1.1.0.jar $*

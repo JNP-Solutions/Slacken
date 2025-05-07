@@ -66,12 +66,12 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
    * @param location directory to search
    * @param k optionally override the default k-mer length
    */
-  private def findGenomes(location: String, k: Option[Int] = None): GenomeLibrary = {
+  private def findGenomes(location: String, k: Option[Int] = None)(implicit spark: SparkSession): GenomeLibrary = {
     val inFiles = HDFSUtil.findFiles(location + "/library", ".fna")
     println(s"Discovered input files: $inFiles")
     val reader = k match {
-      case Some(k) => inputReader(inFiles, k, Ungrouped)
-      case None => inputReader(inFiles)
+      case Some(k) => inputReader(inFiles, k, Ungrouped)(spark)
+      case None => inputReader(inFiles)(spark)
     }
     GenomeLibrary(reader, s"$location/seqid2taxid.map")
   }
@@ -137,11 +137,11 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
       )
       val unclassified = toggle(descrYes = "Output unclassified reads", default = Some(true))
       val output = opt[String](descr = "Output location", required = true)
-      val detailed = toggle(descrYes = "Output detailed results for individual reads", default = Some(true))
+      val detailed = toggle(descrYes = "Output results for individual reads, in addition to reports", default = Some(true))
       val confidence = opt[List[Double]](
         descr = "Confidence thresholds (default 0.0, should be a space separated list with values in [0, 1])",
         default = Some(List(0.0)), short = 'c')
-      val sampleRegex = opt[String](descr = "Regular expression for extracting sample ID from read header (e.g. \"@(.*):\")")
+      val sampleRegex = opt[String](descr = "Regular expression for extracting sample ID from read header (e.g. \"(.*)\\.\"). Enables multi-sample mode.")
 
       def cpar = ClassifyParams(minHitGroups(), unclassified(), confidence(), sampleRegex.toOption, detailed())
 
@@ -203,7 +203,9 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 
         override def run(): Unit = {
           val i = index()
-          val genomeLib = findGenomes(library(), Some(i.params.k))
+
+          //passing i.spark to control the number of partitions of new RDDs
+          val genomeLib = findGenomes(library(), Some(i.params.k))(i.spark)
           val goldStandardOpt = goldSet.toOption.map(x =>
             GoldSetOptions(x, promoteGoldSet.toOption, classifyWithGold()))
           val taxonCriteria = minCount.map(MinimizerTotalCount).
@@ -215,10 +217,10 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
             taxonCriteria,
             cpar,
             goldStandardOpt,
-            output())
+            output())(i.spark)
 
-          val inputs = inputReader(inFiles() ++ dynInFiles(), i.params.k, paired())
-          dyn.twoStepClassifyAndWrite(inputs, partitions(), indexReports(), brackenLength.toOption)
+          val inputs = inputReader(inFiles() ++ dynInFiles(), i.params.k, paired())(i.spark)
+          dyn.twoStepClassifyAndWrite(inputs, indexReports(), brackenLength.toOption)
         }
       }
       addSubcommand(dynamic)
