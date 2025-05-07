@@ -37,7 +37,7 @@ libraryDependencies += "org.apache.spark" %% "spark-sql" % sparkVersion % "provi
 //For Windows, to remove the dependency on winutils.exe for local filesystem access
 libraryDependencies += "com.globalmentor" % "hadoop-bare-naked-local-fs" % "latest.integration"
 
-libraryDependencies += "com.atgenomix.seqslab.plugins" % "seqslab-operator-plugin-api" % "3.1.2"
+libraryDependencies += "com.atgenomix.seqslab.plugins" % "seqslab-operator-plugin-api" % "3.1.3"
 
 Compile / unmanagedResourceDirectories += { baseDirectory.value / "resources" }
 
