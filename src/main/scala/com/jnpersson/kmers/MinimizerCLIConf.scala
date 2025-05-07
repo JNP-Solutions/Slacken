@@ -48,12 +48,12 @@ private[jnpersson] abstract class RunCmd(title: String) extends Subcommand(title
 final case class ScallopExitException(code: Int) extends Exception
 
 /**
- * Main command-line configuration
- *
- * @param args command-line arguments
+ * Command-line configuration for minimizer schemes
  */
 //noinspection TypeAnnotation
-class Configuration(args: Seq[String]) extends ScallopConf(args) {
+trait MinimizerCLIConf {
+  this: ScallopConf =>
+
   protected def defaultK = 35
   val k = opt[Int](descr = s"Length of each k-mer (default $defaultK)", default = Some(defaultK))
 
@@ -76,9 +76,11 @@ class Configuration(args: Seq[String]) extends ScallopConf(args) {
     case "xor" | "random" => XORMask(defaultXORMask, canonicalMinimizers)
   }
 
+  protected def orderingHidden: Boolean = true
+
   val ordering: ScallopOption[MinimizerOrdering] =
     choice(orderingChoices,
-      default = Some(defaultOrdering), hidden = true).
+      default = Some(defaultOrdering), hidden = orderingHidden).
       map(parseOrdering)
 
   /** For the frequency ordering, whether to sample by sequence */
@@ -89,12 +91,6 @@ class Configuration(args: Seq[String]) extends ScallopConf(args) {
 
   /** For some minimizer orderings, whether to use canonical orientation */
   protected def canonicalMinimizers = false
-
-  protected def defaultMaxSequenceLength = 10000000 //10M bps
-  val maxSequenceLength = opt[Int](name = "maxlen",
-    descr = s"Maximum length of a single sequence/read (default $defaultMaxSequenceLength)",
-    default = Some(defaultMaxSequenceLength))
-
 
   def parseMinimizerSource: MinimizerSource =
     All

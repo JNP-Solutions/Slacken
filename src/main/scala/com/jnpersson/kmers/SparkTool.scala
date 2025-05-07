@@ -20,6 +20,7 @@ package com.jnpersson.kmers
 import com.globalmentor.apache.hadoop.fs.BareLocalFileSystem
 import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.sql.SparkSession
+import org.rogach.scallop.ScallopConf
 
 /** A Spark-based tool.
  * @param appName Name of the application */
@@ -57,12 +58,18 @@ object SparkTool {
 }
 
 //noinspection TypeAnnotation
-class SparkConfiguration(args: Array[String])(implicit val spark: SparkSession) extends Configuration(args) {
+
+/**
+ * CLI configuration for a Spark-based application.
+ */
+class SparkConfiguration(args: Array[String])(implicit val spark: SparkSession) extends ScallopConf(args) {
   val partitions =
     opt[Int](descr = "Number of shuffle partitions/parquet buckets for indexes (default 200)", default = Some(200))
 
-  def inputReader(files: Seq[String], grouping: InputGrouping = Ungrouped)(implicit spark: SparkSession) =
-    new Inputs(files, k(), maxSequenceLength(), grouping)(spark)
+  protected def defaultMaxSequenceLength = 10000000 //10M bps
+  val maxSequenceLength = opt[Int](name = "maxlen",
+    descr = s"Maximum length of a single short sequence/read (default $defaultMaxSequenceLength)",
+    default = Some(defaultMaxSequenceLength))
 
   def inputReader(files: Seq[String], k: Int, grouping: InputGrouping)(implicit spark: SparkSession) =
     new Inputs(files, k, maxSequenceLength(), grouping)(spark)

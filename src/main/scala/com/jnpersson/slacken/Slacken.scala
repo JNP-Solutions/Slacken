@@ -18,8 +18,7 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.kmers.minimizer._
-import com.jnpersson.kmers.{Commands, HDFSUtil, IndexParams, PairedEnd, RunCmd, ScallopExitException,
-  SparkConfiguration, SparkTool, Ungrouped}
+import com.jnpersson.kmers.{Commands, HDFSUtil, IndexParams, MinimizerCLIConf, PairedEnd, RunCmd, ScallopExitException, SparkConfiguration, SparkTool, Ungrouped}
 import com.jnpersson.slacken.Taxonomy.Species
 import com.jnpersson.slacken.analysis.{MappingComparison, MinimizerMigration}
 import org.apache.spark.sql.SparkSession
@@ -30,7 +29,8 @@ import java.util.regex.PatternSyntaxException
 
 /** Command line parameters for Slacken */
 //noinspection TypeAnnotation
-class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends SparkConfiguration(args) {
+class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends SparkConfiguration(args)
+  with MinimizerCLIConf {
   version(s"Slacken ${getClass.getPackage.getImplementationVersion} (c) 2019-2025 Johan Nyström-Persson")
   banner("Usage:")
 
@@ -65,13 +65,10 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
    * @param location directory to search
    * @param k optionally override the default k-mer length
    */
-  private def findGenomes(location: String, k: Option[Int] = None)(implicit spark: SparkSession): GenomeLibrary = {
+  private def findGenomes(location: String, k: Int)(implicit spark: SparkSession): GenomeLibrary = {
     val inFiles = HDFSUtil.findFiles(location + "/library", ".fna")
     println(s"Discovered input files: $inFiles")
-    val reader = k match {
-      case Some(k) => inputReader(inFiles, k, Ungrouped)(spark)
-      case None => inputReader(inFiles)(spark)
-    }
+    val reader = inputReader(inFiles, k, Ungrouped)(spark)
     GenomeLibrary(reader, s"$location/seqid2taxid.map")
   }
 
@@ -89,7 +86,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
       val check = opt[Boolean](descr = "Only check input files for consistency", hidden = true, default = Some(false))
 
       def run(): Unit = {
-        val genomes = findGenomes(library())
+        val genomes = findGenomes(library(), k())
 
         val params = IndexParams(
           spark.sparkContext.broadcast(
@@ -202,9 +199,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 
         override def run(): Unit = {
           val i = index()
-
-          //passing i.spark to control the number of partitions of new RDDs
-          val genomeLib = findGenomes(library(), Some(i.params.k))(i.spark)
+          val genomeLib = findGenomes(library(), i.params.k)(i.spark)
           val goldStandardOpt = goldSet.toOption.map(x =>
             GoldSetOptions(x, promoteGoldSet.toOption, classifyWithGold()))
           val taxonCriteria = minCount.map(MinimizerTotalCount).
@@ -241,7 +236,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 
       def run(): Unit = {
         val i = index()
-        val genomes = findGenomes(library(), Some(readLen()))
+        val genomes = findGenomes(library(), readLen())
         val outputLocation = location() + "_bracken/database" + readLen() + "mers.kmer_distrib"
 
         val bw = new BrackenWeights(i, readLen())
@@ -270,7 +265,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
           case _ =>
             println(s"Splitter ${p.splitter}")
         }
-        val inputs = library.toOption.map(l => findGenomes(l, Some(p.k)))
+        val inputs = library.toOption.map(l => findGenomes(l, p.k))
         i.showIndexStats(inputs)
       }
     }
@@ -297,12 +292,8 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
       val labels = opt[String](descr = "Labels file to check for missing nodes")
 
       def run(): Unit = {
-        val genomes: Option[GenomeLibrary] = library.toOption match {
-          case Some(lb) =>
-            Some(findGenomes(lb))
-          case None =>
-            None
-        }
+        val idx = index()
+        val genomes = library.toOption.map(lb => findGenomes(lb, idx.params.k)(idx.spark))
         index().report(labels.toOption, output(), genomes)
       }
     }
