@@ -465,7 +465,9 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
 }
 
 object KeyValueIndex {
-  /** Load index from the given location */
+  /** Load index from the given location.
+   * The index will come with a new SparkSession configured with the correct number of partitions.
+   */
   def load(location: String, taxonomy: Taxonomy)(implicit spark: SparkSession): KeyValueIndex = {
 
     val params = IndexParams.read(location)(spark, SlackenMinimizerFormats)
