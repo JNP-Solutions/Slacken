@@ -24,7 +24,7 @@ import com.jnpersson.kmers.minimizer.{MinSplitter, MinimizerPriorities}
  * id (string) or by class.
  * @tparam C Supported configuration type
  */
-trait MinimizerFormats[C <: SparkConfiguration] {
+trait MinimizerFormats[C <: MinimizerCLIConf] {
   protected def formatsById: Map[String, SplitterFormat[_]]
   protected def formatsByCls: Map[Class[_], SplitterFormat[_]]
 
