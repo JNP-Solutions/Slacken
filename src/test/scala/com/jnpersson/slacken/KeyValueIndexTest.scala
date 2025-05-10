@@ -19,6 +19,7 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.kmers.TestGenerators._
+import com.jnpersson.kmers.input.DirectInputs
 import com.jnpersson.kmers.minimizer._
 import com.jnpersson.kmers.{IndexParams, NTSeq, SparkSessionTestWrapper, Testing => DTesting}
 import com.jnpersson.slacken.Taxonomy.{NONE, Species}
@@ -215,5 +216,21 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
 
     val realGenomeSizes = TestData.numberOf31Mers
     genomeSizes should equal(realGenomeSizes)
+  }
+
+  test("Direct input classification") {
+    val location = "testData/slacken/slacken_test_kv"
+    val k = 35
+    val m = 31
+    val s = 7
+    val idx = TestData.indexWithRecords(k, m, s, Some(location))
+
+    //Currently, this is testing the code path without validating the result
+    val reads = simulateReads(100, 1000).toDF()
+    val inputs = TestData.inputs(k).getInputFragments(withAmbiguous = true, None)
+    val di = DirectInputs.forDataFrame(inputs.toDF())
+    val slk = new Slacken(idx, false, None, 0, 2, true)
+    val classified = slk.classifyReads(reads)
+    slk.writeReports(classified, "testData/slacken/di_out")
   }
 }

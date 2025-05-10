@@ -48,12 +48,12 @@ private[jnpersson] abstract class RunCmd(title: String) extends Subcommand(title
 final case class ScallopExitException(code: Int) extends Exception
 
 /**
- * Main command-line configuration
- *
- * @param args command-line arguments
+ * Command-line configuration for minimizer schemes
  */
 //noinspection TypeAnnotation
-class Configuration(args: Seq[String]) extends ScallopConf(args) {
+trait MinimizerCLIConf {
+  this: ScallopConf =>
+
   protected def defaultK = 35
   val k = opt[Int](descr = s"Length of each k-mer (default $defaultK)", default = Some(defaultK))
 
@@ -67,15 +67,21 @@ class Configuration(args: Seq[String]) extends ScallopConf(args) {
     } else Right(Unit)
   }
 
-  def defaultOrdering: String = "lexicographic"
+  protected def defaultOrdering: String = "lexicographic"
+
+  protected def orderingChoices: Seq[String] = Seq("lexicographic", "random", "xor")
+
+  protected def parseOrdering: String => MinimizerOrdering = _ match {
+    case "lexicographic" => Lexicographic
+    case "xor" | "random" => XORMask(defaultXORMask, canonicalMinimizers)
+  }
+
+  protected def orderingHidden: Boolean = true
 
   val ordering: ScallopOption[MinimizerOrdering] =
-    choice(Seq("lexicographic", "random", "xor"),
-      default = Some(defaultOrdering), hidden = true).
-      map {
-        case "lexicographic" => Lexicographic
-        case "xor" | "random" => XORMask(defaultXORMask, canonicalMinimizers)
-      }
+    choice(orderingChoices,
+      default = Some(defaultOrdering), hidden = orderingHidden).
+      map(parseOrdering)
 
   /** For the frequency ordering, whether to sample by sequence */
   protected def frequencyBySequence: Boolean = false
@@ -85,12 +91,6 @@ class Configuration(args: Seq[String]) extends ScallopConf(args) {
 
   /** For some minimizer orderings, whether to use canonical orientation */
   protected def canonicalMinimizers = false
-
-  protected def defaultMaxSequenceLength = 10000000 //10M bps
-  val maxSequenceLength = opt[Int](name = "maxlen",
-    descr = s"Maximum length of a single sequence/read (default $defaultMaxSequenceLength)",
-    default = Some(defaultMaxSequenceLength))
-
 
   def parseMinimizerSource: MinimizerSource =
     All
@@ -114,9 +114,6 @@ class Configuration(args: Seq[String]) extends ScallopConf(args) {
       case Some(s) => SpacedSeed(s, inner)
     }
   }
-
-  val sample = opt[Double](descr = "Fraction of reads to sample for minimizer frequency (default 0.01)",
-    required = true, default = Some(0.01), hidden = true)
 
   //Replace the exit handler. We do not want to call System.exit as we may be running inside a spark cluster
   //that needs to terminate gracefully. Throw an exception that can be caught in the main function

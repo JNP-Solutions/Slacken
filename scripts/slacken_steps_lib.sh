@@ -23,7 +23,7 @@ TAXONOMY=$K2/taxonomy
 function classify {
   LIB=$1
   LNAME=$2
-  CLASS_OUT=$ROOT/scratch/classified/$FAMILY/$LNAME
+  CLASS_OUT=$ROOT/scratch/classified/$FAMILY/${LNAME}_classified
   ./slacken-aws.sh taxonIndex $DATA/$LIB classify \
     --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" -o $CLASS_OUT \
   "${SAMPLES[@]}"
@@ -36,7 +36,7 @@ function classifyGS {
   LNAME=$2
   #--index-reports
   #-p 3000
-  CLASS_OUT=$ROOT/scratch/classified/$FAMILY/$LNAME
+  CLASS_OUT=$ROOT/scratch/classified/$FAMILY/${LNAME}_classified
   ./slacken-aws.sh -p 3000 taxonIndex $DATA/$LIB classify --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" \
   -o $CLASS_OUT \
   dynamic -l $K2 --classify-with-gold -g $SPATH/${LABEL}_gold.txt \
@@ -53,7 +53,7 @@ function classifyDynamic {
   #--min-distinct
   #--reads
 
-  CLASS_OUT=$ROOT/scratch/classified/$FAMILY/$LNAME
+  CLASS_OUT=$ROOT/scratch/classified/$FAMILY/${LNAME}_classified
   ./slacken-aws.sh -p 3000 taxonIndex $DATA/$LIB classify --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" \
   -o $CLASS_OUT \
     dynamic -l $K2 -g $SPATH/${LABEL}_gold.txt \
