@@ -19,12 +19,11 @@ package com.jnpersson.slacken.seqslab
 
 import com.atgenomix.seqslab.piper.plugin.api.{DataSource, OperatorContext, PluginContext}
 import com.atgenomix.seqslab.piper.plugin.api.writer.{Writer, WriterSupport}
-import com.jnpersson.slacken.Slacken
+import com.jnpersson.slacken.{Slacken}
 import com.jnpersson.slacken.seqslab.ReportWriterFactory.ReportWriter
-import org.apache.spark.sql.{Dataset, Row}
+import org.apache.spark.sql.{Dataset, Row, SparkSession}
 
 import java.lang
-import scala.collection.JavaConverters._
 
 
 object ReportWriterFactory {
@@ -34,25 +33,28 @@ object ReportWriterFactory {
   private class ReportWriter(pluginCtx: PluginContext, operatorCtx: OperatorContext) extends Writer {
 
     val dataSource: DataSource = operatorCtx.getDataSource()
-    val url: String = dataSource.getUrl()
 
     override def init(): Writer = this
 
     override def getDataSource: DataSource = dataSource
 
     override def call(t1: Dataset[Row], t2: lang.Boolean): Void = {
-      val className = this.getClass.getSimpleName
-      val properties = operatorCtx.getProperties.asScala
+      val fqn = operatorCtx.getFqn
+      val indexLocation = operatorCtx.inputs.get(s"$fqn.indexLocation").getString
+      val confidence = operatorCtx.inputs.get(s"$fqn.confidence").getDouble
 
-      val delimiter = properties.get(s"$className:delimiter").map(_.asInstanceOf[String]).getOrElse(",")
-      val header = properties.get(s"$className:header").map(_.asInstanceOf[String]).getOrElse("true")
-      val partitionNum = properties.get(s"$className:partitionNum").map(_.asInstanceOf[String].toInt).getOrElse(1)
+      val minHitGroups = 2
+      val withUnclassified = false
+      val perReadOutput = false
+      val sampleRegex = None //not needed for report writing
+      implicit val spark = pluginCtx.piper.spark
 
-      val slacken: Slacken = ??? //get from somewhere
+      val slacken = new Slacken(indexLocation, perReadOutput, sampleRegex, confidence, minHitGroups, withUnclassified)
       slacken.writeReports(t1, dataSource.getUrl)
 
       null
     }
+
     override def getOperatorContext: OperatorContext = operatorCtx
 
     override def close(): Unit = ()
