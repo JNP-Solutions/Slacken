@@ -99,10 +99,7 @@ class FragmentWindow(private var hits: Iterator[TaxonHit], kmersPerWindow: Int) 
     val remove = currentWindow.head
 
     val updated = countSummary.applyAsInt(remove.taxon) - 1
-    if (updated > 0)
-      countSummary.put(remove.taxon, updated)
-    else
-      countSummary.remove(remove.taxon)
+    countSummary.put(remove.taxon, updated)
 
     windowStart += 1
     windowEnd += 1
@@ -116,15 +113,14 @@ class FragmentWindow(private var hits: Iterator[TaxonHit], kmersPerWindow: Int) 
     }
 
     //Did a new hit move into the window?
-    if (lastInWindow.ordinal + lastInWindow.count < windowEnd) {  //no longer touching the boundary
-      if (hits.hasNext) {
-        val add = hits.next()
-        currentWindow += add
-        if (add.distinct && add.taxon != NONE) {
-          numHitGroups += 1
-        }
+    if (lastInWindow.ordinal + lastInWindow.count < windowEnd //no longer touching the boundary
+      && hits.hasNext) {
+      val add = hits.next()
+      currentWindow += add
+      lastInWindow = add
+      if (add.distinct && add.taxon != NONE) {
+        numHitGroups += 1
       }
-      lastInWindow = currentWindow.last
     }
 
     //increment one taxon
