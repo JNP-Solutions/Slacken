@@ -49,8 +49,12 @@ class FragmentWindow(private var hits: Iterator[TaxonHit], kmersPerWindow: Int) 
   private var windowEnd = kmersPerWindow // not inclusive
   private var lastInWindow: TaxonHit = _ //cache this for optimisation
 
-  //Map taxon to k-mer count.
-  //This mutable map updates to reflect the current window.
+  /*
+    Map taxon to k-mer count.
+    This mutable map updates to reflect the current window.
+    Since all reads will here classify either to NONE or to some taxon in the fragment's lineage,
+    we know that the number of keys will be small.
+   */
   val countSummary = new it.unimi.dsi.fastutil.ints.Int2IntArrayMap(16) //specialised, very fast map
 
   var numHitGroups = 0
@@ -99,7 +103,10 @@ class FragmentWindow(private var hits: Iterator[TaxonHit], kmersPerWindow: Int) 
     val remove = currentWindow.head
 
     val updated = countSummary.applyAsInt(remove.taxon) - 1
-    countSummary.put(remove.taxon, updated)
+    if (updated > 0)
+      countSummary.put(remove.taxon, updated)
+    else
+      countSummary.remove(remove.taxon)
 
     windowStart += 1
     windowEnd += 1
