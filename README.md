@@ -90,20 +90,20 @@ It may be helpful to put this script in your `$PATH`, e.g.:
   export PATH=$PATH:$(pwd)/Slacken
 ```
 
-Download the pre-built library to the previously specified data location.
+Download the pre-built standard library to the previously specified data location.
 After successful extraction, we delete the tar.gz to free up some space.
 
 ```commandline
 cd /host/data/location
-curl -LO https://s3.amazonaws.com/slacken-sbi/library/standard-224c.tar.gz
-tar xzf standard-224c.tar.gz && rm standard-224c.tar.gz
+curl -LO https://s3.amazonaws.com/slacken/index/standard-224.tar.gz
+tar xzf standard-224.tar.gz && rm standard-224.tar.gz
 ```
 
 Download a CAMI2 sample for testing (or provide your own sample if you have one):
 
 ```commandline
-curl -LO https://s3.amazonaws.com/slacken-sbi/cami2/strain/sample0/anonymous_reads.part_001.fq
-curl -LO https://s3.amazonaws.com/slacken-sbi/cami2/strain/sample0/anonymous_reads.part_002.fq
+curl -LO https://s3.amazonaws.com/slacken/sample/cami2/sample0/anonymous_reads.part_001.fq
+curl -LO https://s3.amazonaws.com/slacken/sample/cami2/sample0/anonymous_reads.part_002.fq
 ```
 
 Slacken currently does not support compressed (e.g. gz or bz2) input files. 
@@ -198,14 +198,9 @@ please use `dockerSlacken.sh` instead.
 
 ### Obtaining a pre-built genomic library
 
-We provide a pre-built library in a public S3 bucket at s3://slacken-sbi. The current version is based on
-RefSeq release 224.
+We provide pre-built libraries in a public S3 bucket at s3://slacken. [This wiki page](wiki/Pre‐built-Slacken-indexes-on-Amazon-S3) describes the available libraries.
 
-* Compressed bundle with everything (164 GB): https://s3.amazonaws.com/slacken-sbi/library/standard-224c.tar.gz
-* Slacken index: s3://slacken-sbi/library/standard-224c/std_35_31_s7/
-* Bracken weights: s3://slacken-sbi/library/standard-224c/std_35_31_s7_bracken/
-* Library location for dynamic mode: s3://slacken-sbi/library/standard-224c/
-* Taxonomy: s3://slacken-sbi/library/standard-224c/std_35_31_s7_taxonomy/
+For convenience, the standard index may also be downloaded as a compressed bundle from: https://s3.amazonaws.com/slacken/library/standard-224.tar.gz
 
 The libraries are hosted in the us-east-1 region of AWS, and when running Slacken on AWS EMR in that region,
 these libraries may also be accessed directly from the public S3 bucket without downloading them.
@@ -427,9 +422,10 @@ The files [scripts/slacken_pipeline.sh](scripts/slacken_pipeline.sh) and
 [scripts/slacken_steps_lib.sh](scripts/slacken_steps_lib.sh) contain preconfigured AWS pipelines and EMR steps,
 respectively.
 
-If you are running an AWS EMR cluster in the us-east-1 region, you can access the pre-built standard library
-directly at `s3://slacken-sbi/library/standard-224c/std_35_31_s7`. Genomes for 2-step classification are available at
-`s3://slacken-sbi/library/standard-224c`. If you are running in a different region, we recommend that you copy
+
+If you are running an AWS EMR cluster, you can access the pre-built standard library
+directly at `s3://slacken/index/standard-224/idx_35_31_s7`. Genomes for 2-step classification are available at
+`s3://slacken/index/standard-224`. If you are running in a different region than us-east-1, we recommend that you copy
 these files to your cluster's region first for better performance.
 
 
