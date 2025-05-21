@@ -200,12 +200,15 @@ please use `dockerSlacken.sh` instead.
 
 ### Obtaining a pre-built genomic library
 
-We provide pre-built libraries in a public S3 bucket at s3://slacken. [This wiki page](wiki/Pre‐built-Slacken-indexes-on-Amazon-S3) describes the available libraries.
+We provide pre-built libraries in a public S3 bucket at s3://slacken. 
+[This wiki page](https://github.com/JNP-Solutions/Slacken/wiki/Pre%E2%80%90built-Slacken-indexes-on-Amazon-S3) describes the available libraries.
 
 For convenience, the standard index may also be downloaded as a compressed bundle from: https://s3.amazonaws.com/slacken/library/standard-224.tar.gz
 
-The libraries are hosted in the us-east-1 region of AWS, and when running Slacken on AWS EMR in that region,
-these libraries may also be accessed directly from the public S3 bucket without downloading them.
+The libraries are hosted in the us-east-1 region of AWS. When running Slacken on AWS Elastic MapReduce (EMR),
+ideally in the same region,
+these libraries may also be accessed directly from the public S3 bucket without downloading them. 
+
 
 ### Classifying reads (1-step)
 
