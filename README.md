@@ -3,7 +3,7 @@
 [![Build and test](https://github.com/JNP-Solutions/Slacken/actions/workflows/scala.yml/badge.svg)](https://github.com/jtnystrom/Discount/actions/workflows/ci.yml)
 [![Docker Pulls](https://badgen.net/docker/pulls/jnpsolutions/slacken?icon=docker&label=pulls)](https://hub.docker.com/r/jnpsolutions/slacken/)
 ![GitHub License](https://img.shields.io/github/license/jnp-solutions/slacken)
-[![DOI](https://zenodo.org/badge/735526540.svg)](https://doi.org/10.5281/zenodo.15469081)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15469081.svg)](https://doi.org/10.5281/zenodo.15469081)
 
 
 Slacken is a metagenomic profiler that classifies genomic sequences based on k-mers and minimizers. It implements the
