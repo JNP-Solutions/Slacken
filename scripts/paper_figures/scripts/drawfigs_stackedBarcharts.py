@@ -146,7 +146,7 @@ def saveplot(result, dName, figName):
     plt.savefig(f'../Figures/'+figName+".jpg",bbox_inches="tight", dpi=400)
     #plt.show()
 
-def saveplot4(result_list, dNames, figName):
+def saveplot4(result_list, dNames, figName, order):
     fig, axes = plt.subplots(2, 2, figsize=(15, 12), dpi=300, facecolor="#fff3e0", sharex=True, sharey=True)
     axes = axes.flatten()  # Flatten the 2x2 grid to iterate easily
 
@@ -160,6 +160,8 @@ def saveplot4(result_list, dNames, figName):
     for i, (result, dName) in enumerate(zip(result_list, dNames)):
         pivot_df = result.pivot(index='classifier', columns='Group', values='ratio').fillna(0)
         pivot_df = pivot_df[group_order]  # Reorder columns
+        
+        pivot_df=pivot_df.reindex(order)
 
         ax = axes[i]
         # Disable legend for individual plots
@@ -214,24 +216,33 @@ dataset_list=list(names.keys())
 #     resultDf=aggkreports(names,name_classifier,classifiers, dataset)
 #     saveplot(resultDf,dataset)
 
-result_list_1 = [aggkreports(names, name_classifier, ['rspc_1-step','rspc_R100','rspc_R10','rspc_R1','std_1-step','std_R100','std_R10','std_R1'], dataset) for dataset in dataset_list[:4]]  # Limit to 4 datasets
-saveplot4(result_list_1, dataset_list[:4],'multilevel_stacked_barcharts/multiple_datasets')
-df_result1= aggResultDf(result_list_1,dataset_list[:4])
-df_result1.to_csv("../FigureData/multiple_datasets.csv",index=False)
+# order_1=['rspc_R100','rspc_R10','rspc_R1','rspc_1-step', 'std_R100','std_R10','std_R1', 'std_1-step']
+# result_list_1 = [aggkreports(names, name_classifier, order_1, dataset) for dataset in dataset_list[:4]]  # Limit to 4 datasets
+# saveplot4(result_list_1, dataset_list[:4],'multilevel_stacked_barcharts/multiple_datasets',order_1)
+# df_result1= aggResultDf(result_list_1,dataset_list[:4])
+# df_result1.to_csv("../FigureData/multiple_datasets.csv",index=False)
 
+# order_2=['rspc_gold', 'rspc_R100', 'rspc_1-step', 'std_gold', 'std_R100', 'std_1-step']
+# result_list_2 = [aggkreports(names, name_classifier, order_2, dataset) for dataset in dataset_list[:4]]  # Limit to 4 datasets
+# saveplot4(result_list_2, dataset_list[:4],'multilevel_stacked_barcharts/multiple_datasets_gold',order_2)
+# df_result2 = aggResultDf(result_list_2,dataset_list[:4])
+# df_result2.to_csv("../FigureData/multiple_datasets_gold.csv",index=False)
 
-result_list_2 = [aggkreports(names, name_classifier, ['rspc_1-step','rspc_R100','std_1-step','std_R100', 'rspc_gold', 'std_gold'], dataset) for dataset in dataset_list[:4]]  # Limit to 4 datasets
-saveplot4(result_list_2, dataset_list[:4],'multilevel_stacked_barcharts/multiple_datasets_gold')
-df_result2 = aggResultDf(result_list_2,dataset_list[:4])
-df_result2.to_csv("../FigureData/multiple_datasets_gold.csv",index=False)
+# order_3=['rspc_gold', 'rspc_R100','rspc_R10','rspc_R1','rspc_1-step', 'std_gold', 'std_R100','std_R10','std_R1','std_1-step','kraken']
+# result_list_3 = [aggkreports(names, name_classifier, order_3, dataset, noCollapse=True) for dataset in dataset_list]
+# df_result3 = aggResultDf(result_list_3,dataset_list)
+# df_result3.to_csv("../FigureData/all_datasets_NoFig.csv",index=False)
 
+# order_4=['std_gold', 'std_1-step']
+# result_list_4 = [aggkreports(names, name_classifier, order_4, dataset) for dataset in dataset_list[:4]]  # Limit to 4 datasets
+# saveplot4(result_list_4, dataset_list[:4],'multilevel_stacked_barcharts/sbiF1',order_4)
+# df_result4= aggResultDf(result_list_4,dataset_list[:4])
+# df_result4.to_csv("../FigureData/sbiF1.csv",index=False)
 
-result_list_3 = [aggkreports(names, name_classifier, ['rspc_1-step','rspc_R100','rspc_R10','rspc_R1','std_1-step','std_R100','std_R10','std_R1','kraken', 'rspc_gold', 'std_gold']
-, dataset, noCollapse=True) for dataset in dataset_list]
-df_result3 = aggResultDf(result_list_3,dataset_list)
-df_result3.to_csv("../FigureData/all_datasets_NoFig.csv",index=False)
+order_5=['rspc_R100','rspc_R10','rspc_R1','rspc_1-step']
+result_list_5 = [aggkreports(names, name_classifier, order_5, dataset) for dataset in dataset_list[:4]]  # Limit to 4 datasets
+saveplot4(result_list_5, dataset_list[:4],'multilevel_stacked_barcharts/johan_talk_1',order_5)
 
-result_list_4 = [aggkreports(names, name_classifier, ['std_1-step','std_gold'], dataset) for dataset in dataset_list[:4]]  # Limit to 4 datasets
-saveplot4(result_list_4, dataset_list[:4],'multilevel_stacked_barcharts/sbiF1')
-df_result4= aggResultDf(result_list_4,dataset_list[:4])
-df_result4.to_csv("../FigureData/sbiF1.csv",index=False)
+order_6=['rspc_R100','rspc_1-step', 'std_R100', 'std_1-step']
+result_list_6 = [aggkreports(names, name_classifier, order_6, dataset) for dataset in dataset_list[:4]]  # Limit to 4 datasets
+saveplot4(result_list_6, dataset_list[:4],'multilevel_stacked_barcharts/johan_talk_2',order_6)
