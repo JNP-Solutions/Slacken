@@ -1,19 +1,18 @@
-ARG base_image=ghcr.io/atgenomix/runtime/base:1.5_20.04
-ARG GITHUB_TOKEN
+ARG base_image=ghcr.io/atgenomix/runtime/base:1.6.3.1-ubuntu22.04
 FROM --platform=$BUILDPLATFORM sbtscala/scala-sbt:eclipse-temurin-17.0.14_7_1.10.10_2.12.20 AS build
 ARG base_image
-ARG GITHUB_TOKEN
-
-ENV GITHUB_TOKEN=${GITHUB_TOKEN}
 
 WORKDIR /build/
 COPY build.sbt /build/
 COPY project /build/project/
 
-RUN sbt update
+RUN --mount=type=secret,id=GITHUB_TOKEN,env=GITHUB_TOKEN \
+  sbt update
 
 COPY src /build/src
-RUN sbt assembly
+
+RUN --mount=type=secret,id=GITHUB_TOKEN,env=GITHUB_TOKEN \
+  sbt assembly
 
 FROM ${base_image}
 ARG base_image
