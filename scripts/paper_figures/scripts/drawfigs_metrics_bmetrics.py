@@ -80,7 +80,7 @@ def add_figure_single(rankx,dataSet,var,confd,classifier_list,inputType, figShap
         plt.scatter(x, y, alpha=alphas[i], color=colors_db_valid[col], s=20)
 
     # Customize plot
-    plt.xticks(range(len(df.columns)), df.columns, fontsize=9, rotation=rotn, fontweight='bold', ha='right')  # Set x-axis labels
+    plt.xticks(range(len(df.columns)), df.columns, fontsize=9, rotation=rotn, fontweight='bold', ha='center')  # Set x-axis labels
     if(addYlabel==True):
         plt.ylabel(var + " (species)", fontweight='bold', fontsize=8)
     plt.tick_params(axis='y', labelsize=8)
@@ -170,7 +170,7 @@ def add_figure(rankx,dataSets,var,confd,classifier_list,inputType, figShape, fig
     plt.savefig(f'../Figures/'+figName+".jpg",bbox_inches="tight", dpi=800)
     #plt.clf()
 
-def add_figure4(rankx, dataSets, var, confd, classifier_list, inputType, figShape, figName, rotn=30, thicken=0.2, twidth=0.15, addYlabel=True):
+def add_figure4(rankx, dataSets, var, confd, classifier_list, inputType, figShape, figName, rotn=30, thicken=0.2, twidth=0.15, addYlabel=True, decimalExp=False):
     print(rankx, dataSets, var, confd, inputType)
 
     if inputType == 'metrics':
@@ -234,7 +234,11 @@ def add_figure4(rankx, dataSets, var, confd, classifier_list, inputType, figShap
 
             # Calculate the mean and print it next to the boxplot
             median_val = df[col].median()
-            ax.text(i + twidth, median_val, f'{median_val:.2f}', color='black', fontsize=8, va='center', rotation=90)
+            if(decimalExp==True):
+                ax.text(i + twidth, median_val, f'{median_val:.4f}', color='black', fontsize=8, va='center', rotation=90)
+
+            else:
+                ax.text(i + twidth, median_val, f'{median_val:.2f}', color='black', fontsize=8, va='center', rotation=90)
 
         # Overlay scatter plots with jitter and custom colors
         for i, col in enumerate(df.columns):
@@ -244,7 +248,8 @@ def add_figure4(rankx, dataSets, var, confd, classifier_list, inputType, figShap
 
         # Customize plot
         ax.set_xticks(range(len(df.columns)))
-        ax.set_xticklabels(df.columns, fontsize=10, rotation=rotn, ha='right', fontweight='bold')  # Set x-axis labels
+        ax.set_xticklabels(df.columns, fontsize=10, rotation=rotn, ha='center', fontweight='bold')  # Set x-axis labels
+
         ax.set_title(
             f'{dataSet} |  Size: ' + str(len(df_input[df_input['group']==dataSet]['sample'].unique())),
             fontweight='bold', fontsize=8)
@@ -460,7 +465,7 @@ def add_figure4PairedBox(rankx, dataSets, var1, var2, confd, classifier_list, in
         ax.set_xticks(rangeX)
         
         rotn = 90
-        ha = 'right'
+        ha = 'center'
         if(rotateR == True):
             rotn = 0
             ha = 'center'
@@ -479,25 +484,30 @@ def add_figure4PairedBox(rankx, dataSets, var1, var2, confd, classifier_list, in
     plt.savefig(f'../Figures/'+figName+".jpg",bbox_inches="tight", dpi=600)
     # plt.clf()
 
-# add_figure_single('Species','plant_associated','read_softIndex',0.15,["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"],'metrics',(4,4),'metrics/plant_associated_read_softIndex_Species_0.15_std', 90, addYlabel=False)
-# add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_fp_frac', 0.15,["rspc_gold","rspc_R100", "rspc_1-step","std_gold" , "std_R100", "std_1-step"], 'metrics', (6,6), 'metrics/Species_all_read_fp_frac_0.15_gold', rotn=90, addYlabel=False)
-# add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_index', 0.15, ["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics',(6,6),'metrics/Species_all_read_index_0.15',90, 0.3, 0.19, False)
-# add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_softIndex', 0.15, ["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics',(6,6),'metrics/Species_all_read_softIndex_0.15', rotn=90, thicken=0.25, twidth=0.17, addYlabel=False)
-# add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_index', 0.15,["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics',(10,6),'metrics/Species_all_read_index_0.15')
-# add_figure4PairedBox('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_tp_frac','read_fp_frac', 0.15, ["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics', (6,6), 'metrics/Species_all_read_tp_fracread_fp_frac_0.15_pairedBox', False, False, True, 0.4)
-# add_figure4PairedBox('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_tp_frac','read_vp_frac', 0.15, ["rspc_1-step", "std_1-step"], 'metrics', (5,6), 'metrics/Species_all_read_tp_fracread_vp_frac_0.15_pairedBox', False, True)
-# add_figure4PairedBox('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_tp_frac','read_vp_frac', 0.15, ["rspc_R100","rspc_1-step", "std_1-step"], 'metrics', (7,6), 'metrics/Species_all_read_tp_fracread_vp_frac_0.15_pairedBox_r100', True, True, True)
-# add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'L1', 0.15, ["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'bmetrics', (6,6), 'bmetrics/Species_all_L1_0.15', rotn=90, thicken=0.27, twidth=0.17 ,addYlabel=False)
-# add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'LSE', 0.15, ["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'bmetrics', (10,6), 'bmetrics/Species_all_LSE_0.15')
+add_figure_single('Species','plant_associated','read_softIndex',0.15,["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"],'metrics',(4,4),'metrics/plant_associated_read_softIndex_Species_0.15_std', 90, addYlabel=False)
+add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_fp_frac', 0.15,["rspc_gold","rspc_R100", "rspc_1-step","std_gold" , "std_R100", "std_1-step"], 'metrics', (6,6), 'metrics/Species_all_read_fp_frac_0.15_gold', rotn=90, addYlabel=False, decimalExp=True)
+add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_index', 0.15, ["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics',(6,6),'metrics/Species_all_read_index_0.15',90, 0.3, 0.19, False)
+add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_softIndex', 0.15, ["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics',(6,6),'metrics/Species_all_read_softIndex_0.15', rotn=90, thicken=0.25, twidth=0.17, addYlabel=False)
+#add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_index', 0.15,["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics',(10,6),'metrics/Species_all_read_index_0.15')
+add_figure4PairedBox('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_tp_frac','read_fp_frac', 0.15, ["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics', (6,6), 'metrics/Species_all_read_tp_fracread_fp_frac_0.15_pairedBox', False, False, True, 0.4)
+add_figure4PairedBox('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_tp_frac','read_vp_frac', 0.15, ["rspc_1-step", "std_1-step"], 'metrics', (5,6), 'metrics/Species_all_read_tp_fracread_vp_frac_0.15_pairedBox', False, True)
+add_figure4PairedBox('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'read_tp_frac','read_vp_frac', 0.15, ["rspc_R100","rspc_1-step", "std_1-step"], 'metrics', (7,6), 'metrics/Species_all_read_tp_fracread_vp_frac_0.15_pairedBox_r100', True, True, True)
+add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'L1', 0.15, ["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'bmetrics', (6,6), 'bmetrics/Species_all_L1_0.15', rotn=90, thicken=0.27, twidth=0.17 ,addYlabel=False)
+add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'LSE', 0.15, ["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step"], 'bmetrics', (10,6), 'bmetrics/Species_all_LSE_0.15')
+add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'], 'L1', 0.15,["std_1-step", "kraken2"], 'bmetrics', (5,6), 'bmetrics/slacken_vs_kraken2_L1_frac_0.15_gold', rotn=90, addYlabel=False)
 
-# add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'], 'read_tp_frac', 0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics', (10,6), 'supplementary_figures/Species_all_read_tp_frac_0.15_gold', rotn=90, addYlabel=False)
-# add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'], 'read_fp_frac', 0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics', (10,6), 'supplementary_figures/Species_all_read_fp_frac_0.15_gold', rotn=90, addYlabel=False)
-# add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'], 'read_vp_frac', 0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics', (10,6), 'supplementary_figures/Species_all_read_vp_frac_0.15_gold', rotn=90, addYlabel=False)
-# add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'], 'read_fn_frac', 0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics', (10,6), 'supplementary_figures/Species_all_read_fn_frac_0.15_gold', rotn=90, addYlabel=False)
-# add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'], 'read_index', 0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics', (10,6), 'supplementary_figures/Species_all_read_index_frac_0.15_gold', rotn=90, addYlabel=False)
-# add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'], 'read_softIndex', 0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step"], 'metrics', (10,6), 'supplementary_figures/Species_all_read_softIndex_frac_0.15_gold', rotn=90, addYlabel=False)
-# add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'], 'L1', 0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step"], 'bmetrics', (10,6), 'supplementary_figures/Species_all_read_L1_frac_0.15_gold', rotn=90, addYlabel=False)
-# add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'], 'LSE', 0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step"], 'bmetrics', (10,6), 'supplementary_figures/Species_all_read_LSE_frac_0.15_gold', rotn=90, addYlabel=False)
+
+add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'], 'read_tp_frac', 0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step", "kraken2"], 'metrics', (10,6), 'supplementary_figures/Species_all_read_tp_frac_0.15_gold', rotn=90, addYlabel=False)
+add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'], 'read_fp_frac', 0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step", "kraken2"], 'metrics', (10,6), 'supplementary_figures/Species_all_read_fp_frac_0.15_gold', rotn=90, addYlabel=False)
+add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'], 'read_vp_frac', 0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step", "kraken2"], 'metrics', (10,6), 'supplementary_figures/Species_all_read_vp_frac_0.15_gold', rotn=90, addYlabel=False)
+add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'], 'read_fn_frac', 0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step", "kraken2"], 'metrics', (10,6), 'supplementary_figures/Species_all_read_fn_frac_0.15_gold', rotn=90, addYlabel=False)
+add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'], 'read_index', 0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step", "kraken2"], 'metrics', (10,6), 'supplementary_figures/Species_all_read_index_frac_0.15_gold', rotn=90, addYlabel=False)
+add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'], 'read_softIndex', 0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step", "kraken2"], 'metrics', (10,6), 'supplementary_figures/Species_all_read_softIndex_frac_0.15_gold', rotn=90, addYlabel=False)
+add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'], 'L1', 0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step", "kraken2"], 'bmetrics', (10,6), 'supplementary_figures/Species_all_read_L1_frac_0.15_gold', rotn=90, addYlabel=False)
+add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'], 'LSE', 0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step", "kraken2"], 'bmetrics', (10,6), 'supplementary_figures/Species_all_read_LSE_frac_0.15_gold', rotn=90, addYlabel=False)
+
+add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'],'Precision',0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step", "kraken2", "MetaPhlAn4.1"],'bmetrics',(10,6),'supplementary_figures/Taxon_Precision_All', 90, addYlabel=False)
+add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'],'Recall',0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_R1", "std_1-step", "kraken2", "MetaPhlAn4.1"],'bmetrics',(10,6),'supplementary_figures/Taxon_Recall_All', 90, addYlabel=False)
 
 # add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'],'TP',0.15,["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step", "MetaPhlAn4.1"],'bmetrics',(8,7),'bmetrics/metaphlanTest_TP_All', 90, addYlabel=False)
 # add_figure6('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_225', 'Assorted_Genomes_mbarc_225', 'Assorted_Genomes_Perfect_225'],'FP',0.15,["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step", "MetaPhlAn4.1"],'bmetrics',(8,7),'bmetrics/metaphlanTest_FP_All', 90, addYlabel=False)
@@ -508,8 +518,8 @@ def add_figure4PairedBox(rankx, dataSets, var1, var2, confd, classifier_list, in
 # add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'],'TP',0.15,["rspc_gold","rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step", "std_gold", "MetaPhlAn4.1"],'bmetrics',(8,7),'bmetrics/metaphlanTest_TP_All', 90, addYlabel=False)
 # add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'],'FP',0.15,["rspc_gold","rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step", "std_gold", "MetaPhlAn4.1"],'bmetrics',(8,7),'bmetrics/metaphlanTest_FP_All', 90, addYlabel=False)
 # add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'],'FN',0.15,["rspc_gold","rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step", "std_gold", "MetaPhlAn4.1"],'bmetrics',(8,7),'bmetrics/metaphlanTest_FN_All', 90, addYlabel=False)
-add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'],'Precision',0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_1-step", "std_R100", "std_R10", "std_1-step", "std_gold", "MetaPhlAn4.1"],'bmetrics',(6,6),'bmetrics/metaphlanTest_Precision_All', 90, addYlabel=False)
-add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'],'Recall',0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_1-step", "std_R100", "std_R10", "std_1-step", "std_gold", "MetaPhlAn4.1"],'bmetrics',(6,6),'bmetrics/metaphlanTest_Recall_All', 90, addYlabel=False)
+add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'],'Precision',0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_1-step", "MetaPhlAn4.1"],'bmetrics',(6,6),'bmetrics/metaphlanTest_Precision_All', 90, addYlabel=False)
+add_figure4('Species',['strain', 'plant_associated', 'marine', 'Assorted_Genomes_mbarc_225'],'Recall',0.15,["rspc_gold", "rspc_R100", "rspc_R10", "rspc_1-step", "std_gold", "std_R100", "std_R10", "std_1-step", "MetaPhlAn4.1"],'bmetrics',(6,6),'bmetrics/metaphlanTest_Recall_All', 90, addYlabel=False)
 
 
 # add_figure_single('Species','plant_associated','TP',0.15,["rspc_R100", "rspc_R10", "rspc_R1", "rspc_1-step", "std_R100", "std_R10", "std_R1", "std_1-step", "MetaPhlAn4.1"],'bmetrics',(4,5),'bmetrics/metaphlanTest_TP', 90, addYlabel=False)
