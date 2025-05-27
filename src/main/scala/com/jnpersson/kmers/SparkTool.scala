@@ -18,6 +18,7 @@
 package com.jnpersson.kmers
 
 import com.globalmentor.apache.hadoop.fs.BareLocalFileSystem
+import com.jnpersson.kmers.input.{FileInputs, InputGrouping, Ungrouped}
 import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.sql.SparkSession
 import org.rogach.scallop.ScallopConf
@@ -72,7 +73,7 @@ class SparkConfiguration(args: Array[String])(implicit val spark: SparkSession) 
     default = Some(defaultMaxSequenceLength))
 
   def inputReader(files: Seq[String], k: Int, grouping: InputGrouping)(implicit spark: SparkSession) =
-    new Inputs(files, k, maxSequenceLength(), grouping)(spark)
+    new FileInputs(files, k, maxSequenceLength(), grouping)
 
   def finishSetup(): this.type = {
     verify()
