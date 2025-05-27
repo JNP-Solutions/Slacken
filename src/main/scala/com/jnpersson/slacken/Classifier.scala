@@ -17,8 +17,9 @@
 
 package com.jnpersson.slacken
 
+import com.jnpersson.kmers.input.FileInputs
 import com.jnpersson.kmers.minimizer.InputFragment
-import com.jnpersson.kmers.{HDFSUtil, Inputs, SeqTitle}
+import com.jnpersson.kmers.{HDFSUtil, SeqTitle}
 import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
 import org.apache.spark.sql.functions.{collect_list, count, desc, struct}
 
@@ -73,9 +74,8 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
    * @param cpar           classification parameters
 
    */
-  def classifyAndWrite(inputs: Inputs, outputLocation: String, cpar: ClassifyParams): Unit = {
-    val subjects = inputs.getInputFragments(withAmbiguous = true)
-    val hits = index.collectHitsBySequence(subjects, cpar.perReadOutput)
+  def classifyAndWrite(inputs: Dataset[InputFragment], outputLocation: String, cpar: ClassifyParams): Unit = {
+    val hits = index.collectHitsBySequence(inputs, cpar.perReadOutput)
     classifyHitsAndWrite(hits, outputLocation, cpar)
   }
 
@@ -123,7 +123,7 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     try {
       for {t <- cpar.thresholds} {
         val classified = classifyHits(subjectsHits, cpar, t)
-        writeForSamples(classified, outputLocation, t, cpar)
+        writePerSampleOutput(classified, outputLocation, t, cpar)
       }
     } finally {
       subjectsHits.unpersist()
@@ -131,15 +131,19 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
   }
 
   /**
-   * For each sample in the classified reads, write classified reads to a directory, with the _classified suffix,
-   * as well as a kraken-style kreport.txt
+   * For each sample in the classified reads, write outputs.
+   * If cpar.perReadOutput is true, classified reads with hit details will be written in a separate directory for each sample,
+   * as well as a kraken-style report in kreport.txt.
+   * If cpar.perReadOutput is false, only reports will be written.
    *
    * @param reads          classified reads
    * @param outputLocation directory/prefix to write to
    * @param threshold      the confidence threshold that was used in this classification
    * @param cpar           parameters for classification
+   * @return               the sample IDs that were discovered and processed, or "all" if not using multi-sample mode
    */
-  private def writeForSamples(reads: Dataset[ClassifiedRead], outputLocation: String, threshold: Double, cpar: ClassifyParams): Unit = {
+  def writePerSampleOutput(reads: Dataset[ClassifiedRead], outputLocation: String, threshold: Double,
+                           cpar: ClassifyParams): Iterable[String] = {
     val thresholds = cpar.thresholds
     // find the maximum number of digits after the decimal point for values in the threshold list
     // to enable proper sorting of file names with threshold values
@@ -153,7 +157,6 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
       reads.where($"classified" === true)
     }
 
-    val classOutputLoc = s"${location}_classified"
     if (cpar.perReadOutput) {
       //Write the classification of every read along with hit details
       val outputRows = keepLines.map(r => (r.outputLine, r.sampleId)).
@@ -164,35 +167,40 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
       outputRows.coalesce(1000).write.mode(SaveMode.Overwrite).
         partitionBy("sample").
         option("compression", "gzip").
-        text(classOutputLoc)
-      makeReportsFromClassifications(classOutputLoc)
+        text(location)
+      makeReportsFromClassifications(location)
     } else {
       //Write aggregate classification reports only
-      for {
-        (sample, countByTaxon) <- keepLines.groupBy("sampleId", "taxon").agg(count("*").as("count"))
+
+      val sampleIterator = keepLines.groupBy("sampleId", "taxon").agg(count("*").as("count"))
         .groupBy("sampleId").agg(collect_list(struct($"taxon".as("_1"), $"count".as("_2")))).
-        as[(String,Array[(Taxon, Long)])].toLocalIterator().asScala
-            } {
-        val report = new KrakenReport(index.taxonomy, countByTaxon)
-        val loc = s"$classOutputLoc/${sample}_kreport.txt"
-        HDFSUtil.usingWriter(loc, wr => report.print(wr))
-      }
+        as[(String, Array[(Taxon, Long)])].
+        toLocalIterator().asScala
+
+      val samples = for {
+        (sample, countByTaxon) <- sampleIterator
+        report = new KrakenReport(index.taxonomy, countByTaxon)
+        loc = Classifier.reportOutputLocation(location, sample)
+        _ = HDFSUtil.usingWriter(loc, wr => report.print(wr))
+      } yield sample
+      samples.toList
     }
   }
 
   /** For each subdirectory (corresponding to a sample), read back written classifications
-   * and produce a KrakenReport. */
-  private def makeReportsFromClassifications(location: String): Unit = {
+   * and produce a KrakenReport.
+   * @return A list of processed sample IDs
+   */
+  private def makeReportsFromClassifications(location: String): Iterable[String] =
     //At this point we don't have the sample IDs, so we have to explicitly traverse the filesystem
     //and look for the data that we wrote in the previous step
-    for { d <- HDFSUtil.subdirectories(location) } {
-      val loc = s"$location/$d"
-      println(s"Generating Kraken report for $loc")
-      val report = reportFromWrittenClassifications(loc)
-      val sampleId = d.replaceFirst("sample=", "")
-      HDFSUtil.usingWriter(s"$location/${sampleId}_kreport.txt", wr => report.print(wr))
-    }
-  }
+    for { d <- HDFSUtil.subdirectories(location)
+      loc = s"$location/$d"
+      _ = println(s"Generating report for $loc")
+      report = reportFromWrittenClassifications(loc)
+      sampleId = d.replaceFirst("sample=", "")
+      _ = HDFSUtil.usingWriter(Classifier.reportOutputLocation(location, sampleId), wr => report.print(wr))
+    } yield sampleId
 
   /** Read back written classifications from writeOutput to produce a KrakenReport. */
   private def reportFromWrittenClassifications(location: String): KrakenReport = {
@@ -205,6 +213,23 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
 }
 
 object Classifier {
+
+  /** Location where per-read outputs are written for a given sample. The per-sample directories
+   * are created when we partition the output dataframe by the sample column.
+   */
+  def perReadOutputsLocation(baseLocation: String, sampleId: String) =
+    s"$baseLocation/sample=$sampleId"
+
+  /** Location where the report is written for a given sample. */
+  def reportOutputLocation(baseLocation: String, sampleId: String) =
+    s"$baseLocation/${sampleId}_kreport.txt"
+
+  /** Location where per-read outputs are written for a given report. */
+  def perReadOutputsFromReportFile(reportName: String) = {
+    val part2 = reportName.split("/")(1)
+    val sample = part2.substring(0, part2.length - "_kreport.txt".length)
+    perReadOutputsLocation(reportName.split("/")(0), sample)
+  }
 
   /** Classify a read.
    * @param taxonomy Parent map for taxa
