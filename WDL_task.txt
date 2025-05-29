@@ -1,0 +1,26 @@
+//Slacken task for Seqslab using the Slacken plugin (work in progress)
+
+
+task Slacken {
+   input {
+     File readsR1
+     File readsR2
+     String indexLocation
+     String sampleRegex
+     Float confidence
+     Boolean withUnclassified
+     Int minHitGroups
+  }
+  command <<<
+    import com.jnpersson.slacken._
+
+    //multi-sample classification generating reports only (no per-read output)
+
+    val slacken = new Slacken(indexLocation, detailed = false, sampleRegex, confidence,
+      minHitGroups, withUnclassified)
+    val outputDF = slacken.classifyReads(readsR1, Some(readsR2))
+   >>>
+  output { //TODO: output section not done yet
+     File outputDF
+     }
+}
