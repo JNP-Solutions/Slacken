@@ -13,5 +13,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag slacken_seqslab:$(date +%s)
+      run: docker build . --secret id=GITHUB_TOKEN --file Dockerfile --tag slacken_seqslab:$(date +%s)
+      env: 
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
