@@ -1,9 +1,5 @@
 name: Docker image build
 
-on:
-  push:
-    branches: [ "seqslab" ]
-
 jobs:
 
   build:
