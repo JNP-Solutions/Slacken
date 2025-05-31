@@ -184,10 +184,13 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
         descr = "Genome library location for index construction (directory containing library/)")
 
       val rank = choice(descr = "Granularity for index construction (default species)",
-        default = Some(Species.title), choices = Taxonomy.rankTitles).map(Taxonomy.rankOrNull)
+        default = Some(Species.title), choices = Taxonomy.rankTitles,
+        hidden = true).map(Taxonomy.rankOrNull)
 
-      val minCount = opt[Int](descr = "Minimizer count for taxon inclusion in dynamic index", short = 'C')
-      val minDistinct = opt[Int](descr = "Minimizer distinct count for taxon inclusion in dynamic index", short = 'D')
+      val minCount = opt[Int](descr = "Minimizer count for taxon inclusion in dynamic index", short = 'C',
+        hidden = true)
+      val minDistinct = opt[Int](descr = "Minimizer distinct count for taxon inclusion in dynamic index", short = 'D',
+        hidden = true)
       val reads = opt[Int](descr = "Min initial read count classified for taxon inclusion in dynamic index (default 100)",
         short = 'R')
       val readConfidence = opt[Double](descr = "Confidence threshold for initial read classification (default 0.15)",
@@ -195,7 +198,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 
       val brackenLength = opt[Int](descr = "Read length for building bracken weights")
 
-      val indexReports = opt[Boolean](descr = "Create reports on the dynamic index and the inputs' taxon support",
+      val indexReports = opt[Boolean](descr = "Generate reports on the dynamic index and the inputs' taxon support",
         default = Some(false))
 
       val classifyWithGold = opt[Boolean](
@@ -205,7 +208,8 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
         short = 'g')
       val promoteGoldSet = choice(
         descr = "Attempt to promote taxa with no minimizers from the gold set to this rank (at the highest)",
-        choices = Taxonomy.rankTitles).map(Taxonomy.rankOrNull)
+        choices = Taxonomy.rankTitles,
+        hidden = true).map(Taxonomy.rankOrNull)
 
       val dynInFiles = trailArg[List[String]](descr = "Sequences to be classified")
 
