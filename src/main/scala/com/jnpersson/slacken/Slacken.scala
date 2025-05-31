@@ -43,7 +43,7 @@ trait RequireTaxonomy {
 }
 
 /** Command line options for command that require an input index */
-trait RequireIndex extends RequireTaxonomy {
+trait RequireIndex {
   this: SparkCmd =>
 
   val index = opt[String](required = true, descr = "Location where the minimizer-LCA index is stored").
@@ -58,7 +58,7 @@ trait RequireIndex extends RequireTaxonomy {
       KeyValueIndex.getTaxonomy(indexLocation)
     } catch {
       case fnf: FileNotFoundException =>
-        Console.err.println(s"Taxonomy not found: ${fnf.getMessage}. Please specify the taxonomy location with --taxonomy.")
+        Console.err.println(s"Taxonomy not found: ${fnf.getMessage}.")
         throw fnf
 
     }
@@ -66,7 +66,7 @@ trait RequireIndex extends RequireTaxonomy {
 
 /** Command line options for Slacken */
 //noinspection TypeAnnotation
-class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends SparkConfiguration(args) {
+class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends SparkConfiguration(args) with HasInputReader {
   version(s"Slacken ${getClass.getPackage.getImplementationVersion} (c) 2019-2025 Johan Nyström-Persson")
   banner("Usage:")
 
@@ -85,7 +85,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
     GenomeLibrary(reader, s"$location/seqid2taxid.map")
   }
 
-  val build = new SparkCmd("build") with MinimizerCLIConf with RequireIndex {
+  val build = new SparkCmd("build") with MinimizerCLIConf with RequireIndex with RequireTaxonomy {
     banner("Build a new index from genomes with taxa.")
 
     override def defaultK: Int = 35
@@ -142,7 +142,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
   }
   addSubcommand(respace)
 
-  val classify = new SparkCmd("classify") with RequireIndex {
+  val classify = new SparkCmd("classify") with RequireIndex with HasInputReader {
     banner("Classify genomic sequences.")
 
     val minHitGroups = opt[Int](name = "minHits", descr = "Minimum hit groups (default 2)", default = Some(2))
