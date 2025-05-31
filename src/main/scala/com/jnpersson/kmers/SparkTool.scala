@@ -20,6 +20,7 @@ package com.jnpersson.kmers
 import com.globalmentor.apache.hadoop.fs.BareLocalFileSystem
 import com.jnpersson.kmers.input.{FileInputs, InputGrouping, Ungrouped}
 import org.apache.hadoop.fs.FileSystem
+import org.apache.hadoop.mapreduce.security.SpillCallBackPathsFinder
 import org.apache.spark.sql.SparkSession
 import org.rogach.scallop.ScallopConf
 
@@ -58,22 +59,26 @@ object SparkTool {
   }
 }
 
-//noinspection TypeAnnotation
-
-/**
- * CLI configuration for a Spark-based application.
- */
-class SparkConfiguration(args: Array[String])(implicit val spark: SparkSession) extends ScallopConf(args) {
-  val partitions =
-    opt[Int](descr = "Number of shuffle partitions/parquet buckets for indexes (default 200)", default = Some(200))
+trait HasInputReader {
+  this: ScallopConf =>
 
   protected def defaultMaxSequenceLength = 10000000 //10M bps
   val maxSequenceLength = opt[Int](name = "maxlen",
     descr = s"Maximum length of a single short sequence/read (default $defaultMaxSequenceLength)",
-    default = Some(defaultMaxSequenceLength))
+    default = Some(defaultMaxSequenceLength),
+    hidden = true)
 
   def inputReader(files: Seq[String], k: Int, grouping: InputGrouping)(implicit spark: SparkSession) =
     new FileInputs(files, k, maxSequenceLength(), grouping)
+}
+
+/**
+ * CLI configuration for a Spark-based application.
+ */
+//noinspection TypeAnnotation
+class SparkConfiguration(args: Array[String])(implicit val spark: SparkSession) extends ScallopConf(args) {
+  val partitions =
+    opt[Int](descr = "Number of shuffle partitions/parquet buckets for indexes (default 200)", default = Some(200))
 
   def finishSetup(): this.type = {
     verify()
