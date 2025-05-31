@@ -247,7 +247,8 @@ final case class NTBitArray(data: Array[Long], size: Int) extends Ordered[NTBitA
   /** Return a new object that is either equal to this array or to its reverse complement, and that has
    * forward orientation. */
   def canonical: NTBitArray = {
-    if (sliceIsForwardOrientation(0, size)) this.clone() else reverseComplement
+    val r = reverseComplement
+    if (this < r) this.clone() else r
   }
 
   /** Lexicographic comparison of two NT bit arrays. The arrays must have equal length. */
