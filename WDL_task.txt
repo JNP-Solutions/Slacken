@@ -6,7 +6,7 @@ task Slacken {
      File readsR1
      File readsR2
      String indexLocation
-     String sampleRegex
+     String? sampleRegex
      Float confidence
      Boolean withUnclassified
      Int minHitGroups
@@ -20,7 +20,7 @@ task Slacken {
       minHitGroups, withUnclassified)
     val outputDF = slacken.classifyReads(readsR1, Some(readsR2))
    >>>
-  output { //TODO: output section not done yet
+    output {
      File outputDF
-     }
+    }
 }
