@@ -29,7 +29,7 @@ class SlackenPlugin extends PiperPlugin {
   override def init(context: PiperContext): PluginContext = super.init(context)
 
   override def registerWriters(): util.Map[String, WriterSupport] =
-    Map[String, WriterSupport]("slackenReport" -> new ReportWriterFactory).asJava
+    Map[String, WriterSupport]("ReportWriter" -> new ReportWriterFactory).asJava
 
 }
 
