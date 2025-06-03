@@ -410,6 +410,16 @@ class Slacken(index: KeyValueIndex,
            unclassified: Boolean)(implicit spark: SparkSession) =
     this(KeyValueIndex.load(indexLocation), detailed, sampleRegex, confidence, minHitGroups, unclassified)
 
+  /** Convenience constructor for SeqsLab */
+  def this(indexLocation: String, detailed: Boolean, sampleRegex: String, confidence: Double, minHitGroups: Int,
+           unclassified: Boolean)(implicit spark: SparkSession) =
+    this(indexLocation, detailed, Some(sampleRegex), confidence, minHitGroups, unclassified)
+
+  /** Convenience constructor for SeqsLab */
+  def this(indexLocation: String, detailed: Boolean, confidence: Double, minHitGroups: Int,
+           unclassified: Boolean)(implicit spark: SparkSession) =
+    this(indexLocation, detailed, None, confidence, minHitGroups, unclassified)
+
   if (confidence < 0 || confidence > 1) {
     throw new Exception(s"--confidence values must be >= 0 and <= 1 ($confidence was given)")
   }

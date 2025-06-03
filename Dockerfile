@@ -1,4 +1,4 @@
-ARG base_image=ghcr.io/atgenomix/runtime/base:1.6.3.1-ubuntu22.04
+ARG base_image=ghcr.io/atgenomix/runtime/base:1.6.4.0-ubuntu22.04
 FROM --platform=$BUILDPLATFORM sbtscala/scala-sbt:eclipse-temurin-17.0.14_7_1.10.10_2.12.20 AS build
 ARG base_image
 
