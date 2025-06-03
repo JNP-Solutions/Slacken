@@ -1,12 +1,14 @@
-//Slacken task for Seqslab using the Slacken plugin (work in progress)
+//Slacken workflow for Seqslab (work in progress)
 
+
+version 1.0
 
 task Slacken {
    input {
      File readsR1
      File readsR2
      String indexLocation
-     String? sampleRegex
+     String sampleRegex
      Float confidence
      Boolean withUnclassified
      Int minHitGroups
@@ -20,7 +22,30 @@ task Slacken {
       minHitGroups, withUnclassified)
     val outputDF = slacken.classifyReads(readsR1, Some(readsR2))
    >>>
-    output {
-     File outputDF
-    }
+  output {
+     File outputDF = "outputDir"
+   }
+}
+
+workflow RunSlacken {
+  input {
+     File readsR1
+     File readsR2
+     String indexLocation
+     String sampleRegex
+     Float confidence
+     Boolean withUnclassified
+     Int minHitGroups
+  }
+
+  call Slacken {
+     input:
+       readsR1 = readsR1,
+       readsR2 = readsR2,
+       indexLocation = indexLocation,
+       sampleRegex = sampleRegex,
+       confidence = confidence,
+       withUnclassified = withUnclassified,
+       minHitGroups = minHitGroups
+  }
 }
