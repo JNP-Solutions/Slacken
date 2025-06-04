@@ -434,7 +434,6 @@ class Slacken(index: KeyValueIndex,
    * @return a dataframe populated with [[ClassifiedRead]] objects.
    */
   def classifyReads(reads: DataFrame, reads2: Option[DataFrame] = None): DataFrame = {
-    val cls = new Classifier(index)
     val inputs = reads2 match {
       case Some(r2) => DirectInputs.forPairs(reads, r2)
       case None => DirectInputs.forDataFrame(reads)
