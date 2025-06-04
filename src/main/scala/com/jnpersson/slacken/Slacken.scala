@@ -434,9 +434,13 @@ class Slacken(index: KeyValueIndex,
    * @return a dataframe populated with [[ClassifiedRead]] objects.
    */
   def classifyReads(reads: DataFrame, reads2: Option[DataFrame] = None): DataFrame = {
-    val inputs = reads2 match {
-      case Some(r2) => DirectInputs.forPairs(reads, r2)
-      case None => DirectInputs.forDataFrame(reads)
+    val nameScheme = Map("id" -> "header", "seq" -> "nucleotides")
+    val renamedR1 = reads.withColumnsRenamed(nameScheme)
+    val renamedR2 = reads2.map(_.withColumnsRenamed(nameScheme))
+
+    val inputs = renamedR2 match {
+      case Some(r2) => DirectInputs.forPairs(renamedR1, r2)
+      case None => DirectInputs.forDataFrame(renamedR1)
     }
     cls.classify(inputs.getInputFragments(true, None), cpar, confidence).toDF()
   }
