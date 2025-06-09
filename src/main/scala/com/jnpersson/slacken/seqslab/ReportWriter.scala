@@ -19,9 +19,9 @@ package com.jnpersson.slacken.seqslab
 
 import com.atgenomix.seqslab.piper.plugin.api.{DataSource, OperatorContext, PluginContext}
 import com.atgenomix.seqslab.piper.plugin.api.writer.{Writer, WriterSupport}
-import com.jnpersson.slacken.{Slacken}
+import com.jnpersson.slacken.Slacken
 import com.jnpersson.slacken.seqslab.ReportWriterFactory.ReportWriter
-import org.apache.spark.sql.{Dataset, Row, SparkSession}
+import org.apache.spark.sql.{Dataset, Row}
 
 import java.lang
 
@@ -39,15 +39,17 @@ object ReportWriterFactory {
     override def getDataSource: DataSource = dataSource
 
     override def call(t1: Dataset[Row], t2: lang.Boolean): Void = {
-      val fqn = operatorCtx.getFqn
-      val indexLocation = operatorCtx.inputs.get(s"$fqn.indexLocation").getString
-      val confidence = operatorCtx.inputs.get(s"$fqn.confidence").getDouble
+      val taskFqn = operatorCtx.getTaskFqn
+      val piperContext = pluginCtx.piper
 
-      val minHitGroups = 2
-      val withUnclassified = false
+      val indexLocation = piperContext.getInput(s"$taskFqn.indexLocation").getString
+      val confidence = piperContext.getInput(s"$taskFqn.confidence").getDouble
+      val minHitGroups = piperContext.getInput(s"$taskFqn.minHitGroups").getInteger
+      val withUnclassified = piperContext.getInput(s"$taskFqn.withUnclassified").getBoolean
+
       val perReadOutput = false
       val sampleRegex = None //not needed for report writing
-      implicit val spark = pluginCtx.piper.spark
+      implicit val spark = piperContext.spark
 
       val slacken = new Slacken(indexLocation, perReadOutput, sampleRegex, confidence, minHitGroups, withUnclassified)
       slacken.writeReports(t1, dataSource.getUrl)
