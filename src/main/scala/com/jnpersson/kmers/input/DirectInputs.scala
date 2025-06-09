@@ -63,8 +63,9 @@ class DirectInputReader(data: DataFrame)(implicit spark: SparkSession) extends I
     val hasN2 = data.columns.contains("nucleotides2")
     val hasLocation = data.columns.contains("location")
     data.select($"header",
-      if (hasLocation) $"location" else lit(1L),
+      if (hasLocation) $"location" else lit(1L).as("location"),
       $"nucleotides",
-      if (hasN2) $"nucleotides2" else lit(null)).as[InputFragment]
+      if (hasN2) $"nucleotides2" else lit(null).as("nucleotides2")
+    ).as[InputFragment]
   }
 }
