@@ -105,6 +105,28 @@ class NTBitArrayProps extends AnyFunSuite with ScalaCheckPropertyChecks {
     }
   }
 
+  test("writeCanonical") {
+    forAll(dnaStrings) { x =>
+      whenever (x.nonEmpty) {
+        val enc = NTBitArray.encode(x)
+        val buffer = NTBitArray.blank(enc.size)
+
+        // Test correctness - should match canonical
+        val can = enc.canonical
+        enc.writeCanonical(buffer)
+        buffer should equal(can)
+
+        // Test that buffer is reused - writing to same buffer multiple times should work
+        enc.writeCanonical(buffer)
+        buffer should equal(can)
+
+        // Test that buffer is returned for chaining
+        val chainedBuffer = enc.writeCanonical(buffer)
+        chainedBuffer should be theSameInstanceAs buffer
+      }
+    }
+  }
+
   test("comparison") {
     forAll(ks) { k =>
       whenever(k > 0) {
