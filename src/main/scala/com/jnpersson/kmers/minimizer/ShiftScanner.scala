@@ -104,6 +104,7 @@ final case class ShiftScanner(priorities: MinimizerPriorities) {
     //Position that we are reading from the input
     var pos = 0
     val window = NTBitArray.blank(width)
+    val priorityBuffer = NTBitArray.blank(width)
     while ((validSize < width - 1) && pos < size) {
       val x = data(pos)
       if (x != WHITESPACE) {
@@ -127,9 +128,9 @@ final case class ShiftScanner(priorities: MinimizerPriorities) {
         thisLong = (thisLong << 2) | x
         //window will now correspond to the "encoded form" of a motif (reversible mapping to 32-bit Int)
         //priorityOf will give the rank/ID
-        val priority = priorities.priorityOf(window)
+        val priority = priorities.writePriorityOf(window, priorityBuffer)
         if (priority ne empty) {
-          matches.addLongs(priority.data)
+          matches.addLongs(priorityBuffer.data)
           matches.addLong(1) // "valid" tag
         } else {
           matches.addLongs(invalidMinimizer)

@@ -143,12 +143,12 @@ object KmerTable {
  * @param k            k
  */
 final class KmerTableBuilder(width: Int, tagWidth: Int, sizeEstimate: Int, k: Int) {
-  private val builders = Array.fill(width)(new mutable.ArrayBuilder.ofLong)
+  private[this] val builders = Array.fill(width)(new mutable.ArrayBuilder.ofLong)
   for (b <- builders) {
     b.sizeHint(sizeEstimate)
   }
 
-  private var writeColumn = 0
+  private[this] var writeColumn = 0
 
   /** Add a single long value. Calling this method 'width' times adds a single k-mer to the table. */
   def addLong(x: Long): Unit = {
