@@ -102,7 +102,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 
     override def frequencyBySequence: Boolean = true
 
-    val library = opt[String](required = true, descr = "Location of sequence files (directory containing library/)")
+    val library = opt[String](required = true, descr = "Location of genome library (directory containing library/)")
     val check = opt[Boolean](descr = "Only check input files for consistency", hidden = !showAllOpts, default = Some(false))
 
     def run(): Unit = {
@@ -255,7 +255,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
   val brackenWeights = new SparkCmd("brackenWeights") with RequireIndex {
     banner("Generate a weights file (kmer_distrib) for use with Bracken.")
 
-    val library = opt[String](descr = "Location of sequence files (directory containing library/)")
+    val library = opt[String](descr = "Location of genome library (directory containing library/)")
     val readLen = opt[Int](descr = "Read length (default 100)", default = Some(100))
 
     def run(): Unit = {
@@ -272,7 +272,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
   val stats = new SparkCmd("stats") with RequireIndex {
     banner("Get index statistics, optionally checking a genome library for coverage.")
 
-    val library = opt[String](descr = "Location of sequence files (directory containing library/) for coverage check")
+    val library = opt[String](descr = "Location of genome library (directory containing library/) for coverage check")
 
     val histogram = opt[Boolean](descr = "Show taxonomic depth histograms for minimizers and taxa")
 
@@ -308,7 +308,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
   val report = new SparkCmd("report") with RequireIndex {
     banner("Generate an index contents report (inspect the index).")
 
-    val library = opt[String](descr = "Location of sequence files (directory containing library/)")
+    val library = opt[String](descr = "Location of genome library (directory containing library/)")
     val output = opt[String](descr = "Output location", required = true)
     val labels = opt[String](descr = "Labels file to check for missing nodes")
 
