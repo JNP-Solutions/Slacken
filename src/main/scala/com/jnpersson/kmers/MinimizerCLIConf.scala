@@ -28,12 +28,15 @@ private[jnpersson] object Commands {
   def run(conf: ScallopConf): Unit = {
     conf.verify()
     val cmds = conf.subcommands.collect { case rc: RunCmd => rc }
-    if (cmds.isEmpty &&
+    if (conf.args.contains("--detailed-help")) {
+      conf.printHelp()
+    } else if (cmds.isEmpty &&
       !conf.args.contains("--help") && !conf.args.contains("-h")) {
       conf.printHelp()
       throw new Exception("No command supplied. Nothing to do.")
+    } else {
+      for {c <- cmds} c.run()
     }
-    for {c <- cmds} c.run()
   }
 }
 

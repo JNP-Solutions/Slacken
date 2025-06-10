@@ -77,8 +77,15 @@ trait HasInputReader {
  */
 //noinspection TypeAnnotation
 class SparkConfiguration(args: Array[String])(implicit val spark: SparkSession) extends ScallopConf(args) {
+  protected val showAllOpts =
+    args(0) == "--detailed-help" //to make this value available during the option construction stage
+
+  val detailedHelp =
+    opt[Boolean](hidden = true) //to make sure --detailed-help is successfully parsed later
+
   val partitions =
-    opt[Int](descr = "Number of shuffle partitions/parquet buckets for indexes (default 200)", default = Some(200))
+    opt[Int](descr = "Number of shuffle partitions/parquet buckets for indexes (default 200)", default = Some(200),
+      hidden = !showAllOpts)
 
   def finishSetup(): this.type = {
     verify()
