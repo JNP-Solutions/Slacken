@@ -274,6 +274,8 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 
     val library = opt[String](descr = "Location of sequence files (directory containing library/) for coverage check")
 
+    val histogram = opt[Boolean](descr = "Show taxonomic depth histograms for minimizers and taxa")
+
     def run(): Unit = {
       val i = loadIndex()
       val p = i.params
@@ -289,24 +291,19 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
         case _ =>
           println(s"Splitter ${p.splitter}")
       }
-      val inputs = library.toOption.map(l => findGenomes(l, p.k))
-      i.showIndexStats(inputs)
+
+      if (histogram()) {
+        println("Minimizer depth histogram")
+        loadIndex().kmerDepthHistogram().show()
+        println("Taxon depth histogram")
+        loadIndex().taxonDepthHistogram().show()
+      } else {
+        val inputs = library.toOption.map(l => findGenomes(l, p.k))
+        i.showIndexStats(inputs)
+      }
     }
   }
   addSubcommand(stats)
-
-  val histogram = new SparkCmd("histogram") with RequireIndex {
-    banner("Get index statistics as histograms (minimizers by taxonomic depth, and taxa by taxonomic depth).")
-
-    //      val output = opt[String](descr = "Output location", required = true) //TODO
-    def run(): Unit = {
-      println("Minimizer depths")
-      loadIndex().kmerDepthHistogram().show()
-      println("Taxon depths")
-      loadIndex().taxonDepthHistogram().show()
-    }
-  }
-  addSubcommand(histogram)
 
   val report = new SparkCmd("report") with RequireIndex {
     banner("Generate an index contents report (inspect the index).")
