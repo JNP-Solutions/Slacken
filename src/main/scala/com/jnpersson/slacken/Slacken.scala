@@ -68,7 +68,7 @@ trait RequireIndex {
 //noinspection TypeAnnotation
 class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends SparkConfiguration(args) with HasInputReader {
   version(s"Slacken ${getClass.getPackage.getImplementationVersion} (c) 2019-2025 Johan Nyström-Persson")
-  banner("Usage:")
+  banner("Usage (use --detailed-help to see all options):")
 
   implicit val formats = SlackenMinimizerFormats
 
@@ -103,7 +103,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
     override def frequencyBySequence: Boolean = true
 
     val library = opt[String](required = true, descr = "Location of sequence files (directory containing library/)")
-    val check = opt[Boolean](descr = "Only check input files for consistency", hidden = true, default = Some(false))
+    val check = opt[Boolean](descr = "Only check input files for consistency", hidden = !showAllOpts, default = Some(false))
 
     def run(): Unit = {
       val genomes = findGenomes(library(), k())
@@ -185,12 +185,12 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 
       val rank = choice(descr = "Granularity for index construction (default species)",
         default = Some(Species.title), choices = Taxonomy.rankTitles,
-        hidden = true).map(Taxonomy.rankOrNull)
+        hidden = !showAllOpts).map(Taxonomy.rankOrNull)
 
       val minCount = opt[Int](descr = "Minimizer count for taxon inclusion in dynamic index", short = 'C',
-        hidden = true)
+        hidden = !showAllOpts)
       val minDistinct = opt[Int](descr = "Minimizer distinct count for taxon inclusion in dynamic index", short = 'D',
-        hidden = true)
+        hidden = !showAllOpts)
       val reads = opt[Int](descr = "Min initial read count classified for taxon inclusion in dynamic index (default 100)",
         short = 'R')
       val readConfidence = opt[Double](descr = "Confidence threshold for initial read classification (default 0.15)",
@@ -209,7 +209,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
       val promoteGoldSet = choice(
         descr = "Attempt to promote taxa with no minimizers from the gold set to this rank (at the highest)",
         choices = Taxonomy.rankTitles,
-        hidden = true).map(Taxonomy.rankOrNull)
+        hidden = !showAllOpts).map(Taxonomy.rankOrNull)
 
       val dynInFiles = trailArg[List[String]](descr = "Sequences to be classified")
 
