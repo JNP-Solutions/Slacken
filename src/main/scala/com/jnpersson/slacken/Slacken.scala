@@ -192,9 +192,9 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
         hidden = !showAllOpts, group = taxonRules)
       val minDistinct = opt[Int](descr = "Minimizer distinct count minimum", short = 'D',
         hidden = !showAllOpts, group = taxonRules)
-      val reads = opt[Int](descr = "Min initial read count classified (default 100)",
+      val reads = opt[Int](descr = "Min initial read count classified (default = 100)",
         short = 'R', group = taxonRules)
-      val readConfidence = opt[Double](descr = "Confidence threshold for initial read classification (default 0.15)",
+      val readConfidence = opt[Double](descr = "Confidence threshold for initial read classification",
         default = Some(0.15), short = 'c', group = taxonRules)
 
       val brackenLength = opt[Int](descr = "Read length for building bracken weights")
