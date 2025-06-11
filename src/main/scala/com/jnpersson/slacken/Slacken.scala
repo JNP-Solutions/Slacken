@@ -423,8 +423,7 @@ class Slacken(index: KeyValueIndex,
    * @param reads2 optionally, R2 reads to classify in the case of paired-end reads.
    * @return a dataframe populated with [[ClassifiedRead]] objects.
    */
-  def classifyReads(reads: DataFrame, reads2: Option[DataFrame] = None)(implicit spark: SparkSession): DataFrame = {
-    val cls = new Classifier(index)
+  def classifyReads(reads: DataFrame, reads2: Option[DataFrame] = None): DataFrame = {
     val inputs = reads2 match {
       case Some(r2) => DirectInputs.forPairs(reads, r2)
       case None => DirectInputs.forDataFrame(reads)
@@ -439,7 +438,7 @@ class Slacken(index: KeyValueIndex,
    * @param location   location to write outputs to (directory prefix)
    * @return file names of generated report files
    */
-  def writeReports(classified: DataFrame, location: String)(implicit spark: SparkSession): Iterable[String] = {
+  def writeReports(classified: DataFrame, location: String): Iterable[String] = {
     import spark.sqlContext.implicits._
     val clReads = classified.as[ClassifiedRead]
     val samples = cls.writePerSampleOutput(clReads, location, confidence, cpar)
