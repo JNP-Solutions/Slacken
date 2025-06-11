@@ -51,7 +51,8 @@ object ReportWriterFactory {
       val sampleRegex = None //not needed for report writing
       implicit val spark = piperContext.spark
 
-      val slacken = new Slacken(indexLocation, perReadOutput, sampleRegex, confidence, minHitGroups, withUnclassified)
+      val slacken = new SlackenSeqslab(indexLocation, perReadOutput, sampleRegex,
+        confidence, minHitGroups, withUnclassified)
       slacken.writeReports(t1, dataSource.getUrl)
 
       null
