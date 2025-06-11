@@ -42,6 +42,10 @@ private[jnpersson] object Commands {
 
 private[jnpersson] abstract class RunCmd(title: String) extends Subcommand(title) {
   appendDefaultToDescription = true
+
+  val detailedHelp =
+    opt[Boolean](hidden = true) //to make sure --detailed-help is successfully parsed. Not actually used.
+
   def run(): Unit
 }
 
