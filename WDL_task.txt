@@ -18,7 +18,7 @@ task Slacken {
 
     //multi-sample classification generating reports only (no per-read output)
 
-    val slacken = new Slacken(indexLocation, detailed = false, sampleRegex, confidence,
+    val slacken = new SlackenSeqslab(indexLocation, detailed = false, sampleRegex, confidence,
       minHitGroups, withUnclassified)
     val outputDF = slacken.classifyReads(readsR1, Some(readsR2))
    >>>
