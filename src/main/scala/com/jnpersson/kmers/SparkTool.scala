@@ -18,9 +18,8 @@
 package com.jnpersson.kmers
 
 import com.globalmentor.apache.hadoop.fs.BareLocalFileSystem
-import com.jnpersson.kmers.input.{FileInputs, InputGrouping, Ungrouped}
+import com.jnpersson.kmers.input.{FileInputs, InputGrouping}
 import org.apache.hadoop.fs.FileSystem
-import org.apache.hadoop.mapreduce.security.SpillCallBackPathsFinder
 import org.apache.spark.sql.SparkSession
 import org.rogach.scallop.ScallopConf
 
@@ -78,10 +77,10 @@ trait HasInputReader {
 //noinspection TypeAnnotation
 class SparkConfiguration(args: Array[String])(implicit val spark: SparkSession) extends ScallopConf(args) {
   protected val showAllOpts =
-    args(0) == "--detailed-help" //to make this value available during the option construction stage
+    args.contains("--detailed-help") //to make this value available during the option construction stage
 
   val detailedHelp =
-    opt[Boolean](hidden = true) //to make sure --detailed-help is successfully parsed later
+    opt[Boolean](hidden = true) //to make sure --detailed-help is successfully parsed. Not actually used.
 
   val partitions =
     opt[Int](descr = "Number of shuffle partitions/parquet buckets for indexes (default 200)", default = Some(200),

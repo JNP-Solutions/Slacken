@@ -19,12 +19,11 @@ package com.jnpersson.slacken
 
 import com.jnpersson.kmers.input.{DirectInputs, PairedEnd, Ungrouped}
 import com.jnpersson.kmers.minimizer._
-
 import com.jnpersson.kmers._
-
 import com.jnpersson.slacken.Taxonomy.Species
 import com.jnpersson.slacken.analysis.{MappingComparison, MinimizerMigration}
 import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.rogach.scallop.exceptions.RequiredOptionNotFound
 import org.rogach.scallop.{ScallopConf, Subcommand}
 
 import java.io.FileNotFoundException
@@ -67,8 +66,10 @@ trait RequireIndex {
 /** Command line options for Slacken */
 //noinspection TypeAnnotation
 class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends SparkConfiguration(args) with HasInputReader {
+  shortSubcommandsHelp(true)
+
   version(s"Slacken ${getClass.getPackage.getImplementationVersion} (c) 2019-2025 Johan Nyström-Persson")
-  banner("Usage (use --detailed-help to see all options):")
+  banner("Use <subcommand> --help to see help for a command. Use --detailed-help to see all options.")
 
   implicit val formats = SlackenMinimizerFormats
 
@@ -370,7 +371,19 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
   }
   addSubcommand(inputCheck)
 
-  verify()
+  override protected def onError(e: Throwable): Unit = e match {
+    case RequiredOptionNotFound(_) =>
+      //Print help for the appropriate subcommand
+      val cmds = subcommands.collect { case rc: RunCmd => rc }
+      if (cmds.nonEmpty) {
+        cmds.head.builder.printHelp()
+      } else {
+        builder.printHelp()
+      }
+      super.onError(e)
+    case _ => super.onError(e)
+  }
+
 }
 
 /**
