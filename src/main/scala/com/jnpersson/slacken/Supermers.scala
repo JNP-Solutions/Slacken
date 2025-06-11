@@ -20,7 +20,7 @@ package com.jnpersson.slacken
 
 import com.jnpersson.kmers._
 import com.jnpersson.kmers.minimizer._
-import com.jnpersson.kmers.util.{BitRepresentation, NTBitArray}
+import com.jnpersson.kmers.util.{Arrays, BitRepresentation, NTBitArray}
 
 import java.util
 import scala.util.Random
@@ -30,8 +30,16 @@ import scala.util.matching.Regex
 final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializable {
   val k = splitter.k
 
-  private def randomMinimizer: Array[BucketId] =
-    Array.fill(idLongs)(Random.nextLong())
+  //Create a random minimizer without boxing longs
+  private def randomMinimizer: Array[BucketId] = {
+    val r = new Array[Long](idLongs)
+    var i = 0
+    while (i < idLongs) {
+      r(i) = Random.nextLong()
+      i += 1
+    }
+    r
+  }
 
   /**
     * Splits reads by hash (minimizer), including an ordinal, so that the ordering inside a read can be reconstructed

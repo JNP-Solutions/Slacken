@@ -91,19 +91,23 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     val k = index.params.k
     val sre = cpar.sampleRegex.map(_.r)
 
-    subjectsHits.map({ case (title, hits) =>
-      if (cpar.perReadOutput) {
-        //The ordering of hits is not needed if we are not generating per read output
-        java.util.Arrays.sort(hits, Classifier.hitsComparator)
-      }
+    subjectsHits.mapPartitions(part => {
+      val lca = new LowestCommonAncestor(bcTax.value)
 
-      val sample = sre match {
-        case Some(re) => re.findFirstMatchIn(title).
-          map(_.group(1)).getOrElse("other")
-        case _ => "all"
-      }
+      part.map { case (title, hits) =>
+        if (cpar.perReadOutput) {
+          //The ordering of hits is not needed if we are not generating per read output
+          java.util.Arrays.sort(hits, Classifier.hitsComparator)
+        }
 
-      Classifier.classify(bcTax.value, sample, title, hits, threshold, k, cpar)
+        val sample = sre match {
+          case Some(re) => re.findFirstMatchIn(title).
+            map(_.group(1)).getOrElse("other")
+          case _ => "all"
+        }
+
+        Classifier.classify(lca, sample, title, hits, threshold, k, cpar)
+      }
     })
   }
 
@@ -232,17 +236,15 @@ object Classifier {
   }
 
   /** Classify a read.
-   * @param taxonomy Parent map for taxa
+   * @param lca LCA calculator
    * @param title Sequence title/ID
    * @param sortedHits Taxon hits (minimizers) in order
    * @param confidenceThreshold Minimum fraction of k-mers/minimizers that must be in the match
    * @param k Length of k-mers
    * @param cpar Classify parameters
    */
-  def classify(taxonomy: Taxonomy, sampleId: String, title: SeqTitle, sortedHits: Array[TaxonHit],
+  def classify(lca: LowestCommonAncestor, sampleId: String, title: SeqTitle, sortedHits: Array[TaxonHit],
                confidenceThreshold: Double, k: Int, cpar: ClassifyParams): ClassifiedRead = {
-    val lca = new LowestCommonAncestor(taxonomy)
-
     val totalSummary = TaxonCounts.fromHits(sortedHits)
 
     val taxon = lca.resolveTree(totalSummary, confidenceThreshold)

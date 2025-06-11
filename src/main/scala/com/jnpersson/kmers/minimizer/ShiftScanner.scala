@@ -19,7 +19,7 @@ package com.jnpersson.kmers.minimizer
 
 import com.jnpersson.kmers.NTSeq
 import com.jnpersson.kmers.util.BitRepresentation._
-import com.jnpersson.kmers.util.{BitRepresentation, InvalidNucleotideException, KmerTable, NTBitArray}
+import com.jnpersson.kmers.util.{Arrays, BitRepresentation, InvalidNucleotideException, KmerTable, NTBitArray}
 
 /**
  * Bit-shift scanner for fixed width motifs. Identifies all valid (according to some [[MinimizerPriorities]])
@@ -70,6 +70,9 @@ final case class ShiftScanner(priorities: MinimizerPriorities) {
     }
   }
 
+  //zero data plus one tag
+  private val invalidMinimizer = Arrays.fillNew(KmerTable.longsForK(width) + 1, 0L)
+
   /**
    * Find all matches in a nucleotide string.
    * Returns a pair of 1) the encoded nucleotide string,
@@ -98,8 +101,6 @@ final case class ShiftScanner(priorities: MinimizerPriorities) {
     //K-mer table to store minimizer data for each sequence position in a memory efficient way.
     // The tag field will indicate whether the entry is valid (1) at a given position.
     val matches = KmerTable.builder(width, size, 1)
-    //zero data plus one tag
-    val invalidMinimizer = Array.fill(KmerTable.longsForK(width) + 1)(0L)
 
     //Position that we are reading from the input
     var pos = 0

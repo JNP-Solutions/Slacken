@@ -17,6 +17,7 @@
 
 package com.jnpersson.slacken
 
+import com.jnpersson.kmers.util.Arrays
 import com.jnpersson.slacken.Taxonomy.NONE
 import com.jnpersson.slacken.Taxonomy.ROOT
 import it.unimi.dsi.fastutil.ints.Int2IntMap
@@ -32,7 +33,7 @@ import org.apache.spark.sql.expressions.Aggregator
 final class LowestCommonAncestor(taxonomy: Taxonomy) {
   private val PATH_MAX_LENGTH = 256
 
-  private val taxonPath: Array[Taxon] = Array.fill(PATH_MAX_LENGTH)(NONE)
+  private val taxonPath: Array[Taxon] = Arrays.fillNew(PATH_MAX_LENGTH, NONE)
 
   private val parents = taxonomy.parents
 
