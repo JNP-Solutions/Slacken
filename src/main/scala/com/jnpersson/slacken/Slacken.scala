@@ -41,7 +41,7 @@ trait RequireTaxonomy {
   def getTaxonomy(implicit spark: SparkSession) = Taxonomy.load(taxonomy())
 }
 
-/** Command line options for command that require an input index */
+/** Command line options for commands that require an input index */
 trait RequireIndex {
   this: SparkCmd =>
 
@@ -61,6 +61,43 @@ trait RequireIndex {
         throw fnf
 
     }
+}
+
+/** Command line options for commands that classify reads */
+trait ClassifyCommand extends RequireIndex with HasInputReader {
+  this: SparkCmd =>
+  val minHitGroups = opt[Int](name = "minHits", descr = "Minimum hit groups", default = Some(2))
+  val inFiles = trailArg[List[String]](descr = "Sequences to be classified", default = Some(List()))
+  val paired = opt[Boolean](descr = "Inputs are paired-end reads", default = Some(false)).map(
+    if (_) PairedEnd else Ungrouped
+  )
+  val unclassified = toggle(descrYes = "Output unclassified reads", default = Some(true))
+  val output = opt[String](descr = "Output location", required = true)
+  val detailed = toggle(descrYes = "Output results for individual reads, in addition to reports", default = Some(true))
+  val confidence = opt[List[Double]](
+    descr = "Confidence thresholds (a space-separated list with values in [0, 1])",
+    default = Some(List(0.0)), short = 'c')
+  val sampleRegex = opt[String](descr = "Regular expression for extracting sample ID from read header (e.g. \"(.*)\\.\"). Enables multi-sample mode.")
+
+  def cpar = ClassifyParams(minHitGroups(), unclassified(), confidence(), sampleRegex.toOption, detailed())
+
+  validate(confidence) { cs =>
+    cs.find(c => c < 0 || c > 1) match {
+      case Some(c) => Left(s"--confidence values must be >= 0 and <= 1 ($c was given)")
+      case None => Right(Unit)
+    }
+  }
+
+  validate(sampleRegex) { reg =>
+    try {
+      reg.r
+      Right(Unit)
+    } catch {
+      case pse: PatternSyntaxException =>
+        println(pse.getMessage)
+        Left(s"--sampleRegex was not a valid regular expression ($reg was given)")
+    }
+  }
 }
 
 /** Command line options for Slacken */
@@ -143,106 +180,8 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
   }
   addSubcommand(respace)
 
-  val classify = new SparkCmd("classify") with RequireIndex with HasInputReader {
+  val classify = new SparkCmd("classify") with ClassifyCommand {
     banner("Classify genomic sequences.")
-
-    val minHitGroups = opt[Int](name = "minHits", descr = "Minimum hit groups (default 2)", default = Some(2))
-    val inFiles = trailArg[List[String]](descr = "Sequences to be classified", default = Some(List()))
-    val paired = opt[Boolean](descr = "Inputs are paired-end reads", default = Some(false)).map(
-      if (_) PairedEnd else Ungrouped
-    )
-    val unclassified = toggle(descrYes = "Output unclassified reads", default = Some(true))
-    val output = opt[String](descr = "Output location", required = true)
-    val detailed = toggle(descrYes = "Output results for individual reads, in addition to reports", default = Some(true))
-    val confidence = opt[List[Double]](
-      descr = "Confidence thresholds (default 0.0, should be a space separated list with values in [0, 1])",
-      default = Some(List(0.0)), short = 'c')
-    val sampleRegex = opt[String](descr = "Regular expression for extracting sample ID from read header (e.g. \"(.*)\\.\"). Enables multi-sample mode.")
-
-    def cpar = ClassifyParams(minHitGroups(), unclassified(), confidence(), sampleRegex.toOption, detailed())
-
-    validate(confidence) { cs =>
-      cs.find(c => c < 0 || c > 1) match {
-        case Some(c) => Left(s"--confidence values must be >= 0 and <= 1 ($c was given)")
-        case None => Right(Unit)
-      }
-    }
-
-    validate(sampleRegex) { reg =>
-      try {
-        reg.r
-        Right(Unit)
-      } catch {
-        case pse: PatternSyntaxException =>
-          println(pse.getMessage)
-          Left(s"--sampleRegex was not a valid regular expression ($reg was given)")
-      }
-    }
-
-    val dynamic = new RunCmd("dynamic") {
-      banner("Two-step classification using a static and a dynamic index (built on the fly).")
-      val library = opt[String](required = true,
-        descr = "Genome library location for index construction (directory containing library/)")
-
-      val rank = choice(descr = "Granularity for index construction (default species)",
-        default = Some(Species.title), choices = Taxonomy.rankTitles,
-        hidden = !showAllOpts).map(Taxonomy.rankOrNull)
-
-      val taxonRules = group("Taxon inclusion rules for dynamic index:")
-      val minCount = opt[Int](descr = "Minimizer count minimum", short = 'C',
-        hidden = !showAllOpts, group = taxonRules)
-      val minDistinct = opt[Int](descr = "Minimizer distinct count minimum", short = 'D',
-        hidden = !showAllOpts, group = taxonRules)
-      val reads = opt[Int](descr = "Min initial read count classified (default = 100)",
-        short = 'R', group = taxonRules)
-      val readConfidence = opt[Double](descr = "Confidence threshold for initial read classification",
-        default = Some(0.15), short = 'c', group = taxonRules)
-
-      val brackenLength = opt[Int](descr = "Read length for building bracken weights")
-
-      val indexReports = opt[Boolean](descr = "Generate reports on the dynamic index and the inputs' taxon support",
-        default = Some(false))
-
-      val classifyWithGold = opt[Boolean](
-        descr = "Instead of detecting taxa, construct a dynamic library using the gold taxon set ",
-        default = Some(false))
-      val goldSet = opt[String](descr = "Location of gold standard reference taxon set",
-        short = 'g')
-      val promoteGoldSet = choice(
-        descr = "Attempt to promote taxa with no minimizers from the gold set to this rank (at the highest)",
-        choices = Taxonomy.rankTitles,
-        hidden = !showAllOpts).map(Taxonomy.rankOrNull)
-
-      val dynInFiles = trailArg[List[String]](descr = "Sequences to be classified")
-
-      validate(readConfidence) { c =>
-        if (c < 0 || c > 1)
-          Left(s"--read-confidence must be >=0 and <= 1 ($c was given)")
-        else Right(Unit)
-      }
-      mutuallyExclusive(minCount, minDistinct, reads)
-
-      override def run(): Unit = {
-        val i = loadIndex()
-        val genomeLib = findGenomes(library(), i.params.k)(i.spark)
-        val goldStandardOpt = goldSet.toOption.map(x =>
-          GoldSetOptions(x, promoteGoldSet.toOption, classifyWithGold()))
-        val taxonCriteria = minCount.map(MinimizerTotalCount).
-          orElse(reads.map(ClassifiedReadCount(_, readConfidence())).toOption).
-          orElse(minDistinct.map(MinimizerDistinctCount).toOption).
-          getOrElse(ClassifiedReadCount(100, readConfidence()))
-
-        val dyn = new Dynamic(i, genomeLib, rank(),
-          taxonCriteria,
-          cpar,
-          goldStandardOpt,
-          output())(i.spark)
-
-        val inputs = inputReader(inFiles() ++ dynInFiles(), i.params.k, paired())(i.spark)
-        dyn.twoStepClassifyAndWrite(inputs, indexReports(), brackenLength.toOption)
-      }
-    }
-    addSubcommand(dynamic)
 
     def run(): Unit = {
       val i = loadIndex()
@@ -253,6 +192,70 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
     }
   }
   addSubcommand(classify)
+
+  val classify2 = new SparkCmd("classify2") with ClassifyCommand {
+    banner("Two-step classification using a static and a dynamic index (built on the fly).")
+    val library = opt[String](required = true,
+      descr = "Genome library location for index construction (directory containing library/)")
+
+    val rank = choice(descr = "Granularity for index construction (default species)",
+      default = Some(Species.title), choices = Taxonomy.rankTitles,
+      hidden = !showAllOpts).map(Taxonomy.rankOrNull)
+
+    val minCount = opt[Int](descr = "Minimizer count minimum", short = 'C',
+      hidden = !showAllOpts)
+    val minDistinct = opt[Int](descr = "Minimizer distinct count minimum", short = 'D',
+      hidden = !showAllOpts)
+    val reads = opt[Int](descr = "Min initial read count classified (default = 100)",
+      short = 'R')
+    val initConfidence = opt[Double](descr = "Confidence threshold for initial read classification",
+      default = Some(0.15))
+
+    val brackenLength = opt[Int](descr = "Read length for building bracken weights")
+
+    val indexReports = opt[Boolean](descr = "Generate reports on the dynamic index and the inputs' taxon support",
+      default = Some(false))
+
+    val classifyWithGold = opt[Boolean](
+      descr = "Instead of detecting taxa, construct a dynamic library using the gold taxon set ",
+      default = Some(false))
+    val goldSet = opt[String](descr = "Location of gold standard reference taxon set",
+      short = 'g')
+    val promoteGoldSet = choice(
+      descr = "Attempt to promote taxa with no minimizers from the gold set to this rank (at the highest)",
+      choices = Taxonomy.rankTitles,
+      hidden = !showAllOpts).map(Taxonomy.rankOrNull)
+
+    val dynInFiles = trailArg[List[String]](descr = "Sequences to be classified")
+
+    validate(initConfidence) { c =>
+      if (c < 0 || c > 1)
+        Left(s"--read-confidence must be >=0 and <= 1 ($c was given)")
+      else Right(Unit)
+    }
+    mutuallyExclusive(minCount, minDistinct, reads)
+
+    override def run(): Unit = {
+      val i = loadIndex()
+      val genomeLib = findGenomes(library(), i.params.k)(i.spark)
+      val goldStandardOpt = goldSet.toOption.map(x =>
+        GoldSetOptions(x, promoteGoldSet.toOption, classifyWithGold()))
+      val taxonCriteria = minCount.map(MinimizerTotalCount).
+        orElse(reads.map(ClassifiedReadCount(_, initConfidence())).toOption).
+        orElse(minDistinct.map(MinimizerDistinctCount).toOption).
+        getOrElse(ClassifiedReadCount(100, initConfidence()))
+
+      val dyn = new Dynamic(i, genomeLib, rank(),
+        taxonCriteria,
+        cpar,
+        goldStandardOpt,
+        output())(i.spark)
+
+      val inputs = inputReader(inFiles() ++ dynInFiles(), i.params.k, paired())(i.spark)
+      dyn.twoStepClassifyAndWrite(inputs, indexReports(), brackenLength.toOption)
+    }
+  }
+  addSubcommand(classify2)
 
   val brackenBuild = new SparkCmd("brackenBuild") with RequireIndex {
     banner("Generate a weights file (kmer_distrib) for use with Bracken.")
