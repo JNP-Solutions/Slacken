@@ -254,7 +254,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
   }
   addSubcommand(classify)
 
-  val brackenWeights = new SparkCmd("brackenWeights") with RequireIndex {
+  val brackenBuild = new SparkCmd("brackenBuild") with RequireIndex {
     banner("Generate a weights file (kmer_distrib) for use with Bracken.")
 
     val library = opt[String](descr = "Location of genome library (directory containing library/)")
@@ -269,7 +269,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
       bw.buildAndWriteWeights(genomes, genomes.taxonSet(i.taxonomy), outputLocation, gradual = true)
     }
   }
-  addSubcommand(brackenWeights)
+  addSubcommand(brackenBuild)
 
   val stats = new SparkCmd("stats") with RequireIndex {
     banner("Get index statistics, optionally checking a genome library for coverage.")
@@ -307,8 +307,8 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
   }
   addSubcommand(stats)
 
-  val report = new SparkCmd("report") with RequireIndex {
-    banner("Generate an index contents report (inspect the index).")
+  val inspect = new SparkCmd("inspect") with RequireIndex {
+    banner("Generate an index contents report.")
 
     val library = opt[String](descr = "Location of genome library (directory containing library/)")
     val output = opt[String](descr = "Output location", required = true)
@@ -320,7 +320,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
       idx.report(labels.toOption, output(), genomes)
     }
   }
-  addSubcommand(report)
+  addSubcommand(inspect)
 
   val compareIndex = new SparkCmd("compareIndex") with RequireIndex {
     val reference = opt[String](descr = "Location of reference index", required = true)
