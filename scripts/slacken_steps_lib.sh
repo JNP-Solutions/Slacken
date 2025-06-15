@@ -24,7 +24,7 @@ function classify {
   LIB=$1
   LNAME=$2
   CLASS_OUT=$ROOT/scratch/classified/$FAMILY/${LNAME}_classified
-  ./slacken-aws.sh taxonIndex $DATA/$LIB classify \
+  ./slacken-aws.sh classify -i $DATA/$LIB \
     --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" -o $CLASS_OUT \
   "${SAMPLES[@]}"
 }
@@ -37,9 +37,9 @@ function classifyGS {
   #--index-reports
   #-p 3000
   CLASS_OUT=$ROOT/scratch/classified/$FAMILY/${LNAME}_classified
-  ./slacken-aws.sh -p 3000 taxonIndex $DATA/$LIB classify --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" \
+  ./slacken-aws.sh -p 3000 classify2 -i $DATA/$LIB --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" \
   -o $CLASS_OUT \
-  dynamic -l $K2 --classify-with-gold -g $SPATH/${LABEL}_gold.txt \
+  -l $K2 --classify-with-gold -g $SPATH/${LABEL}_gold.txt \
       --bracken-length 150 \
       "${SAMPLES[@]}"
 }
@@ -54,9 +54,9 @@ function classifyDynamic {
   #--reads
 
   CLASS_OUT=$ROOT/scratch/classified/$FAMILY/${LNAME}_classified
-  ./slacken-aws.sh -p 3000 taxonIndex $DATA/$LIB classify --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" \
+  ./slacken-aws.sh -p 3000 classify2 -i $DATA/$LIB --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" \
   -o $CLASS_OUT \
-    dynamic -l $K2 -g $SPATH/${LABEL}_gold.txt \
+    -l $K2 -g $SPATH/${LABEL}_gold.txt \
     --bracken-length 150 --reads 100 \
     "${SAMPLES[@]}"
 }
@@ -71,26 +71,26 @@ function build {
   OTHER=$6
 
   PARAMS="-k $K -m $M --spaces $S -p $BUCKETS"
-  ./slacken-aws.sh $PARAMS -t $TAXONOMY taxonIndex $DATA/$NAME build -l $K2 $OTHER
+  ./slacken-aws.sh $PARAMS -t $TAXONOMY build -i $DATA/$NAME -l $K2 $OTHER
   histogram $NAME
 }
 
 function histogram {
   LIB=$1
-  ./slacken-aws.sh taxonIndex $DATA/$LIB histogram
+  ./slacken-aws.sh histogram -i $DATA/$LIB
 }
 
 function report {
   LIB=$1
   #-l $K2
-  ./slacken-aws.sh taxonIndex $DATA/$LIB report -o $DATA/$LIB
+  ./slacken-aws.sh report -i $DATA/$LIB -o $DATA/$LIB
 }
 
-function brackenWeights {
+function brackenBuild {
   LIB=$1
   READ_LENGTH=150
   #Note the special run script that sets $SPLIT properly for this job
-  ./slacken-aws.sh -p 10000 taxonIndex $DATA/$LIB brackenWeights -l $K2 -r $READ_LENGTH
+  ./slacken-aws.sh -p 10000 brackenBuild -i $DATA/$LIB -l $K2 -r $READ_LENGTH
 }
 
 #Compare classifications of multiple samples and classifications against references
