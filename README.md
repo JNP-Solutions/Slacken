@@ -268,7 +268,7 @@ They can be used directly with Bracken to re-estimate taxon abundances in a taxo
 For example, for read length 150:
 
 ```commandline
-./slacken.sh brackenBuild -i /data/standard-224c/std_35_31_s7 \
+./slacken.sh bracken-build -i /data/standard-224c/std_35_31_s7 \
  -l /data/standard-224c --read-len 150
 ```
 
