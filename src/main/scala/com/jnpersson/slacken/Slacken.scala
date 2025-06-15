@@ -66,7 +66,7 @@ trait RequireIndex {
 /** Command line options for commands that classify reads */
 trait ClassifyCommand extends RequireIndex with HasInputReader {
   this: SparkCmd =>
-  val minHitGroups = opt[Int](name = "minHits", descr = "Minimum hit groups", default = Some(2))
+  val minHitGroups = opt[Int](name = "min-hits", descr = "Minimum hit groups", default = Some(2))
   val inFiles = trailArg[List[String]](descr = "Sequences to be classified", default = Some(List()))
   val paired = opt[Boolean](descr = "Inputs are paired-end reads", default = Some(false)).map(
     if (_) PairedEnd else Ungrouped
@@ -257,7 +257,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
   }
   addSubcommand(classify2)
 
-  val brackenBuild = new SparkCmd("brackenBuild") with RequireIndex {
+  val brackenBuild = new SparkCmd("bracken-build") with RequireIndex {
     banner("Generate a weights file (kmer_distrib) for use with Bracken.")
 
     val library = opt[String](descr = "Location of genome library (directory containing library/)")

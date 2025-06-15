@@ -90,7 +90,7 @@ function brackenBuild {
   LIB=$1
   READ_LENGTH=150
   #Note the special run script that sets $SPLIT properly for this job
-  ./slacken-aws.sh -p 10000 brackenBuild -i $DATA/$LIB -l $K2 -r $READ_LENGTH
+  ./slacken-aws.sh -p 10000 bracken-build -i $DATA/$LIB -l $K2 -r $READ_LENGTH
 }
 
 #Compare classifications of multiple samples and classifications against references
