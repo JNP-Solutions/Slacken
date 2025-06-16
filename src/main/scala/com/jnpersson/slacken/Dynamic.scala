@@ -19,7 +19,8 @@ package com.jnpersson.slacken
 
 import com.jnpersson.kmers.minimizer._
 import com.jnpersson.kmers.Helpers.formatPerc
-import com.jnpersson.kmers.{HDFSUtil, Inputs}
+import com.jnpersson.kmers.HDFSUtil
+import com.jnpersson.kmers.input.FileInputs
 import com.jnpersson.slacken.Taxonomy.Rank
 import org.apache.spark.sql.functions.{count, udf, concat_ws}
 import org.apache.spark.sql.{DataFrame, SaveMode, Dataset, RelationalGroupedDataset, SparkSession, functions}
@@ -312,12 +313,12 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   /** Perform two-step classification, writing the final results to a location.
    *
    * @param inputs         Subjects to classify (reads)
-   * @param partitions     Number of partitions for the dynamically generated index in step 2
    * @param dynamicReports whether to generate reports describing the dynamic index
    * @param dynamicBrackenReadLength read length for generating bracken weights for the second index (if any)
    */
-  def twoStepClassifyAndWrite(inputs: Inputs, partitions: Int, dynamicReports: Boolean,
+  def twoStepClassifyAndWrite(inputs: FileInputs, dynamicReports: Boolean,
                               dynamicBrackenReadLength: Option[Int]): Unit = {
+    val partitions = base.params.buckets
     val reads = inputs.getInputFragments(withAmbiguous = true).
       coalesce(partitions)
     val (records, usedTaxa) = makeRecords(reads, Some(outputLocation + "_taxonSet.txt"))

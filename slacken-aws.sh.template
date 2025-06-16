@@ -11,7 +11,7 @@ then
 fi
 
 #Path to Slacken jar on S3.
-JAR=s3://slacken-sbi/Slacken-assembly-1.1.0.jar
+JAR=s3://slacken/tool/Slacken-assembly-1.1.0.jar
 
 #Try to figure out where this script is located
 SLACKEN_HOME="$(dirname -- "$(readlink -f "${BASH_SOURCE}")")"
