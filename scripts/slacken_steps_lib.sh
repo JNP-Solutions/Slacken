@@ -77,13 +77,13 @@ function build {
 
 function histogram {
   LIB=$1
-  ./slacken-aws.sh histogram -i $DATA/$LIB
+  ./slacken-aws.sh stats -h -i $DATA/$LIB
 }
 
 function report {
   LIB=$1
   #-l $K2
-  ./slacken-aws.sh report -i $DATA/$LIB -o $DATA/$LIB
+  ./slacken-aws.sh inspect -i $DATA/$LIB -o $DATA/$LIB
 }
 
 function brackenBuild {
