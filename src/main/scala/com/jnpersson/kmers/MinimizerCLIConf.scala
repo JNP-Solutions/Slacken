@@ -28,16 +28,24 @@ private[jnpersson] object Commands {
   def run(conf: ScallopConf): Unit = {
     conf.verify()
     val cmds = conf.subcommands.collect { case rc: RunCmd => rc }
-    if (cmds.isEmpty &&
+    if (conf.args.contains("--detailed-help")) {
+      conf.printHelp()
+    } else if (cmds.isEmpty &&
       !conf.args.contains("--help") && !conf.args.contains("-h")) {
       conf.printHelp()
       throw new Exception("No command supplied. Nothing to do.")
+    } else {
+      for {c <- cmds} c.run()
     }
-    for {c <- cmds} c.run()
   }
 }
 
 private[jnpersson] abstract class RunCmd(title: String) extends Subcommand(title) {
+  appendDefaultToDescription = true
+
+  val detailedHelp =
+    opt[Boolean](hidden = true) //to make sure --detailed-help is successfully parsed. Not actually used.
+
   def run(): Unit
 }
 
@@ -55,10 +63,10 @@ trait MinimizerCLIConf {
   this: ScallopConf =>
 
   protected def defaultK = 35
-  val k = opt[Int](descr = s"Length of each k-mer (default $defaultK)", default = Some(defaultK))
+  val k = opt[Int](descr = s"Length of each k-mer", default = Some(defaultK))
 
   protected def defaultMinimizerWidth = 10
-  val minimizerWidth = opt[Int](name = "m", descr = s"Width of minimizers (default $defaultMinimizerWidth)",
+  val minimizerWidth = opt[Int](name = "m", descr = s"Width of minimizers",
     default = Some(defaultMinimizerWidth))
 
   validate (k) { k =>
@@ -104,7 +112,7 @@ trait MinimizerCLIConf {
   def defaultMinimizerSpaces: Int = 0
 
   val minimizerSpaces = opt[Int](name = "spaces",
-    descr = s"Number of masked out nucleotides in minimizer (spaced seed, default $defaultMinimizerSpaces)",
+    descr = s"Number of masked out nucleotides in minimizer (spaced seed)",
     default = Some(defaultMinimizerSpaces))
 
   /** Apply a spaced seed mask to minimizer priorities */
