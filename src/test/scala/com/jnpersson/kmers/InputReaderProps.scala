@@ -17,6 +17,7 @@
 
 package com.jnpersson.kmers
 
+import com.jnpersson.kmers.input.FileInputs
 import com.jnpersson.kmers.minimizer.InputFragment
 import org.scalacheck.{Gen, Shrink}
 import org.scalatest.funsuite.AnyFunSuite
@@ -43,8 +44,8 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
   }
 
   //Read files using InputReader
-  def readFiles(files: Seq[String]): Inputs =
-    new Inputs(files, k, maxReadLength)
+  def readFiles(files: Seq[String]): FileInputs =
+    new FileInputs(files, k, maxReadLength)
 
   //Delete a temporary file
   def removeFile(file: String): Unit = {
