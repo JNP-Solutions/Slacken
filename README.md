@@ -291,7 +291,7 @@ For example (100 reads heuristic):
 ```commandline
 ./slacken.sh classify2 -i /data/standard-224c/std_35_31_s7 -p \
   -o test_class \
-  --reads 100 --library standard-224c --bracken-length 150 \
+  --reads 100 --library /data/standard-224c --bracken-length 150 \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq
 ```
 
@@ -337,7 +337,7 @@ For example:
 ```commandline
 ./slacken.sh classify2 -i /data/standard-224c/std_35_31_s7 -p \
  -o test_class \
-  --classify-with-gold -g goldSet.txt --library standard-224c --bracken-length 150 \
+  --classify-with-gold -g goldSet.txt --library /data/standard-224c --bracken-length 150 \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq
 ```
 
@@ -473,7 +473,7 @@ logic for building the "refseq prefer complete" library. Please refer to README.
 After the input files have been prepared as above, the index may be built:
 
 ```commandline
-./slacken.sh build -i mySlackenLib -p 2000 -k 35 -m 31 -t k2/taxonomy \
+./slacken.sh -p 2000 build -i mySlackenLib -k 35 -m 31 -t k2/taxonomy \
   -l k2 
 ```
 
