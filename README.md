@@ -292,7 +292,7 @@ For example (100 reads heuristic):
 ```commandline
 ./slacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify -p \
   -o test_class -- \
-  dynamic --reads 100 --library standard-224c --bracken-length 150 \
+  dynamic --reads 100 --library /data/standard-224c --bracken-length 150 \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq
 ```
 
@@ -338,7 +338,7 @@ For example:
 ```commandline
 ./slacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify -p \
  -o test_class -- \
-  dynamic --classify-with-gold -g goldSet.txt --library standard-224c --bracken-length 150 \
+  dynamic --classify-with-gold -g goldSet.txt --library /data/standard-224c --bracken-length 150 \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq
 ```
 
