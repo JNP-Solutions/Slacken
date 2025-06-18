@@ -35,9 +35,8 @@ function classifyGS {
   LIB=$1
   LNAME=$2
   #--index-reports
-  #-p 3000
   CLASS_OUT=$ROOT/scratch/classified/$FAMILY/${LNAME}_classified
-  ./slacken-aws.sh -p 3000 classify2 -i $DATA/$LIB --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" \
+  ./slacken-aws.sh classify2 -i $DATA/$LIB --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" \
   -o $CLASS_OUT \
   -l $K2 --classify-with-gold -g $SPATH/${LABEL}_gold.txt \
       --bracken-length 150 \
@@ -54,7 +53,7 @@ function classifyDynamic {
   #--reads
 
   CLASS_OUT=$ROOT/scratch/classified/$FAMILY/${LNAME}_classified
-  ./slacken-aws.sh -p 3000 classify2 -i $DATA/$LIB --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" \
+  ./slacken-aws.sh classify2 -i $DATA/$LIB --sample-regex "(S[0-9]+)" -p -c $"${CS[@]}" \
   -o $CLASS_OUT \
     -l $K2 -g $SPATH/${LABEL}_gold.txt \
     --bracken-length 150 --reads 100 \
@@ -70,8 +69,8 @@ function build {
   BUCKETS=$5
   OTHER=$6
 
-  PARAMS="-k $K -m $M --spaces $S -p $BUCKETS"
-  ./slacken-aws.sh $PARAMS -t $TAXONOMY build -i $DATA/$NAME -l $K2 $OTHER
+  PARAMS="-k $K -m $M --spaces $S "
+  ./slacken-aws.sh -p $BUCKETS build $PARAMS -t $TAXONOMY -i $DATA/$NAME -l $K2 $OTHER
   histogram $NAME
 }
 
