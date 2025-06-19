@@ -59,9 +59,14 @@ class FileInputs(val files: Seq[String], k: Int, maxReadLength: Int, inputGroupi
    * obtain an appropriate InputReader for a single file.
    */
   def forFile(file: String): InputReader = {
-    if (file.toLowerCase.endsWith("fq") || file.toLowerCase.endsWith("fastq")) {
+    val lower = file.toLowerCase
+    if (lower.endsWith("fq") || lower.endsWith("fastq")) {
       println(s"Assuming fastq format for $file, max length $maxReadLength")
       new FastqShortInput(file, k, maxReadLength)
+    } else if (lower.endsWith(".fq.gz") || lower.endsWith(".fastq.gz") ||
+        lower.endsWith(".fq.bz2") || lower.endsWith(".fastq.bz2")) {
+      println(s"Assuming compressed fastq format for $file")
+      new FastqTextInput(file, k)
     } else {
       //Assume fasta format
       val faiPath = file + ".fai"
@@ -102,7 +107,7 @@ class FileInputs(val files: Seq[String], k: Int, maxReadLength: Int, inputGroupi
       case _ =>
         expandedFiles.map(forFile)
     }
-    val fs = readers.map(_.getInputFragments(withAmbiguous, sampleFraction))
+    val fs = readers.par.map(_.getInputFragments(withAmbiguous, sampleFraction)).seq
     spark.sparkContext.union(fs.map(_.rdd)).toDS()
   }
 
@@ -141,6 +146,10 @@ final case class FragmentParser(k: Int) {
     case qrec: QRecord =>
       makeInputFragment(qrec.getKey.split(" ")(0), FIRST_LOCATION, qrec.getBuffer,
         qrec.getStartValue, qrec.getEndValue)
+    case ar: Array[String] =>
+      val id = ar(0).split(" ")(0)
+      val nucleotides = ar(1)
+      InputFragment(id, FIRST_LOCATION, nucleotides, None)
     case partialSeq: PartialSequence =>
       val kmers = partialSeq.getBytesToProcess
       val start = partialSeq.getStartValue
@@ -232,6 +241,16 @@ class FastqShortInput(file: String, k: Int, maxReadLength: Int)
 
   def getSequenceTitles: Dataset[SeqTitle] =
     rdd.map(_.getKey).toDS.distinct
+}
+
+class FastqTextInput(file: String, k: Int)(implicit spark: SparkSession) extends HadoopInputReader[Array[String]](file, k) {
+  import spark.sqlContext.implicits._
+
+  override protected def loadFile(input: String): RDD[Array[String]] =
+    FastqReader.read(input).rdd
+
+  override def getSequenceTitles: Dataset[SeqTitle] =
+    rdd.map(x => x(0)).toDS
 }
 
 /**
