@@ -23,6 +23,8 @@ import com.jnpersson.kmers.minimizer.InputFragment
 import org.apache.hadoop.conf.{Configuration => HConfiguration}
 import org.apache.hadoop.io.Text
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.expressions.Window
+import org.apache.spark.sql.functions.{collect_list, floor, lit, monotonically_increasing_id, row_number, slice}
 import org.apache.spark.sql.{Dataset, SparkSession}
 
 
@@ -120,58 +122,13 @@ class FileInputs(val files: Seq[String], k: Int, maxReadLength: Int, inputGroupi
   }
 }
 
+object HadoopInputReader {
+  val FIRST_LOCATION = 1
 
-/**
- * Parser for Fastdoop records.
- * Splits longer sequences into fragments of a controlled maximum length, optionally sampling them.
- *
- * @param k length of k-mers
- */
-final case class FragmentParser(k: Int) {
   def makeInputFragment(header: SeqTitle, location: SeqLocation, buffer: Array[Byte],
                         start: Int, end: Int): InputFragment = {
     val nucleotides = new String(buffer, start, end - start + 1)
     InputFragment(header, location, nucleotides, None)
-  }
-
-  val FIRST_LOCATION = 1
-
-  /** Convert a record of a supported type to InputFragment, making any necessary transformations on the way
-   * to guarantee preservation of all k-mers.
-   */
-  def toFragment(record: AnyRef): InputFragment = record match {
-    case rec: Record =>
-      makeInputFragment(rec.getKey.split(" ")(0), FIRST_LOCATION, rec.getBuffer,
-        rec.getStartValue, rec.getEndValue)
-    case qrec: QRecord =>
-      makeInputFragment(qrec.getKey.split(" ")(0), FIRST_LOCATION, qrec.getBuffer,
-        qrec.getStartValue, qrec.getEndValue)
-    case ar: Array[String] =>
-      val id = ar(0).split(" ")(0)
-      val nucleotides = ar(1)
-      InputFragment(id, FIRST_LOCATION, nucleotides, None)
-    case partialSeq: PartialSequence =>
-      val kmers = partialSeq.getBytesToProcess
-      val start = partialSeq.getStartValue
-      if (kmers == 0) {
-        return InputFragment("", 0, "", None)
-      }
-
-      val extensionPart = new String(partialSeq.getBuffer, start + kmers, k - 1)
-      val newlines = extensionPart.count(_ == '\n')
-
-      //Newlines will be removed eventually, however we have to compensate for them here
-      //to include all k-mers properly
-      //Note: we assume that the extra part does not contain newlines itself
-
-      //Although this code is general, for more than one newline in this part (as the case may be for a large k),
-      //deeper changes to Fastdoop may be needed.
-      //This value is 0-based inclusive of end
-      val end = start + kmers - 1 + (k - 1) + newlines
-      val useEnd = if (end > partialSeq.getEndValue) partialSeq.getEndValue else end
-
-      val key = partialSeq.getKey.split(" ")(0)
-      makeInputFragment(key, partialSeq.getSeqPosition, partialSeq.getBuffer, start, useEnd)
   }
 }
 
@@ -190,12 +147,8 @@ abstract class HadoopInputReader[R <: AnyRef](file: String, k: Int)(implicit spa
 
   protected def loadFile(input: String): RDD[R]
   protected def rdd: RDD[R] = loadFile(file)
-  protected[kmers] val parser = FragmentParser(k)
 
-  protected[input] def getFragments(): Dataset[InputFragment] = {
-    val p = parser
-    rdd.map(p.toFragment).toDS
-  }
+  protected[input] def getFragments(): Dataset[InputFragment]
 }
 
 /**
@@ -209,16 +162,24 @@ abstract class HadoopInputReader[R <: AnyRef](file: String, k: Int)(implicit spa
 class FastaShortInput(file: String, k: Int, maxReadLength: Int)
                      (implicit spark: SparkSession) extends HadoopInputReader[Record](file, k) {
   import spark.sqlContext.implicits._
+  import HadoopInputReader._
 
   private val bufsiz = maxReadLength + // sequence data
     1000 //ID string and separator characters
-  conf.set("look_ahead_buffer_size", bufsiz.toString)
+  conf.set("look_ahead_buffer_size", bufsiz.toString) //fastdoop parameter
 
   protected def loadFile(input: String): RDD[Record] =
     sc.newAPIHadoopFile(input, classOf[FASTAshortInputFileFormat], classOf[Text], classOf[Record], conf).values
 
   def getSequenceTitles: Dataset[SeqTitle] =
     rdd.map(_.getKey).toDS().distinct
+
+  protected[input] def getFragments(): Dataset[InputFragment] =
+    rdd.map(rec =>
+      makeInputFragment(rec.getKey.split(" ")(0), FIRST_LOCATION, rec.getBuffer,
+        rec.getStartValue, rec.getEndValue)
+    ).toDS
+
 }
 
 /**
@@ -231,26 +192,53 @@ class FastaShortInput(file: String, k: Int, maxReadLength: Int)
 class FastqShortInput(file: String, k: Int, maxReadLength: Int)
                      (implicit spark: SparkSession) extends HadoopInputReader[QRecord](file, k) {
   import spark.sqlContext.implicits._
+  import HadoopInputReader._
 
   private val bufsiz = maxReadLength * 2 + // sequence and quality data
     1000 //ID string and separator characters
-  conf.set("look_ahead_buffer_size", bufsiz.toString)
+  conf.set("look_ahead_buffer_size", bufsiz.toString) //fastdoop parameter
 
   protected def loadFile(input: String): RDD[QRecord] =
     sc.newAPIHadoopFile(input, classOf[FASTQInputFileFormat], classOf[Text], classOf[QRecord], conf).values
 
   def getSequenceTitles: Dataset[SeqTitle] =
     rdd.map(_.getKey).toDS.distinct
+
+  protected[input] def getFragments(): Dataset[InputFragment] =
+    rdd.map(rec =>
+      makeInputFragment(rec.getKey.split(" ")(0), FIRST_LOCATION, rec.getBuffer,
+        rec.getStartValue, rec.getEndValue)
+    ).toDS
 }
 
 class FastqTextInput(file: String, k: Int)(implicit spark: SparkSession) extends HadoopInputReader[Array[String]](file, k) {
-  import spark.sqlContext.implicits._
 
-  override protected def loadFile(input: String): RDD[Array[String]] =
-    FastqReader.read(input).rdd
+  import spark.sqlContext.implicits._
+  import HadoopInputReader._
+
+  override protected def loadFile(input: String): RDD[Array[String]] = {
+    import spark.implicits._
+
+    spark.read.text(file).
+      withColumn("file", lit(file)).
+      withColumn("rowId", monotonically_increasing_id()).
+      withColumn("recId", //group every 4 rows and give them the same recId
+        floor(
+          (row_number().over(Window.partitionBy("file").orderBy("rowId")) - 1) / 4) //monotonically_incr starts at 1
+      ).
+      groupBy("file", "recId").agg(collect_list($"value").as("value")).
+      select(slice($"value", 1, 2)).as[Array[String]] //Currently preserves only the header and the nucleotide string
+  }.rdd
 
   override def getSequenceTitles: Dataset[SeqTitle] =
     rdd.map(x => x(0)).toDS
+
+  protected[input] def getFragments(): Dataset[InputFragment] =
+    rdd.map(ar => {
+      val id = ar(0).split(" ")(0)
+      val nucleotides = ar(1)
+      InputFragment(id, FIRST_LOCATION, nucleotides, None)
+    }).toDS
 }
 
 /**
@@ -263,11 +251,42 @@ class FastqTextInput(file: String, k: Int)(implicit spark: SparkSession) extends
  */
 class IndexedFastaInput(file: String, k: Int)(implicit spark: SparkSession)
   extends HadoopInputReader[PartialSequence](file, k) {
+
   import spark.sqlContext.implicits._
+  import HadoopInputReader._
 
   protected def loadFile(input: String): RDD[PartialSequence] =
     sc.newAPIHadoopFile(input, classOf[IndexedFastaFormat], classOf[Text], classOf[PartialSequence], conf).values
 
   def getSequenceTitles: Dataset[SeqTitle] =
     rdd.map(_.getKey).toDS.distinct
+
+  protected[input] def getFragments(): Dataset[InputFragment] = {
+    val k = this.k
+
+    rdd.map(partialSeq => {
+      val kmers = partialSeq.getBytesToProcess
+      val start = partialSeq.getStartValue
+      if (kmers == 0) {
+        InputFragment("", 0, "", None)
+      } else {
+
+        val extensionPart = new String(partialSeq.getBuffer, start + kmers, k - 1)
+        val newlines = extensionPart.count(_ == '\n')
+
+        //Newlines will be removed eventually, however we have to compensate for them here
+        //to include all k-mers properly
+        //Note: we assume that the extra part does not contain newlines itself
+
+        //Although this code is general, for more than one newline in this part (as the case may be for a large k),
+        //deeper changes to Fastdoop may be needed.
+        //This value is 0-based inclusive of end
+        val end = start + kmers - 1 + (k - 1) + newlines
+        val useEnd = if (end > partialSeq.getEndValue) partialSeq.getEndValue else end
+
+        val key = partialSeq.getKey.split(" ")(0)
+        makeInputFragment(key, partialSeq.getSeqPosition, partialSeq.getBuffer, start, useEnd)
+      }
+    }).toDS
+  }
 }
