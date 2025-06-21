@@ -62,23 +62,24 @@ class FileInputs(val files: Seq[String], k: Int, maxReadLength: Int, inputGroupi
    */
   def forFile(file: String): InputReader = {
     val lower = file.toLowerCase
+    val faiPath = file + ".fai"
+
     if (lower.endsWith("fq") || lower.endsWith("fastq")) {
-      println(s"Assuming fastq format for $file, max length $maxReadLength")
-      new FastqShortInput(file, k, maxReadLength)
+      println(s"Assuming fastq format for $file")
+      new FastqTextInput(file, k)
     } else if (lower.endsWith(".fq.gz") || lower.endsWith(".fastq.gz") ||
         lower.endsWith(".fq.bz2") || lower.endsWith(".fastq.bz2")) {
       println(s"Assuming compressed fastq format for $file")
       new FastqTextInput(file, k)
+    } else if (HDFSUtil.fileExists(faiPath)) {
+      println(s"$faiPath found. Using indexed fasta format for $file")
+      new IndexedFastaInput(file, k)
+    } else if (lower.endsWith(".gz") || lower.endsWith(".bz2") ) {
+      println(s"Assuming compressed fasta format for $file")
+      new FastaTextInput(file, k)
     } else {
-      //Assume fasta format
-      val faiPath = file + ".fai"
-      if (HDFSUtil.fileExists(faiPath)) {
-        println(s"$faiPath found. Using indexed fasta format for $file")
-        new IndexedFastaInput(file, k)
-      } else {
-        println(s"$faiPath not found. Assuming simple fasta format for $file, max length $maxReadLength")
-        new FastaShortInput(file, k, maxReadLength)
-      }
+      println(s"$faiPath not found. Assuming simple fasta format for $file")
+      new FastaTextInput(file, k)
     }
   }
 
@@ -211,12 +212,49 @@ class FastqShortInput(file: String, k: Int, maxReadLength: Int)
     ).toDS
 }
 
-class FastqTextInput(file: String, k: Int)(implicit spark: SparkSession) extends HadoopInputReader[Array[String]](file, k) {
-
+/**
+ * Reader for fasta records that are potentially multiline, but small enough to fit into a single string.
+ * Huge sequences are best processed with the [[IndexedFastaFormat]] instead (.fna files)
+ * Supports compression via Spark's text reader.
+ */
+class FastaTextInput(file: String, k: Int)(implicit spark: SparkSession) extends HadoopInputReader[Array[String]](file, k) {
   import spark.sqlContext.implicits._
   import HadoopInputReader._
 
-  override protected def loadFile(input: String): RDD[Array[String]] = {
+  protected def loadFile(input: String): RDD[Array[String]] = {
+    import spark.implicits._
+    spark.read.option("lineSep", ">").text(file).as[String]. //allows multi-line fasta records to be separated cleanly
+      flatMap(x => {
+        val spl = x.split("[\n\r]+")
+        if (spl.length >= 2) {
+          Some(spl)
+        } else {
+          None
+        }
+      }).rdd
+  }
+
+  protected[input] def getFragments(): Dataset[InputFragment] =
+    rdd.map(x => {
+      val headerLine = x(0)
+      val id = headerLine.split(" ")(0)
+      val nucleotides = x.drop(1).mkString("")
+      InputFragment(id, FIRST_LOCATION, nucleotides, None)
+    }).toDS()
+
+  def getSequenceTitles: Dataset[SeqTitle] =
+    rdd.map(x => x(0)).toDS
+}
+
+/**
+ * Reader for fastq records. Supports compression via Spark's text input layer.
+ * Supports compression via Spark's text reader.
+ */
+class FastqTextInput(file: String, k: Int)(implicit spark: SparkSession) extends HadoopInputReader[Array[String]](file, k) {
+  import spark.sqlContext.implicits._
+  import HadoopInputReader._
+
+  protected def loadFile(input: String): RDD[Array[String]] = {
     import spark.implicits._
 
     spark.read.text(file).
@@ -230,7 +268,7 @@ class FastqTextInput(file: String, k: Int)(implicit spark: SparkSession) extends
       select(slice($"value", 1, 2)).as[Array[String]] //Currently preserves only the header and the nucleotide string
   }.rdd
 
-  override def getSequenceTitles: Dataset[SeqTitle] =
+  def getSequenceTitles: Dataset[SeqTitle] =
     rdd.map(x => x(0)).toDS
 
   protected[input] def getFragments(): Dataset[InputFragment] =
