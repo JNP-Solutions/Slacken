@@ -46,7 +46,6 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
   override def defaultMinimizerWidth: Int = 31
   override def defaultMinimizerSpaces: Int = 7
   override def defaultOrdering: String = "xor"
-  override def defaultMaxSequenceLength: Int = 100000000 //100M bps
 
   override def defaultXORMask: Long = DEFAULT_TOGGLE_MASK
   override def canonicalMinimizers: Boolean = true
