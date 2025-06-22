@@ -65,20 +65,20 @@ class FileInputs(val files: Seq[String], k: Int, inputGrouping: InputGrouping = 
 
     if (lower.endsWith("fq") || lower.endsWith("fastq")) {
       println(s"Assuming fastq format for $file")
-      new FastqTextInput(file, k)
+      new FastqTextInput(file)
     } else if (lower.endsWith(".fq.gz") || lower.endsWith(".fastq.gz") ||
         lower.endsWith(".fq.bz2") || lower.endsWith(".fastq.bz2")) {
       println(s"Assuming compressed fastq format for $file")
-      new FastqTextInput(file, k)
+      new FastqTextInput(file)
     } else if (HDFSUtil.fileExists(faiPath)) {
       println(s"$faiPath found. Using indexed fasta format for $file")
       new IndexedFastaInput(file, k)
     } else if (lower.endsWith(".gz") || lower.endsWith(".bz2") ) {
       println(s"Assuming compressed fasta format for $file")
-      new FastaTextInput(file, k)
+      new FastaTextInput(file)
     } else {
       println(s"$faiPath not found. Assuming simple fasta format for $file")
-      new FastaTextInput(file, k)
+      new FastaTextInput(file)
     }
   }
 
@@ -138,11 +138,8 @@ object HadoopInputReader {
  * @param file the file to read
  * @param k length of k-mers
  */
-abstract class HadoopInputReader[R <: AnyRef](file: String, k: Int)(implicit spark: SparkSession) extends InputReader {
+abstract class HadoopInputReader[R <: AnyRef](file: String)(implicit spark: SparkSession) extends InputReader {
   protected val conf = new HConfiguration(sc.hadoopConfiguration)
-
-  //Fastdoop parameter for correct overlap between partial sequences
-  conf.set("k", k.toString)
 
   protected def loadFile(input: String): RDD[R]
   protected def rdd: RDD[R] = loadFile(file)
@@ -155,7 +152,7 @@ abstract class HadoopInputReader[R <: AnyRef](file: String, k: Int)(implicit spa
  * Huge sequences are best processed with the [[IndexedFastaFormat]] instead (.fna files)
  * Supports compression via Spark's text reader.
  */
-class FastaTextInput(file: String, k: Int)(implicit spark: SparkSession) extends HadoopInputReader[Array[String]](file, k) {
+class FastaTextInput(file: String)(implicit spark: SparkSession) extends HadoopInputReader[Array[String]](file) {
   import spark.sqlContext.implicits._
   import HadoopInputReader._
 
@@ -187,7 +184,7 @@ class FastaTextInput(file: String, k: Int)(implicit spark: SparkSession) extends
 /**
  * Reader for fastq records. Supports compression via Spark's text input layer.
  */
-class FastqTextInput(file: String, k: Int)(implicit spark: SparkSession) extends HadoopInputReader[Array[String]](file, k) {
+class FastqTextInput(file: String)(implicit spark: SparkSession) extends HadoopInputReader[Array[String]](file) {
   import spark.sqlContext.implicits._
   import HadoopInputReader._
 
@@ -224,10 +221,13 @@ class FastqTextInput(file: String, k: Int)(implicit spark: SparkSession) extends
  * @param k length of k-mers
  */
 class IndexedFastaInput(file: String, k: Int)(implicit spark: SparkSession)
-  extends HadoopInputReader[PartialSequence](file, k) {
+  extends HadoopInputReader[PartialSequence](file) {
 
   import spark.sqlContext.implicits._
   import HadoopInputReader._
+
+  //Fastdoop parameter for correct overlap between partial sequences
+  conf.set("k", k.toString)
 
   protected def loadFile(input: String): RDD[PartialSequence] =
     sc.newAPIHadoopFile(input, classOf[IndexedFastaFormat], classOf[Text], classOf[PartialSequence], conf).values
