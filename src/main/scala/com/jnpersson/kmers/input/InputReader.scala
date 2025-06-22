@@ -32,7 +32,8 @@ case object Ungrouped extends InputGrouping
 case object PairedEnd extends InputGrouping
 
 object InputReader {
-  /** Add reverse complement sequences to inputs that have already been parsed.
+  /** Add reverse complement sequences to input fragments.
+   * Returns the original fragments plus their reverse complement.
    */
   def addRCFragments(fs: Dataset[InputFragment])(implicit spark: SparkSession): Dataset[InputFragment] = {
     import spark.sqlContext.implicits._
@@ -77,13 +78,15 @@ abstract class InputReader(implicit spark: SparkSession) {
   def getSequenceTitles: Dataset[SeqTitle]
 
   /**
-   * Read sequence data as fragments from the input files, removing any newlines.
+   * Read sequence data as fragments from the input source
    * @return
    */
   protected[input] def getFragments(): Dataset[InputFragment]
 
   /**
-   * Load sequence fragments from files, optionally adding reverse complements and/or sampling.
+   * Load sequence fragments from the source
+   * @param withAmbiguous Whether to remove ambiguous characters and whitespace
+   * @param The fraction to sample, if any
    */
   def getInputFragments(withAmbiguous: Boolean,
                         sampleFraction: Option[Double]): Dataset[InputFragment] = {
