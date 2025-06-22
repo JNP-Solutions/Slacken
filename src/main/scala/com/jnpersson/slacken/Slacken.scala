@@ -140,8 +140,12 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 
     override def frequencyBySequence: Boolean = true
 
+    override def hasHiddenOptions: Boolean = true
+
     val library = opt[String](required = true, descr = "Location of genome library (directory containing library/)")
-    val check = opt[Boolean](descr = "Only check input files for consistency", hidden = !showAllOpts, default = Some(false))
+
+    val check = opt[Boolean](descr = "Only check input files for consistency", hidden = !showAllOpts,
+      default = Some(false))
 
     def run(): Unit = {
       val genomes = findGenomes(library(), k())
@@ -195,6 +199,9 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 
   val classify2 = new SparkCmd("classify2") with ClassifyCommand {
     banner("Two-step classification using a static and a dynamic index (built on the fly).")
+
+    override def hasHiddenOptions: Boolean = true
+
     val library = opt[String](required = true,
       descr = "Genome library location for index construction (directory containing library/)")
 
