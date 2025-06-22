@@ -89,7 +89,7 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
     } yield (record, fragment)
 
   def lineSeparators: Gen[String] =
-    Gen.oneOf(List("\n", "\n\r"))
+    Gen.oneOf(List("\n", "\r\n", "\r"))
 
   def fastaFiles(seqGen: Gen[NTSeq]): Gen[SeqRecordFile] =
     for {
