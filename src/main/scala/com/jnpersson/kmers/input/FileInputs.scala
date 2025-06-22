@@ -96,7 +96,7 @@ class FileInputs(val files: Seq[String], k: Int, inputGrouping: InputGrouping = 
    * Parse all files in this set as InputFragments
    * @param withAmbiguous whether to include ambiguous nucleotides. If not, the inputs will be split and only valid
    *                      nucleotides retained.
-   * @return
+   * @param sampleFraction the fraction to sample, if any.
    */
   def getInputFragments(withAmbiguous: Boolean = false, sampleFraction: Option[Double] = None): Dataset[InputFragment] = {
     val readers = inputGrouping match {
@@ -136,7 +136,6 @@ object HadoopInputReader {
  * A sequence input converter that reads data from one file using a specific
  * Hadoop format, making the result available as Dataset[InputFragment]
  * @param file the file to read
- * @param k length of k-mers
  */
 abstract class HadoopInputReader[R <: AnyRef](file: String)(implicit spark: SparkSession) extends InputReader {
   protected val conf = new HConfiguration(sc.hadoopConfiguration)
@@ -225,7 +224,7 @@ class FastqTextInput(file: String)(implicit spark: SparkSession) extends HadoopI
  * Uses [[IndexedFastaFormat]]
  *
  * @param file the file to read
- * @param k length of k-mers
+ * @param k length of k-mers. Needed for this input format as k-mers will cross boundaries between file splits
  */
 class IndexedFastaInput(file: String, k: Int)(implicit spark: SparkSession)
   extends HadoopInputReader[PartialSequence](file) {
