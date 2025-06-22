@@ -24,7 +24,7 @@ import org.apache.hadoop.conf.{Configuration => HConfiguration}
 import org.apache.hadoop.io.Text
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.expressions.Window
-import org.apache.spark.sql.functions.{collect_list, element_at, lit, monotonically_increasing_id, slice}
+import org.apache.spark.sql.functions.{collect_list, element_at, lit, monotonically_increasing_id, slice, substring}
 import org.apache.spark.sql.{Dataset, SparkSession}
 
 
@@ -197,7 +197,14 @@ class FastqTextInput(file: String)(implicit spark: SparkSession) extends HadoopI
       withColumn("values", //group every 4 rows and give them the same recId
         collect_list($"value").over(Window.partitionBy("file").orderBy("rowId").rowsBetween(Window.currentRow, 3))
       ).
-      where(element_at($"values", 3) === "+").
+      where(
+        //In a valid FASTQ record, line 1/4 begins with @ and line 3/4 begins with +.
+        //The characters @ and + may sometimes also appear in quality scores.
+        //Checking both at lines 1 and 3 is a robust way to identify the right position of the 4-line window even
+        //in the presence of such confounding characters.
+        (substring(element_at($"values", 1), 1, 1) === "@").and(
+          substring(element_at($"values", 3), 1, 1) === "+")
+      ).
       select(slice($"values", 1, 2)).as[Array[String]] //Currently preserves only the header and the nucleotide string
   }.rdd
 
