@@ -24,7 +24,7 @@ import org.apache.hadoop.conf.{Configuration => HConfiguration}
 import org.apache.hadoop.io.Text
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.expressions.Window
-import org.apache.spark.sql.functions.{collect_list, floor, lit, monotonically_increasing_id, row_number, slice}
+import org.apache.spark.sql.functions.{collect_list, element_at, lit, monotonically_increasing_id, slice}
 import org.apache.spark.sql.{Dataset, SparkSession}
 
 
@@ -260,12 +260,11 @@ class FastqTextInput(file: String, k: Int)(implicit spark: SparkSession) extends
     spark.read.text(file).
       withColumn("file", lit(file)).
       withColumn("rowId", monotonically_increasing_id()).
-      withColumn("recId", //group every 4 rows and give them the same recId
-        floor(
-          (row_number().over(Window.partitionBy("file").orderBy("rowId")) - 1) / 4) //monotonically_incr starts at 1
+      withColumn("values", //group every 4 rows and give them the same recId
+        collect_list($"value").over(Window.partitionBy("file").orderBy("rowId").rowsBetween(Window.currentRow, 3))
       ).
-      groupBy("file", "recId").agg(collect_list($"value").as("value")).
-      select(slice($"value", 1, 2)).as[Array[String]] //Currently preserves only the header and the nucleotide string
+      where(element_at($"values", 3) === "+").
+      select(slice($"values", 1, 2)).as[Array[String]] //Currently preserves only the header and the nucleotide string
   }.rdd
 
   def getSequenceTitles: Dataset[SeqTitle] =
@@ -273,7 +272,7 @@ class FastqTextInput(file: String, k: Int)(implicit spark: SparkSession) extends
 
   protected[input] def getFragments(): Dataset[InputFragment] =
     rdd.map(ar => {
-      val id = ar(0).split(" ")(0)
+      val id = ar(0).split(" ")(0).substring(1) //remove leading @
       val nucleotides = ar(1)
       InputFragment(id, FIRST_LOCATION, nucleotides, None)
     }).toDS
