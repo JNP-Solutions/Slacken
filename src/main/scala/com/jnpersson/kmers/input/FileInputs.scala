@@ -17,7 +17,7 @@
 
 package com.jnpersson.kmers.input
 
-import com.jnpersson.fastdoop.{FASTAshortInputFileFormat, FASTQInputFileFormat, IndexedFastaFormat, PartialSequence, QRecord, Record}
+import com.jnpersson.fastdoop.{IndexedFastaFormat, PartialSequence}
 import com.jnpersson.kmers.{HDFSUtil, SeqLocation, SeqTitle}
 import com.jnpersson.kmers.minimizer.InputFragment
 import org.apache.hadoop.conf.{Configuration => HConfiguration}
@@ -153,66 +153,6 @@ abstract class HadoopInputReader[R <: AnyRef](file: String, k: Int)(implicit spa
 }
 
 /**
- * Input reader for FASTA sequences of a fixed maximum length.
- * Uses [[FASTAshortInputFileFormat]]
- * @param file the file to read
- * @param k length of k-mers
- * @param maxReadLength maximum length of a single read
- * @param file2 second file for paired-end reads
- */
-class FastaShortInput(file: String, k: Int, maxReadLength: Int)
-                     (implicit spark: SparkSession) extends HadoopInputReader[Record](file, k) {
-  import spark.sqlContext.implicits._
-  import HadoopInputReader._
-
-  private val bufsiz = maxReadLength + // sequence data
-    1000 //ID string and separator characters
-  conf.set("look_ahead_buffer_size", bufsiz.toString) //fastdoop parameter
-
-  protected def loadFile(input: String): RDD[Record] =
-    sc.newAPIHadoopFile(input, classOf[FASTAshortInputFileFormat], classOf[Text], classOf[Record], conf).values
-
-  def getSequenceTitles: Dataset[SeqTitle] =
-    rdd.map(_.getKey).toDS().distinct
-
-  protected[input] def getFragments(): Dataset[InputFragment] =
-    rdd.map(rec =>
-      makeInputFragment(rec.getKey.split(" ")(0), FIRST_LOCATION, rec.getBuffer,
-        rec.getStartValue, rec.getEndValue)
-    ).toDS
-
-}
-
-/**
- * Input reader for FASTQ short reads. Uses [[FASTQInputFileFormat]]
- * @param file the file to read
- * @param k length of k-mers
- * @param maxReadLength maximum length of a single read
- * @param file2 second file for paired-end reads
- */
-class FastqShortInput(file: String, k: Int, maxReadLength: Int)
-                     (implicit spark: SparkSession) extends HadoopInputReader[QRecord](file, k) {
-  import spark.sqlContext.implicits._
-  import HadoopInputReader._
-
-  private val bufsiz = maxReadLength * 2 + // sequence and quality data
-    1000 //ID string and separator characters
-  conf.set("look_ahead_buffer_size", bufsiz.toString) //fastdoop parameter
-
-  protected def loadFile(input: String): RDD[QRecord] =
-    sc.newAPIHadoopFile(input, classOf[FASTQInputFileFormat], classOf[Text], classOf[QRecord], conf).values
-
-  def getSequenceTitles: Dataset[SeqTitle] =
-    rdd.map(_.getKey).toDS.distinct
-
-  protected[input] def getFragments(): Dataset[InputFragment] =
-    rdd.map(rec =>
-      makeInputFragment(rec.getKey.split(" ")(0), FIRST_LOCATION, rec.getBuffer,
-        rec.getStartValue, rec.getEndValue)
-    ).toDS
-}
-
-/**
  * Reader for fasta records that are potentially multiline, but small enough to fit into a single string.
  * Huge sequences are best processed with the [[IndexedFastaFormat]] instead (.fna files)
  * Supports compression via Spark's text reader.
@@ -248,7 +188,6 @@ class FastaTextInput(file: String, k: Int)(implicit spark: SparkSession) extends
 
 /**
  * Reader for fastq records. Supports compression via Spark's text input layer.
- * Supports compression via Spark's text reader.
  */
 class FastqTextInput(file: String, k: Int)(implicit spark: SparkSession) extends HadoopInputReader[Array[String]](file, k) {
   import spark.sqlContext.implicits._
