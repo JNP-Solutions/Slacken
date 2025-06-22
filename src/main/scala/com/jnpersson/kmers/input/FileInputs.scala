@@ -33,18 +33,17 @@ import org.apache.spark.sql.{Dataset, SparkSession}
  *
  * @param files files to read. A name of the format @list.txt will be parsed as a list of files.
  * @param k length of k-mers
- * @param maxReadLength max length of short sequences
  * @param inputGrouping whether input files are paired-end reads. If so, they are expected to appear in sequence, so that
  *                  the first file is a _1, the second a _2, the third a _1, etc.
  * @param spark the SparkSession
  */
-class FileInputs(val files: Seq[String], k: Int, maxReadLength: Int, inputGrouping: InputGrouping = Ungrouped)(implicit spark: SparkSession) {
+class FileInputs(val files: Seq[String], k: Int, inputGrouping: InputGrouping = Ungrouped)(implicit spark: SparkSession) {
   protected val conf = new HConfiguration(spark.sparkContext.hadoopConfiguration)
   import spark.sqlContext.implicits._
 
   /** Clone this Inputs with a different value of k. */
   def withK(newK: Int): FileInputs =
-    new FileInputs(files, newK, maxReadLength, inputGrouping)
+    new FileInputs(files, newK, inputGrouping)
 
   private val expandedFiles = files.toList.flatMap(f => {
     if (f.startsWith("@")) {
@@ -140,7 +139,6 @@ object HadoopInputReader {
  * @param k length of k-mers
  */
 abstract class HadoopInputReader[R <: AnyRef](file: String, k: Int)(implicit spark: SparkSession) extends InputReader {
-  import spark.sqlContext.implicits._
   protected val conf = new HConfiguration(sc.hadoopConfiguration)
 
   //Fastdoop parameter for correct overlap between partial sequences

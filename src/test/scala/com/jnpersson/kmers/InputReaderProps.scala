@@ -34,7 +34,6 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
   implicit val sp = spark
 
   val k = 35
-  val maxReadLength = 100000
 
   // Write a new temporary file with content
   def generateFile(content: String, extension: String): String = {
@@ -45,7 +44,7 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
 
   //Read files using InputReader
   def readFiles(files: Seq[String]): FileInputs =
-    new FileInputs(files, k, maxReadLength)
+    new FileInputs(files, k)
 
   //Delete a temporary file
   def removeFile(file: String): Unit = {

@@ -67,13 +67,8 @@ class SparkConfiguration(args: Array[String])(implicit val spark: SparkSession) 
   val partitions =
     opt[Int](descr = "Number of shuffle partitions/parquet buckets for indexes (default 200)", default = Some(200))
 
-  protected def defaultMaxSequenceLength = 10000000 //10M bps
-  val maxSequenceLength = opt[Int](name = "maxlen",
-    descr = s"Maximum length of a single short sequence/read (default $defaultMaxSequenceLength)",
-    default = Some(defaultMaxSequenceLength))
-
   def inputReader(files: Seq[String], k: Int, grouping: InputGrouping)(implicit spark: SparkSession) =
-    new FileInputs(files, k, maxSequenceLength(), grouping)
+    new FileInputs(files, k, grouping)
 
   def finishSetup(): this.type = {
     verify()
