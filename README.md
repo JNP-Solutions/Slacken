@@ -56,16 +56,16 @@ libraries and samples, and the commands you want to run. At least 500 GB of spac
 #### Download
 
 The latest precompiled Slacken may be downloaded as a .zip from the
-[Releases](https://github.com/JNP-Solutions/Slacken/releases). This is the easiest way to obtain Slacken. Download Slacken 1.1.0 and unzip the release.
+[Releases](https://github.com/JNP-Solutions/Slacken/releases). This is the easiest way to obtain Slacken. Download Slacken 2.0.0 and unzip the release.
 
 ```commandline
-curl -LO https://github.com/JNP-Solutions/Slacken/releases/download/v1.1.0/Slacken-1.1.0.zip && \
-unzip Slacken-1.1.0.zip
+curl -LO https://github.com/JNP-Solutions/Slacken/releases/download/v2.0.0/Slacken-2.0.0.zip && \
+unzip Slacken-2.0.0.zip
 ```
 Also, pull the Docker image from [DockerHub](https://hub.docker.com/r/jnpsolutions/slacken):
 
 ```commandline
-docker pull jnpsolutions/slacken:1.1.0
+docker pull jnpsolutions/slacken:2.0.0
 ```
 
 Set up the environment:
