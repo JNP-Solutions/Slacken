@@ -233,8 +233,6 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
       choices = Taxonomy.rankTitles,
       hidden = !showAllOpts).map(Taxonomy.rankOrNull)
 
-    val dynInFiles = trailArg[List[String]](descr = "Sequences to be classified")
-
     validate(initConfidence) { c =>
       if (c < 0 || c > 1)
         Left(s"--read-confidence must be >=0 and <= 1 ($c was given)")
@@ -258,7 +256,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
         goldStandardOpt,
         output())(i.spark)
 
-      val inputs = inputReader(inFiles() ++ dynInFiles(), i.params.k, paired())(i.spark)
+      val inputs = inputReader(inFiles(), i.params.k, paired())(i.spark)
       dyn.twoStepClassifyAndWrite(inputs, indexReports(), brackenLength.toOption)
     }
   }
