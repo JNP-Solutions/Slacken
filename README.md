@@ -19,7 +19,7 @@ processes data in batches.
 We do not currently support translated mode (protein/AA sequence classification) but only nucleotide sequences. Also, 
 Slacken has its own database format (Parquet based) and can not use pre-built Kraken 2 databases as they are.
 
-For more motivation and details, please see our [preprint](https://www.biorxiv.org/content/10.1101/2024.12.22.629657) on BioRXiv.
+For more motivation and details, please see [our 2025 paper in NAR Genomics and Bioinformatics](https://academic.oup.com/nargab/article/7/2/lqaf076/8158581).
 
 Copyright (c) Johan Nyström-Persson 2019-2025.
 
@@ -292,7 +292,7 @@ For example (100 reads heuristic):
 ```commandline
 ./slacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify -p \
   -o test_class -- \
-  dynamic --reads 100 --library standard-224c --bracken-length 150 \
+  dynamic --reads 100 --library /data/standard-224c --bracken-length 150 \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq
 ```
 
@@ -338,7 +338,7 @@ For example:
 ```commandline
 ./slacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify -p \
  -o test_class -- \
-  dynamic --classify-with-gold -g goldSet.txt --library standard-224c --bracken-length 150 \
+  dynamic --classify-with-gold -g goldSet.txt --library /data/standard-224c --bracken-length 150 \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq
 ```
 
@@ -536,7 +536,8 @@ If you use Slacken in your research, please cite our paper:
 
 Johan Nyström-Persson, Nishad Bapatdhar, and Samik Ghosh:
 Precise and scalable metagenomic profiling with sample-tailored minimizer libraries.
-bioRxiv 2024.12.22.629657; doi: https://doi.org/10.1101/2024.12.22.629657
+NAR Genomics and Bioinformatics, Volume 7, Issue 2, June 2025, lqaf076, https://doi.org/10.1093/nargab/lqaf076
+
 
 ## References
 
