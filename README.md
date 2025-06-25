@@ -168,7 +168,7 @@ Here,
 * `--reads 100` is the threshold for including a taxon in the initial set (R100).
 * `-l /data/standard-224c` is required, and indicates where genomes for library building may be found.
 * `--bracken-length 150` specifies that Bracken weights for the given read length (150) should be generated. That can be slow, and
-also requires extra space, so we recommend omitting `--bracken-length` when Bracken is not needed.
+also requires extra space, so we recommend omitting `--bracken-length` when Bracken is not needed. When generating Bracken weights, we recommend giving Slacken at least 32 GB of RAM.
 
 When the command has finished, the following files will be generated:
 
