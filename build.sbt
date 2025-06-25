@@ -2,7 +2,7 @@ name := "Slacken"
 
 version := "1.1.0"
 
-scalaVersion := "2.12.18"
+scalaVersion := "2.12.20"
 
 val sparkVersion = "3.5.0"
 
@@ -20,7 +20,7 @@ libraryDependencies += "it.unimi.dsi" % "fastutil" % "latest.integration"
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "latest.integration" % "test"
 
-libraryDependencies += "org.scalatestplus" %% "scalacheck-1-15" % "latest.integration" % "test"
+libraryDependencies += "org.scalatestplus" %% "scalacheck-1-18" % "latest.integration" % "test"
 
 //The "provided" configuration prevents sbt-assembly from including spark in the packaged jar.
 libraryDependencies += "org.apache.spark" %% "spark-sql" % sparkVersion % "provided"
