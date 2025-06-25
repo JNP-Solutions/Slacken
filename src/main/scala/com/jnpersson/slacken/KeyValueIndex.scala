@@ -381,7 +381,6 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
 }
 
 object KeyValueIndex {
-
   /** Get the Taxonomy from an index's default taxonomy location */
   def getTaxonomy(indexLocation: String)(implicit spark: SparkSession) =
     Taxonomy.load(s"${indexLocation}_taxonomy")
@@ -392,7 +391,9 @@ object KeyValueIndex {
     load(location, tax)
   }
 
-  /** Load index from the given location with a given taxonomy */
+  /** Load index from the given location.
+   * The index will come with a new SparkSession configured with the correct number of partitions.
+   */
   def load(location: String, taxonomy: Taxonomy)(implicit spark: SparkSession): KeyValueIndex = {
     val params = IndexParams.read(location)(spark, SlackenMinimizerFormats)
     val sp = SparkTool.newSession(spark, params.buckets) //Ensure that new datasets have the same number of partitions
