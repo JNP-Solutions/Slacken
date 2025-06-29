@@ -56,16 +56,16 @@ libraries and samples, and the commands you want to run. At least 500 GB of spac
 #### Download
 
 The latest precompiled Slacken may be downloaded as a .zip from the
-[Releases](https://github.com/JNP-Solutions/Slacken/releases). This is the easiest way to obtain Slacken. Download Slacken 1.1.0 and unzip the release.
+[Releases](https://github.com/JNP-Solutions/Slacken/releases). This is the easiest way to obtain Slacken. Download Slacken 2.0.0 and unzip the release.
 
 ```commandline
-curl -LO https://github.com/JNP-Solutions/Slacken/releases/download/v1.1.0/Slacken-1.1.0.zip && \
-unzip Slacken-1.1.0.zip
+curl -LO https://github.com/JNP-Solutions/Slacken/releases/download/v2.0.0/Slacken-2.0.0.zip && \
+unzip Slacken-2.0.0.zip
 ```
 Also, pull the Docker image from [DockerHub](https://hub.docker.com/r/jnpsolutions/slacken):
 
 ```commandline
-docker pull jnpsolutions/slacken:1.1.0
+docker pull jnpsolutions/slacken:2.0.0
 ```
 
 Set up the environment:
@@ -115,7 +115,7 @@ Slacken currently does not support compressed (e.g. gz or bz2) input files.
 1-step classification corresponds to the regular Kraken 2 method:
 
 ```commandline
-dockerSlacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify -p \
+dockerSlacken.sh classify -i /data/standard-224c/std_35_31_s7 -p \
     -o /data/sample0 -c 0.15 \
     /data/anonymous_reads.part_001.fq /data/anonymous_reads.part_002.fq
 ```
@@ -156,12 +156,11 @@ on the fly. It then classifies all reads again using this second library.
 space in the data directory (or 250 GB without `--bracken-length`).
 
 ```commandline
-dockerSlacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify \
- -o /data/sample0_R100 -c 0.15 -p -- \
-  dynamic \
-    --reads 100 --bracken-length 150 \
-    -l /data/standard-224c \
-    /data/anonymous_reads.part_001.fq /data/anonymous_reads.part_002.fq 
+dockerSlacken.sh classify2 -i /data/standard-224c/std_35_31_s7 \
+ -o /data/sample0_R100 -c 0.15 -p \
+  --reads 100 --bracken-length 150 \
+  -l /data/standard-224c \
+  /data/anonymous_reads.part_001.fq /data/anonymous_reads.part_002.fq 
 ```
 
 Here, 
@@ -215,7 +214,7 @@ these libraries may also be accessed directly from the public S3 bucket without 
 The "1-step" classification corresponds to the standard Kraken 2 method. It classifies reads based on the pre-built library only.
 
 ```commandline
-./slacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify -o test_class \
+./slacken.sh classify -i /data/standard-224c/std_35_31_s7 -o test_class \
  sample1.fasta 
 ```
 
@@ -229,7 +228,7 @@ Where
 To classify mate pairs, the `-p` flag may be used. Input files are then expected to be paired up in sequence:
 
 ```commandline
-./slacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify -p -o test_class \
+./slacken.sh classify -i /data/standard-224c/std_35_31_s7 -p -o test_class \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq 
 ```
 
@@ -245,7 +244,7 @@ Samples are identified by means of a regular expression that extracts the sample
 For example:
 
 ```commandline
-./slacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify -p \
+./slacken.sh classify -i /data/standard-224c/std_35_31_s7 -p \
  --sample-regex "(S[0-9]+)" -o test_class \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq
 ```
@@ -269,7 +268,7 @@ They can be used directly with Bracken to re-estimate taxon abundances in a taxo
 For example, for read length 150:
 
 ```commandline
-./slacken.sh taxonIndex /data/standard-224c/std_35_31_s7 brackenWeights \
+./slacken.sh bracken-build -i /data/standard-224c/std_35_31_s7 \
  -l /data/standard-224c --read-len 150
 ```
 
@@ -290,9 +289,9 @@ and used to classify the reads for the final result.
 For example (100 reads heuristic):
 
 ```commandline
-./slacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify -p \
-  -o test_class -- \
-  dynamic --reads 100 --library /data/standard-224c --bracken-length 150 \
+./slacken.sh classify2 -i /data/standard-224c/std_35_31_s7 -p \
+  -o test_class \
+  --reads 100 --library /data/standard-224c --bracken-length 150 \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq
 ```
 
@@ -336,9 +335,9 @@ a library can be built from those taxa during classification by supplying:
 For example:
 
 ```commandline
-./slacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify -p \
- -o test_class -- \
-  dynamic --classify-with-gold -g goldSet.txt --library /data/standard-224c --bracken-length 150 \
+./slacken.sh classify2 -i /data/standard-224c/std_35_31_s7 -p \
+ -o test_class \
+  --classify-with-gold -g goldSet.txt --library /data/standard-224c --bracken-length 150 \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq
 ```
 
@@ -474,8 +473,8 @@ logic for building the "refseq prefer complete" library. Please refer to README.
 After the input files have been prepared as above, the index may be built:
 
 ```commandline
-./slacken.sh  -p 2000 -k 35 -m 31 -t k2/taxonomy taxonIndex mySlackenLib \
-  build -l k2 
+./slacken.sh -p 2000 build -i mySlackenLib -k 35 -m 31 -t k2/taxonomy \
+  -l k2 
 ```
 
 Where:
