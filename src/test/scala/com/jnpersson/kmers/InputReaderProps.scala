@@ -24,7 +24,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 import org.scalatest.matchers.should.Matchers._
 
-import java.nio.file.Files
+import java.nio.file.{Files, Path => FPath}
 
 /** Test the input reader using synthetic files of the various input formats.
   */
@@ -35,12 +35,8 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
 
   val k = 35
 
-  // Write a new temporary file with content
-  def generateFile(content: String, extension: String): String = {
-    val loc = Files.createTempFile(null, extension)
-    Files.write(loc, content.getBytes())
-    loc.toString
-  }
+  def generateFileName(extension: String): FPath =
+    Files.createTempFile(null, extension)
 
   //Read files using InputReader
   def readFiles(files: Seq[String]): FileInputs =
@@ -48,7 +44,7 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
 
   //Delete a temporary file
   def removeFile(file: String): Unit = {
-    new java.io.File(file).delete()
+    HDFSUtil.deleteRecursive(file)
   }
 
   def removeSeparators(x: String): String =
@@ -58,6 +54,18 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
   case class SeqRecordFile(records: List[(String, InputFragment)], lineSeparator: String) {
     override def toString: String =
       records.map(_._1).mkString("")
+
+    //Write a file using spark's text writer, using the specified compression
+    def write(path: String, compression: String) = {
+      import spark.implicits._
+      val lines = records.map(_._1).toDS
+      lines.coalesce(1). //write as a single partition
+        write.
+        mode("overwrite").
+        option("lineSep", lineSeparator). //the line separator is already inserted
+        option("compression", compression).
+        text(path)
+    }
   }
 
   //Do not shrink an individual record
@@ -65,6 +73,15 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
 
   val fastqQuality =
     (33 to 126).map(_.toChar)
+
+  def compressionFormats: Gen[SeqTitle] =
+    Gen.oneOf(List("none", "gzip", "bzip2"))
+
+  def compExtension(compression: String): String = compression match {
+    case "gzip" => ".gz"
+    case "bzip2" => ".bz2"
+    case _ => ""
+  }
 
   //lines have different length, to simulate a complex fasta file
   //Triples of (file data, expected input fragment, line separator)
@@ -74,7 +91,7 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
       dnaSeqs <- Gen.listOfN(lines, seqGen)
       id <- Gen.stringOfN(10, Gen.alphaNumChar)
       sequence = dnaSeqs.mkString("")
-      record = s">$id$lineSep" + dnaSeqs.mkString(lineSep) + lineSep
+      record = s">$id$lineSep" + dnaSeqs.mkString(lineSep)
       fragment = InputFragment(id, 0, sequence, None)
     } yield (record, fragment)
 
@@ -83,7 +100,7 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
       dnaSeq <- seqGen
       id <- Gen.stringOfN(10, Gen.alphaNumChar)
       quality <- Gen.stringOfN(dnaSeq.length, Gen.oneOf(fastqQuality))
-      record = s"@$id$lineSep$dnaSeq$lineSep+$lineSep$quality$lineSep"
+      record = s"@$id$lineSep$dnaSeq$lineSep+$lineSep$quality"
       fragment = InputFragment(id, 0, dnaSeq, None)
     } yield (record, fragment)
 
@@ -105,8 +122,9 @@ class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with Sca
     } yield SeqRecordFile(records, lineSep)
 
   def testFileFormat(fileGen: Gen[SeqRecordFile], extension: String, withAmbiguous: Boolean): Unit = {
-    forAll(fileGen) { case file =>
-      val loc = generateFile(file.toString, extension)
+    forAll(fileGen, compressionFormats) { case (file, comp) =>
+      val loc = generateFileName(extension + compExtension(comp)).toString
+      file.write(loc, comp)
       val inputs = readFiles(List(loc))
       val fragments = file.records.map(pair => (pair._2.header, pair._2.nucleotides)).sortBy(_._1)
       val got = inputs.getInputFragments(withAmbiguous = withAmbiguous).collect().
