@@ -57,7 +57,7 @@ final class PosRankWindow(m: Int, k: Int, val motifRanks: MinimizerPositions) {
       //can never be minimizers
       while (test >= leftBound + 1 &&
         (!motifRanks.isValid(test) || motifRanks.isAfter(test, inserted))) {
-        motifRanks.setValid(test, false)
+        motifRanks.setValid(test, MinimizerPositions.INVALID)
         test -= 1
       }
       //newly inserted motif is the new minimizer; force leftBound to advance

@@ -383,10 +383,11 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
     case RequiredOptionNotFound(_) =>
       //Print help for the appropriate subcommand
       val cmds = subcommands.collect { case rc: RunCmd => rc }
-      if (cmds.nonEmpty) {
-        cmds.head.builder.printHelp()
-      } else {
-        builder.printHelp()
+      cmds match {
+        case c :: cs =>
+          c.builder.printHelp()
+        case _ =>
+          builder.printHelp()
       }
       super.onError(e)
     case _ => super.onError(e)

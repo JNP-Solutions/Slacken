@@ -132,7 +132,7 @@ final case class ShiftScanner(priorities: MinimizerPriorities) {
         val priority = priorities.writePriorityOf(window, priorityBuffer)
         if (priority ne empty) {
           matches.addLongs(priorityBuffer.data)
-          matches.addLong(1) // "valid" tag
+          matches.addLong(MinimizerPositions.VALID)
         } else {
           matches.addLongs(invalidMinimizer)
         }

@@ -33,7 +33,7 @@ private[jnpersson] abstract class SparkTool(appName: String) {
       enableHiveSupport().
       getOrCreate()
 
-    //BareLocalFileSystem bypasses the need for winutils.exe on Windows and does no harm on other OS's
+  //BareLocalFileSystem bypasses the need for winutils.exe on Windows and does no harm on other OS's
     //This affects access to file:/ paths (effectively local files)
     sp.sparkContext.hadoopConfiguration.
       setClass("fs.file.impl", classOf[BareLocalFileSystem], classOf[FileSystem])
