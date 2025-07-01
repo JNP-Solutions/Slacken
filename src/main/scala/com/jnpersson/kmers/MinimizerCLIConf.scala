@@ -66,10 +66,10 @@ trait MinimizerCLIConf {
   this: ScallopConf =>
 
   protected def defaultK = 35
-  val k = opt[Int](descr = s"Length of each k-mer", default = Some(defaultK))
+  val k = opt[Int](descr = "Length of each k-mer", default = Some(defaultK))
 
   protected def defaultMinimizerWidth = 10
-  val minimizerWidth = opt[Int](name = "m", descr = s"Width of minimizers",
+  val minimizerWidth = opt[Int](name = "m", descr = "Width of minimizers",
     default = Some(defaultMinimizerWidth))
 
   validate (k) { k =>
@@ -115,7 +115,7 @@ trait MinimizerCLIConf {
   def defaultMinimizerSpaces: Int = 0
 
   val minimizerSpaces = opt[Int](name = "spaces",
-    descr = s"Number of masked out nucleotides in minimizer (spaced seed)",
+    descr = "Number of masked out nucleotides in minimizer (spaced seed)",
     default = Some(defaultMinimizerSpaces))
 
   /** Apply a spaced seed mask to minimizer priorities */
