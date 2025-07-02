@@ -404,13 +404,17 @@ These options may also be permanently configured by editing `slacken.sh`.
 
 Slacken can run on AWS EMR (Elastic MapReduce) and should also work similarly on other commercial cloud providers
 that support Apache Spark. In this scenario, data can be stored on AWS S3 and the computation can run on a mix of
-on-demand and spot (interruptible) instances. We refer the reader to the AWS EMR documentation for more details.
+on-demand and spot (interruptible) instances. 
+
+A [tutorial on Slacken with AWS EMR](https://github.com/JNP-Solutions/Slacken/wiki/Classifying-metagenomic-samples-on-AWS-Elastic-MapReduce) 
+is available. The tutorial shows how to use Slacken to classify samples using the public indexes on AWS S3.
 
 The cluster configuration we generally recommend is 4 GB RAM per CPU (but 2 GB per CPU may be enough for small workloads).
 For large workloads, the worker nodes should have fast physical hard drives, such as NVMe. On EMR Spark will automatically use
 these drives for temporary space. We have found the m7gd and m6gd machine families to work well.
 
-To run on AWS EMR, first, install the AWS CLI.
+The tutorial above shows how to run Slacken using the EMR GUI. You can also run it on EMR from the command line. 
+To do this, first install the [AWS CLI](https://aws.amazon.com/cli/).
 Copy `slacken-aws.sh.template` to a new file, e.g. `slacken-aws.sh` and edit the file to configure
 some settings such as the S3 bucket to use for the Slacken jar. Then, create the AWS EMR cluster. You will receive a
 cluster ID, either from the web GUI or from the CLI. Set the `AWS_EMR_CLUSTER` environment variable to this id:
