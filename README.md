@@ -14,9 +14,9 @@ and the fraction of reads assigned to each taxon.
 
 Slacken is based on Apache Spark and is thus a distributed application. It can run on a single machine, but can
 also scale to a cluster with hundreds or thousands of machines. It does not keep all data in RAM during processing, but
-processes data in batches.
+processes data in batches. On a 16-core PC, Slacken needs only 16 GB of RAM to classify with the genomes from the Kraken 2 standard library.
 
-We do not currently support translated mode (protein/AA sequence classification) but only nucleotide sequences. Also, 
+Unfortunately, Slacken does not currently support translated mode (protein/AA sequence classification) but only nucleotide sequences. Also, 
 Slacken has its own database format (Parquet based) and can not use pre-built Kraken 2 databases as they are.
 
 For more motivation and details, please see [our 2025 paper in NAR Genomics and Bioinformatics](https://academic.oup.com/nargab/article/7/2/lqaf076/8158581).
@@ -168,7 +168,7 @@ Here,
 * `--reads 100` is the threshold for including a taxon in the initial set (R100).
 * `-l /data/standard-224c` is required, and indicates where genomes for library building may be found.
 * `--bracken-length 150` specifies that Bracken weights for the given read length (150) should be generated. That can be slow, and
-also requires extra space, so we recommend omitting `--bracken-length` when Bracken is not needed.
+also requires extra space, so we recommend omitting `--bracken-length` when Bracken is not needed. When generating Bracken weights, we recommend giving Slacken at least 32 GB of RAM.
 
 When the command has finished, the following files will be generated:
 
