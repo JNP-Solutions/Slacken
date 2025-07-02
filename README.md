@@ -21,6 +21,9 @@ Slacken has its own database format (Parquet based) and can not use pre-built Kr
 
 For more motivation and details, please see [our 2025 paper in NAR Genomics and Bioinformatics](https://academic.oup.com/nargab/article/7/2/lqaf076/8158581).
 
+**Users of version 1.x, please note the new command line syntax in version 2.0.** All commands and examples in this 
+README and on the Wiki have been updated. [See the commands overview.](https://github.com/JNP-Solutions/Slacken/wiki/Slacken-commands-overview)
+
 Copyright (c) Johan Nyström-Persson 2019-2025.
 
 ## Contents
