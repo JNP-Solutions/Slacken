@@ -58,6 +58,7 @@ object SparkTool {
   }
 }
 
+//noinspection TypeAnnotation
 trait HasInputReader {
   this: ScallopConf =>
 
@@ -75,7 +76,7 @@ trait HasInputReader {
  * CLI configuration for a Spark-based application.
  */
 //noinspection TypeAnnotation
-class SparkConfiguration(args: Array[String])(implicit val spark: SparkSession) extends ScallopConf(args) {
+class SparkConfiguration(args: Seq[String])(implicit val spark: SparkSession) extends ScallopConf(args) {
   protected val showAllOpts =
     args.contains("--detailed-help") //to make this value available during the option construction stage
 

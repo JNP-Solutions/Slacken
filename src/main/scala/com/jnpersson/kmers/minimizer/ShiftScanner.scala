@@ -219,7 +219,7 @@ final case class ShiftScanner(priorities: MinimizerPriorities) {
     def hasNext: Boolean =
       result ne empty
 
-    def next: NTBitArray = {
+    def next(): NTBitArray = {
       val r = result
       result = empty
 

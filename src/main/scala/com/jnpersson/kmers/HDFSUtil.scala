@@ -53,7 +53,7 @@ object HDFSUtil {
     new Iterator[T] {
       def hasNext: Boolean = rit.hasNext
 
-      def next: T = rit.next
+      def next(): T = rit.next
     }
 
   private def files(path: String)(implicit spark: SparkSession): Iterator[LocatedFileStatus] = {
