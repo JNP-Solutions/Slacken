@@ -137,7 +137,7 @@ final case class MinSplitter[+P <: MinimizerPriorities](priorities: P, k: Int) {
     new Iterator[Supermer] {
       def hasNext: Boolean = window.hasNext
 
-      def next: Supermer = {
+      def next(): Supermer = {
         val p = window.next
 
         //TODO INVALID handling for computed priorities
@@ -184,7 +184,7 @@ final case class MinSplitter[+P <: MinimizerPriorities](priorities: P, k: Int) {
     new Iterator[Minimizer] {
       def hasNext: Boolean = window.hasNext
 
-      def next: Minimizer = {
+      def next(): Minimizer = {
         val p = window.next
 
         if (!matches.isValid(p)) {

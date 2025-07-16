@@ -60,12 +60,13 @@ object Testing {
    * @param size Approximate number of nodes in the taxonomy (at least this many is guaranteed)
    */
   def taxonomies(size: Int): Gen[Taxonomy] = {
-    implicit def bseq[T]: Buildable[T, Seq[T]] = org.scalacheck.util.Buildable.buildableSeq
+    import scala.collection.{Seq => CSeq}
+    implicit def bseq[T]: Buildable[T, CSeq[T]] = org.scalacheck.util.Buildable.buildableSeq
 
     // Guarantee at least size number of nodes in the taxonomy
     val levelSize = size / (Taxonomy.rankValues.size - 1) + 1
     //Generate data for every level (rank) in the tree and then compose them
-    val levelGenerators: Gen[Seq[(Taxon, Taxon, String)]] =
+    val levelGenerators: Gen[CSeq[(Taxon, Taxon, String)]] =
       Gen.sequence(for {
       rank <- Taxonomy.rankValues
       if rank != Taxonomy.Root

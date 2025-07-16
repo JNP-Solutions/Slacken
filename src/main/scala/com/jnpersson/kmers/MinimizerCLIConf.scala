@@ -75,7 +75,7 @@ trait MinimizerCLIConf {
   validate (k) { k =>
     if (minimizerWidth() > k) {
       Left("-m must be <= -k")
-    } else Right(Unit)
+    } else Right(())
   }
 
   protected def defaultOrdering: String = "lexicographic"

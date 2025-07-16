@@ -21,6 +21,7 @@ import com.jnpersson.kmers.minimizer._
 import org.apache.spark.sql.SparkSession
 
 import java.util.Properties
+import scala.collection.compat.immutable.ArraySeq
 
 /** Logic for persisting minimizer formats (ordering and parameters) to files.
  * @param P the type of MinimizerPriorities that is being managed.

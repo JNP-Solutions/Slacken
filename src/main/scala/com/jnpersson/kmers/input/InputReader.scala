@@ -103,7 +103,7 @@ class PairedInputReader(lhs: InputReader, rhs: InputReader)(implicit spark: Spar
   import spark.sqlContext.implicits._
   import PairedInputReader._
 
-  protected[input] def getFragments: Dataset[InputFragment] = {
+  protected[input] def getFragments(): Dataset[InputFragment] = {
     /* As we currently have no input format that correctly handles paired reads, joining the reads by
           header is the best we can do (and still inexpensive in the big picture).
           Otherwise, it is hard to guarantee that they would be paired up correctly.

@@ -93,7 +93,7 @@ class IndexStatistics(index: KeyValueIndex)(implicit spark: SparkSession) {
     val bcTaxonomy = index.bcTaxonomy
     val taxonDepth = udf((taxon: Taxon) => bcTaxonomy.value.depth(taxon))
     val depthCountConcat = udf((depths: Array[Int], counts: Array[Long]) =>
-      depths.zip(counts).map(x => x._1 + ":" + x._2).mkString("|"))
+      depths.zip(counts).map(x => s"${x._1}:${x._2}").mkString("|"))
 
     //2. Join with records, find the fraction that is assigned to the same (leaf) taxon
     minCounts.join(index.records.withColumnRenamed("taxon", "idxTaxon"),
@@ -162,7 +162,7 @@ class TotalKmerSizeAggregator(taxonomy: Taxonomy, genomeSizes: Array[(Taxon, Lon
       s2AggWithTaxon.sum / s2AggWithTaxon.size.toDouble
     } else {
       val a = computedTreeMap(taxon)
-      if (a._2 == 0) 0 else a._1 / a._2
+      if (a._2 == 0) 0 else a._1.toDouble / a._2
     }
   }
 

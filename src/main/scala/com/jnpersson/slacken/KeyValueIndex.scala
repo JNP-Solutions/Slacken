@@ -377,7 +377,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
   def taxonDepths: Dataset[(Taxon, Int)] = {
     val bcTax = this.bcTaxonomy
     val depth = udf((x: Taxon) => bcTax.value.depth(x))
-    records.select($"taxon").distinct.select($"taxon", depth($"taxon").as("depth")).
+    records.select($"taxon").distinct().select($"taxon", depth($"taxon").as("depth")).
       sort(desc("depth")).as[(Taxon, Int)]
   }
 
