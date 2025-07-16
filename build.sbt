@@ -2,7 +2,24 @@ name := "Slacken"
 
 version := "2.0.0"
 
-scalaVersion := "2.12.20"
+lazy val scala212 = "2.12.20"
+
+lazy val scala213 = "2.13.15"
+
+lazy val supportedScalaVersions = List(scala212, scala213)
+
+ThisBuild / scalaVersion := scala212
+
+lazy val root = (project in file(".")).
+  settings(
+    crossScalaVersions := supportedScalaVersions,
+    libraryDependencies ++= {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, 13)) => List("org.scala-lang.modules" %% "scala-parallel-collections" % "1.0.0")
+        case _                       => Nil
+      }
+    }
+    )
 
 val sparkVersion = "3.5.0"
 
