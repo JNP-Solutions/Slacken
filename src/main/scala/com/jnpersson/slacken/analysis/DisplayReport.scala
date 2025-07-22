@@ -67,16 +67,18 @@ object DisplayReport {
       taxon = spl(4).toInt
       indent = whitespace.findFirstIn(spl(5)).getOrElse("").length
     } {
-      if (clades.forall(_.contains(taxon))) {
-        lastIndent = indent //accept this taxon and the tree below it
-      }
+      if (clades.forall(_.contains(taxon)) &&
+        lastIndent > indent) {
+          //accept this taxon and the tree below it
+          lastIndent = indent
+          //do not change the indent level if not needed, as we might already be accepting an outer taxon
+        }
       //Print line if either: clade set is empty (no filter), or clade set contains the taxon,
       //or we are indented (below a taxon we already accepted)
       if (clades.isEmpty || (clades.forall(_.contains(taxon)) || indent > lastIndent)) {
-        val col = color(numLevel)
-        println(col + l + Console.RESET)
+        println(l)
       } else {
-        lastIndent = Integer.MAX_VALUE //stop accepting taxa, as clades is non-empty and indentation is too small
+        lastIndent = Integer.MAX_VALUE //indicates we are not accepting the current subtree
       }
     }
   }
