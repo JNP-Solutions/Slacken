@@ -24,6 +24,7 @@ import org.apache.hadoop.mapreduce.lib.input.FileSplit
 import org.apache.hadoop.mapreduce.{InputSplit, RecordReader, TaskAttemptContext}
 
 import scala.io.Source
+import scala.collection.BufferedIterator
 
 /**
  * FAI (fasta index) record.

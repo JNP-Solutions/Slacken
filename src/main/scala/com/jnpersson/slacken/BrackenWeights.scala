@@ -29,6 +29,7 @@ import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import java.util
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.{BitSet, mutable}
+import scala.collection.compat._
 
 
 /** Sliding window corresponding to a list of taxon hits. Each hit is a super-mer with some number of k-mers.
@@ -75,7 +76,7 @@ class FragmentWindow(private var hits: Iterator[TaxonHit], kmersPerWindow: Int) 
   val currentWindow: mutable.ArrayBuffer[TaxonHit] = {
     val (window, rem) = hits.span(inWindow)
     hits = rem
-    window.to[ArrayBuffer]
+    window.to(ArrayBuffer)
   }
 
   //Populate the initial state

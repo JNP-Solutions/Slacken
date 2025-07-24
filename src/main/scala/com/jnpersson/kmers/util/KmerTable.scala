@@ -80,7 +80,7 @@ object KmerTable {
 
   /** Obtain a KmerTable from a single segment/superkmer */
   def fromSegment(segment: NTBitArray, bpar: BuildParams): KmerTable =
-    fromSegments(List(segment), Array(1), bpar)
+    fromSegments(Array(segment), Array(1), bpar)
 
   /**
    * Construct a KmerTable from super k-mers.
@@ -206,9 +206,7 @@ trait KmerVisitor {
 abstract class KmerTable(val kmers: Array[Array[Long]], val width: Int, val tagWidth: Int, val k: Int)
   extends IndexedSeq[Array[Long]] {
 
-  override val size: Int = kmers(0).length
-
-  override def length: Int = size
+  override def length = kmers(0).length
 
   /** K-mer only at position i. Allocates a new object. */
   def apply(i: Int): Array[Long] =
@@ -265,7 +263,7 @@ abstract class KmerTable(val kmers: Array[Array[Long]], val width: Int, val tagW
 
     def hasNext: Boolean = i < len
 
-    def next: (Array[Long], Abundance) = {
+    def next(): (Array[Long], Abundance) = {
       val lastKmer = apply(i)
       var count: Abundance = kmers(kmerWidth)(i)
       i += 1
@@ -285,7 +283,7 @@ abstract class KmerTable(val kmers: Array[Array[Long]], val width: Int, val tagW
 
     def hasNext: Boolean = i < len
 
-    def next: Array[Long] = {
+    def next(): Array[Long] = {
       val lastKmer = apply(i)
       i += 1
       while (i < len && equalKmers(i, lastKmer)) {

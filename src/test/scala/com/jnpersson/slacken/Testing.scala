@@ -24,6 +24,7 @@ import com.jnpersson.kmers.minimizer._
 import com.jnpersson.kmers.{AnyMinSplitter, IndexParams, TestGenerators, Testing => TTesting}
 import com.jnpersson.slacken.Taxonomy.{NONE, ROOT, Rank, Root}
 import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.scalacheck.util.Buildable
 import org.scalacheck.{Gen, Shrink}
 
 import scala.annotation.tailrec
@@ -59,12 +60,13 @@ object Testing {
    * @param size Approximate number of nodes in the taxonomy (at least this many is guaranteed)
    */
   def taxonomies(size: Int): Gen[Taxonomy] = {
-    import org.scalacheck.util.Buildable.buildableSeq
+    import scala.collection.{Seq => CSeq}
+    implicit def bseq[T]: Buildable[T, CSeq[T]] = org.scalacheck.util.Buildable.buildableSeq
 
     // Guarantee at least size number of nodes in the taxonomy
     val levelSize = size / (Taxonomy.rankValues.size - 1) + 1
     //Generate data for every level (rank) in the tree and then compose them
-    val levelGenerators: Gen[Seq[(Taxon, Taxon, String)]] =
+    val levelGenerators: Gen[CSeq[(Taxon, Taxon, String)]] =
       Gen.sequence(for {
       rank <- Taxonomy.rankValues
       if rank != Taxonomy.Root

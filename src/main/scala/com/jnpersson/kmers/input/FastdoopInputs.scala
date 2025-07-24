@@ -185,7 +185,7 @@ abstract class HadoopInputReader[R <: AnyRef](file: String, k: Int)(implicit spa
 
   protected[input] def getFragments(): Dataset[InputFragment] = {
     val p = parser
-    rdd.map(p.toFragment).toDS
+    rdd.map(p.toFragment).toDS()
   }
 }
 
@@ -209,7 +209,7 @@ class FastaShortInput(file: String, k: Int, maxReadLength: Int)
     sc.newAPIHadoopFile(input, classOf[FASTAshortInputFileFormat], classOf[Text], classOf[Record], conf).values
 
   def getSequenceTitles: Dataset[SeqTitle] =
-    rdd.map(_.getKey).toDS().distinct
+    rdd.map(_.getKey).toDS().distinct()
 }
 
 /**
@@ -231,7 +231,7 @@ class FastqShortInput(file: String, k: Int, maxReadLength: Int)
     sc.newAPIHadoopFile(input, classOf[FASTQInputFileFormat], classOf[Text], classOf[QRecord], conf).values
 
   def getSequenceTitles: Dataset[SeqTitle] =
-    rdd.map(_.getKey).toDS.distinct
+    rdd.map(_.getKey).toDS().distinct()
 }
 
 /**
@@ -250,5 +250,5 @@ class IndexedFastaInput(file: String, k: Int)(implicit spark: SparkSession)
     sc.newAPIHadoopFile(input, classOf[IndexedFastaFormat], classOf[Text], classOf[PartialSequence], conf).values
 
   def getSequenceTitles: Dataset[SeqTitle] =
-    rdd.map(_.getKey).toDS.distinct
+    rdd.map(_.getKey).toDS().distinct()
 }
