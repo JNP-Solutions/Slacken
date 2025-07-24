@@ -269,12 +269,14 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
   }
 
   /** Classify subject sequences (as a dataset) */
-  def collectHitsBySequence(subjects: Dataset[InputFragment], withOrdinal: Boolean): Dataset[(SeqTitle, Array[TaxonHit])] =
+  def collectHitsBySequence(subjects: Dataset[InputFragment], withOrdinal: Boolean): Dataset[(SeqTitle, Array[TaxonHit], Long)] =
     spansToGroupedHits(getSpans(subjects, withTitle = true), withOrdinal)
 
   /** Group super-mers (minimizer spans) by sequence title and convert them to taxon hits.
+   * The ordering of taxon hits is preserved.
+   * @return tuples of (sequence ID, taxon hits, total number of distinct hits)
    */
-  def spansToGroupedHits(subjects: Dataset[OrdinalSpan], withOrdinal: Boolean): Dataset[(SeqTitle, Array[TaxonHit])] = {
+  def spansToGroupedHits(subjects: Dataset[OrdinalSpan], withOrdinal: Boolean): Dataset[(SeqTitle, Array[TaxonHit], Long)] = {
     //The 'subject' struct constructs an OrdinalSpan
     val taggedSpans = subjects.select(
       Seq($"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
@@ -289,9 +291,40 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
 
     //Group all hits by sequence title again so that we can reassemble (the hits from) each sequence according
     // to the original order.
-    taxonHits.groupBy("seqTitle").agg(collect_list("hit").as("hits")).
-      as[(SeqTitle, Array[TaxonHit])]
+    taxonHits.groupBy("seqTitle").agg(collect_list("hit").as("hits"),
+      //Count the number of distinct hits, so we can check if we had sufficient hit groups
+        sum(when($"hit.distinct" === true && $"hit.taxon" =!= lit(Taxonomy.NONE), lit(1)).otherwise(lit(0))).as("numDistinct")).
+      as[(SeqTitle, Array[TaxonHit], Long)]
   }
+
+  /** Group super-mers (minimizer spans) by sequence title and convert them to taxon hit.
+   * In the process we also group and count taxon hits by each individual taxon. The ordering of taxon hits is lost.
+   * @return tuples of (sequence ID, total distinct hits, pairs of (taxon, k-mer count)).
+   */
+  def spansToGroupedHitsCounted(subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Int, Array[(Taxon, Int)])] = {
+    //The 'subject' struct constructs an OrdinalSpan
+    val taggedSpans = subjects.select(
+      Seq($"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
+        idColumnsFromMinimizer
+        :_*)
+
+    val taxonHits = taggedSpans.join(records, idColumnNames, "left").
+      select(
+        $"seqTitle",
+        struct(spanToHit(withOrdinal = false) : _*).as("hit")
+      )
+
+    //Group all hits by sequence title again so that we can reassemble (the hits from) each sequence according
+    // to the original order.
+    taxonHits.groupBy("seqTitle", "hit.taxon").agg(sum("hit.count").cast("int").as("count"),
+        //Count the number of distinct hits, so we can check if we had sufficient hit groups
+        sum(when($"hit.distinct" === true && $"hit.taxon" =!= lit(Taxonomy.NONE), lit(1)).otherwise(lit(0))).
+          cast("int").as("numDistinct")).
+      groupBy("seqTitle").agg(sum("numDistinct").cast("int"), collect_list(struct("taxon", "count"))).
+      as[(SeqTitle, Int, Array[(Taxon, Int)])]
+  }
+
+
 
   /** Print basic statistics for this index.
    * Optionally, input sequences and a label file can be specified, and they will then be checked against
