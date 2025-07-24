@@ -1,4 +1,4 @@
-ARG base_image=ghcr.io/atgenomix/runtime/base:1.6.4.0-ubuntu22.04
+ARG base_image=ghcr.io/atgenomix/runtime/base:1.6.5.0-ubuntu22.04
 FROM --platform=$BUILDPLATFORM sbtscala/scala-sbt:eclipse-temurin-17.0.14_7_1.10.10_2.12.20 AS build
 ARG base_image
 
@@ -16,7 +16,7 @@ RUN --mount=type=secret,id=GITHUB_TOKEN,env=GITHUB_TOKEN \
 
 FROM ${base_image}
 ARG base_image
-ARG version=2.0.0_sl
+ARG version=2.0.1_sl
 
 # metadata
 LABEL \
