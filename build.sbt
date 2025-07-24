@@ -1,6 +1,6 @@
 name := "Slacken"
 
-version := "2.0.0_sl"
+version := "2.0.1_sl"
 
 lazy val scala212 = "2.12.20"
 
@@ -23,11 +23,9 @@ lazy val root = (project in file(".")).
 
 val sparkVersion = "3.5.0"
 
-//For backwards compatibility with Java 17, when compiling on a newer JDK, the options below are needed.
-//Also applies to javacOptions below.
-scalacOptions ++= Seq("--feature", "-release", "8")
+scalacOptions ++= Seq("--feature", "-release", "17")
 
-javacOptions ++= Seq("--release=8")
+javacOptions ++= Seq("--release=17")
 
 resolvers += "Spark Packages Repo" at "https://dl.bintray.com/spark-packages/maven"
 
