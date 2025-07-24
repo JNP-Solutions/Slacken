@@ -116,7 +116,7 @@ final case class TaxonCounts(taxa: mutable.IndexedSeq[Taxon], counts: mutable.In
     if (border == -1) {
       (counts.sum + (k - 1)).toString
     } else {
-      (counts.take(border).sum + (k-1)) + "|" + (counts.drop(border + 1).sum + (k-1))
+      s"${counts.take(border).sum + (k-1)}|${counts.drop(border + 1).sum + (k-1)}"
     }
   }
 

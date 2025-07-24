@@ -16,7 +16,7 @@ RUN --mount=type=secret,id=GITHUB_TOKEN,env=GITHUB_TOKEN \
 
 FROM ${base_image}
 ARG base_image
-ARG version=1.1.0_sl
+ARG version=2.0.0_sl
 
 # metadata
 LABEL \

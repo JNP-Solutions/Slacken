@@ -1,8 +1,25 @@
 name := "Slacken"
 
-version := "1.1.0_sl"
+version := "2.0.0_sl"
 
-scalaVersion := "2.12.18"
+lazy val scala212 = "2.12.20"
+
+lazy val scala213 = "2.13.15"
+
+lazy val supportedScalaVersions = List(scala212, scala213)
+
+ThisBuild / scalaVersion := scala212
+
+lazy val root = (project in file(".")).
+  settings(
+    crossScalaVersions := supportedScalaVersions,
+    libraryDependencies ++= {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, 13)) => List("org.scala-lang.modules" %% "scala-parallel-collections" % "1.0.0")
+        case _                       => Nil
+      }
+    }
+    )
 
 val sparkVersion = "3.5.0"
 
@@ -29,7 +46,9 @@ libraryDependencies += "it.unimi.dsi" % "fastutil" % "latest.integration"
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "latest.integration" % "test"
 
-libraryDependencies += "org.scalatestplus" %% "scalacheck-1-15" % "latest.integration" % "test"
+libraryDependencies += "org.scalatestplus" %% "scalacheck-1-18" % "latest.integration" % "test"
+
+libraryDependencies += "org.scala-lang.modules" %% "scala-collection-compat" % "2.13.0"
 
 //The "provided" configuration prevents sbt-assembly from including spark in the packaged jar.
 libraryDependencies += "org.apache.spark" %% "spark-sql" % sparkVersion % "provided"

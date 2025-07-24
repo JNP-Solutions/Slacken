@@ -14,12 +14,15 @@ and the fraction of reads assigned to each taxon.
 
 Slacken is based on Apache Spark and is thus a distributed application. It can run on a single machine, but can
 also scale to a cluster with hundreds or thousands of machines. It does not keep all data in RAM during processing, but
-processes data in batches.
+processes data in batches. On a 16-core PC, Slacken needs only 16 GB of RAM to classify with the genomes from the Kraken 2 standard library.
 
-We do not currently support translated mode (protein/AA sequence classification) but only nucleotide sequences. Also, 
+Unfortunately, Slacken does not currently support translated mode (protein/AA sequence classification) but only nucleotide sequences. Also, 
 Slacken has its own database format (Parquet based) and can not use pre-built Kraken 2 databases as they are.
 
-For more motivation and details, please see our [preprint](https://www.biorxiv.org/content/10.1101/2024.12.22.629657) on BioRXiv.
+For more motivation and details, please see [our 2025 paper in NAR Genomics and Bioinformatics](https://academic.oup.com/nargab/article/7/2/lqaf076/8158581).
+
+**Users of version 1.x, please note the new command line syntax in version 2.0.** All commands and examples in this 
+README and on the Wiki have been updated. [See the commands overview.](https://github.com/JNP-Solutions/Slacken/wiki/Slacken-commands-overview)
 
 Copyright (c) Johan Nyström-Persson 2019-2025.
 
@@ -56,16 +59,16 @@ libraries and samples, and the commands you want to run. At least 500 GB of spac
 #### Download
 
 The latest precompiled Slacken may be downloaded as a .zip from the
-[Releases](https://github.com/JNP-Solutions/Slacken/releases). This is the easiest way to obtain Slacken. Download Slacken 1.1.0 and unzip the release.
+[Releases](https://github.com/JNP-Solutions/Slacken/releases). This is the easiest way to obtain Slacken. Download Slacken 2.0.0 and unzip the release.
 
 ```commandline
-curl -LO https://github.com/JNP-Solutions/Slacken/releases/download/v1.1.0/Slacken-1.1.0.zip && \
-unzip Slacken-1.1.0.zip
+curl -LO https://github.com/JNP-Solutions/Slacken/releases/download/v2.0.0/Slacken-2.0.0.zip && \
+unzip Slacken-2.0.0.zip
 ```
 Also, pull the Docker image from [DockerHub](https://hub.docker.com/r/jnpsolutions/slacken):
 
 ```commandline
-docker pull jnpsolutions/slacken:1.1.0
+docker pull jnpsolutions/slacken:2.0.0
 ```
 
 Set up the environment:
@@ -115,7 +118,7 @@ Slacken currently does not support compressed (e.g. gz or bz2) input files.
 1-step classification corresponds to the regular Kraken 2 method:
 
 ```commandline
-dockerSlacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify -p \
+dockerSlacken.sh classify -i /data/standard-224c/std_35_31_s7 -p \
     -o /data/sample0 -c 0.15 \
     /data/anonymous_reads.part_001.fq /data/anonymous_reads.part_002.fq
 ```
@@ -156,12 +159,11 @@ on the fly. It then classifies all reads again using this second library.
 space in the data directory (or 250 GB without `--bracken-length`).
 
 ```commandline
-dockerSlacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify \
- -o /data/sample0_R100 -c 0.15 -p -- \
-  dynamic \
-    --reads 100 --bracken-length 150 \
-    -l /data/standard-224c \
-    /data/anonymous_reads.part_001.fq /data/anonymous_reads.part_002.fq 
+dockerSlacken.sh classify2 -i /data/standard-224c/std_35_31_s7 \
+ -o /data/sample0_R100 -c 0.15 -p \
+  --reads 100 --bracken-length 150 \
+  -l /data/standard-224c \
+  /data/anonymous_reads.part_001.fq /data/anonymous_reads.part_002.fq 
 ```
 
 Here, 
@@ -169,7 +171,7 @@ Here,
 * `--reads 100` is the threshold for including a taxon in the initial set (R100).
 * `-l /data/standard-224c` is required, and indicates where genomes for library building may be found.
 * `--bracken-length 150` specifies that Bracken weights for the given read length (150) should be generated. That can be slow, and
-also requires extra space, so we recommend omitting `--bracken-length` when Bracken is not needed.
+also requires extra space, so we recommend omitting `--bracken-length` when Bracken is not needed. When generating Bracken weights, we recommend giving Slacken at least 32 GB of RAM.
 
 When the command has finished, the following files will be generated:
 
@@ -215,7 +217,7 @@ these libraries may also be accessed directly from the public S3 bucket without 
 The "1-step" classification corresponds to the standard Kraken 2 method. It classifies reads based on the pre-built library only.
 
 ```commandline
-./slacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify -o test_class \
+./slacken.sh classify -i /data/standard-224c/std_35_31_s7 -o test_class \
  sample1.fasta 
 ```
 
@@ -229,7 +231,7 @@ Where
 To classify mate pairs, the `-p` flag may be used. Input files are then expected to be paired up in sequence:
 
 ```commandline
-./slacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify -p -o test_class \
+./slacken.sh classify -i /data/standard-224c/std_35_31_s7 -p -o test_class \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq 
 ```
 
@@ -245,7 +247,7 @@ Samples are identified by means of a regular expression that extracts the sample
 For example:
 
 ```commandline
-./slacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify -p \
+./slacken.sh classify -i /data/standard-224c/std_35_31_s7 -p \
  --sample-regex "(S[0-9]+)" -o test_class \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq
 ```
@@ -269,7 +271,7 @@ They can be used directly with Bracken to re-estimate taxon abundances in a taxo
 For example, for read length 150:
 
 ```commandline
-./slacken.sh taxonIndex /data/standard-224c/std_35_31_s7 brackenWeights \
+./slacken.sh bracken-build -i /data/standard-224c/std_35_31_s7 \
  -l /data/standard-224c --read-len 150
 ```
 
@@ -290,9 +292,9 @@ and used to classify the reads for the final result.
 For example (100 reads heuristic):
 
 ```commandline
-./slacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify -p \
-  -o test_class -- \
-  dynamic --reads 100 --library standard-224c --bracken-length 150 \
+./slacken.sh classify2 -i /data/standard-224c/std_35_31_s7 -p \
+  -o test_class \
+  --reads 100 --library /data/standard-224c --bracken-length 150 \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq
 ```
 
@@ -336,9 +338,9 @@ a library can be built from those taxa during classification by supplying:
 For example:
 
 ```commandline
-./slacken.sh taxonIndex /data/standard-224c/std_35_31_s7 classify -p \
- -o test_class -- \
-  dynamic --classify-with-gold -g goldSet.txt --library standard-224c --bracken-length 150 \
+./slacken.sh classify2 -i /data/standard-224c/std_35_31_s7 -p \
+ -o test_class \
+  --classify-with-gold -g goldSet.txt --library /data/standard-224c --bracken-length 150 \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq
 ```
 
@@ -405,13 +407,17 @@ These options may also be permanently configured by editing `slacken.sh`.
 
 Slacken can run on AWS EMR (Elastic MapReduce) and should also work similarly on other commercial cloud providers
 that support Apache Spark. In this scenario, data can be stored on AWS S3 and the computation can run on a mix of
-on-demand and spot (interruptible) instances. We refer the reader to the AWS EMR documentation for more details.
+on-demand and spot (interruptible) instances. 
+
+A [tutorial on Slacken with AWS EMR](https://github.com/JNP-Solutions/Slacken/wiki/Classifying-metagenomic-samples-on-AWS-Elastic-MapReduce) 
+is available. The tutorial shows how to use Slacken to classify samples using the public indexes on AWS S3.
 
 The cluster configuration we generally recommend is 4 GB RAM per CPU (but 2 GB per CPU may be enough for small workloads).
 For large workloads, the worker nodes should have fast physical hard drives, such as NVMe. On EMR Spark will automatically use
 these drives for temporary space. We have found the m7gd and m6gd machine families to work well.
 
-To run on AWS EMR, first, install the AWS CLI.
+The tutorial above shows how to run Slacken using the EMR GUI. You can also run it on EMR from the command line. 
+To do this, first install the [AWS CLI](https://aws.amazon.com/cli/).
 Copy `slacken-aws.sh.template` to a new file, e.g. `slacken-aws.sh` and edit the file to configure
 some settings such as the S3 bucket to use for the Slacken jar. Then, create the AWS EMR cluster. You will receive a
 cluster ID, either from the web GUI or from the CLI. Set the `AWS_EMR_CLUSTER` environment variable to this id:
@@ -474,8 +480,8 @@ logic for building the "refseq prefer complete" library. Please refer to README.
 After the input files have been prepared as above, the index may be built:
 
 ```commandline
-./slacken.sh  -p 2000 -k 35 -m 31 -t k2/taxonomy taxonIndex mySlackenLib \
-  build -l k2 
+./slacken.sh -p 2000 build -i mySlackenLib -k 35 -m 31 -t k2/taxonomy \
+  -l k2 
 ```
 
 Where:
@@ -536,7 +542,8 @@ If you use Slacken in your research, please cite our paper:
 
 Johan Nyström-Persson, Nishad Bapatdhar, and Samik Ghosh:
 Precise and scalable metagenomic profiling with sample-tailored minimizer libraries.
-bioRxiv 2024.12.22.629657; doi: https://doi.org/10.1101/2024.12.22.629657
+NAR Genomics and Bioinformatics, Volume 7, Issue 2, June 2025, lqaf076, https://doi.org/10.1093/nargab/lqaf076
+
 
 ## References
 

@@ -18,13 +18,14 @@
 package com.jnpersson.slacken
 
 import com.jnpersson.kmers.SparkSessionTestWrapper
+import org.apache.spark.sql.SparkSession
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 
 import scala.collection.mutable
 
 class BrackenWeightsTest extends AnyFunSuite with SparkSessionTestWrapper with Matchers {
-  implicit val sp = spark
+  implicit val sp: SparkSession = spark
   import spark.sqlContext.implicits._
 
   test("Read counts from the underlying genomes are correct") {
