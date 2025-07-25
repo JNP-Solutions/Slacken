@@ -320,7 +320,10 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
         //Count the number of distinct hits, so we can check if we had sufficient hit groups
         sum(when($"hit.distinct" === true && $"hit.taxon" =!= lit(Taxonomy.NONE), lit(1)).otherwise(lit(0))).
           cast("int").as("numDistinct")).
-      groupBy("seqTitle").agg(sum("numDistinct").cast("int"), collect_list(struct("taxon", "count"))).
+      groupBy("seqTitle").agg(
+        sum("numDistinct").cast("int").as("numDistinct"),
+        collect_list(struct("taxon", "count")).as("hits")
+      ).
       as[(SeqTitle, Int, Array[(Taxon, Int)])]
   }
 
