@@ -22,7 +22,7 @@ import com.jnpersson.kmers.minimizer.InputFragment
 import com.jnpersson.kmers.{HDFSUtil, SeqTitle}
 import it.unimi.dsi.fastutil.ints.{Int2IntArrayMap, Int2IntMap}
 import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
-import org.apache.spark.sql.functions.{collect_list, count, desc, struct}
+import org.apache.spark.sql.functions.{collect_list, count, desc, ifnull, lit, regexp_extract, regexp_extract_all, struct}
 
 import scala.collection.JavaConverters._
 
@@ -233,15 +233,26 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
 class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
   import spark.implicits._
 
-  def classify(subjects: Dataset[InputFragment], cpar: ClassifyParams, threshold: Double): Dataset[ClassifiedRead] = {
+  private def subjectsToPerSampleHitGroups(subjects: Dataset[InputFragment], cpar: ClassifyParams):
+    Dataset[(String, Taxon, Array[(Taxon, Taxon)])] = {
     val spans = index.getSpans(subjects, withTitle = true)
     val hits = index.spansToGroupedHitsCounted(spans)
+    val withSample = cpar.sampleRegex match {
+      case Some(re) =>
+      hits.withColumn("sampleId", ifnull(regexp_extract($"seqTitle", re, 1), lit("other")))
+      case None =>  hits.withColumn("sampleId", lit("all"))
+    }
+    withSample.select("sampleId", "numDistinct", "hits").
+      as[(SeqTitle, Int, Array[(Taxon, Int)])]
+  }
+
+  def classify(subjects: Dataset[InputFragment], cpar: ClassifyParams, threshold: Double): Dataset[ClassifiedRead] = {
+    val hits = subjectsToPerSampleHitGroups(subjects, cpar)
     classifyHits(hits, cpar, threshold)
   }
 
-  def classifyAndWrite(inputs: Dataset[InputFragment], outputLocation: String, cpar: ClassifyParams): Unit = {
-    val spans = index.getSpans(inputs, withTitle = true)
-    val hits = index.spansToGroupedHitsCounted(spans)
+  def classifyAndWrite(subjects: Dataset[InputFragment], outputLocation: String, cpar: ClassifyParams): Unit = {
+    val hits = subjectsToPerSampleHitGroups(subjects, cpar)
     classifyHitsAndWrite(hits, outputLocation, cpar)
   }
 
@@ -252,7 +263,7 @@ class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
    * @param outputLocation location (directory, if multi-sample or prefix, if single sample) to write output
    * @param cpar           classification parameters
    */
-  def classifyHitsAndWrite(subjectsHits: Dataset[(SeqTitle, Int, Array[(Taxon, Int)])], outputLocation: String,
+  def classifyHitsAndWrite(subjectsHits: Dataset[(String, Int, Array[(Taxon, Int)])], outputLocation: String,
                            cpar: ClassifyParams): Unit = {
     if (cpar.thresholds.size > 1) {
       subjectsHits.cache()
@@ -273,19 +284,12 @@ class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
                    cpar: ClassifyParams, threshold: Double): Dataset[ClassifiedRead] = {
     val bcTax = index.bcTaxonomy
     val k = index.params.k
-    val sre = cpar.sampleRegex.map(_.r)
     assert(!cpar.perReadOutput) //not yet supported
 
     subjectsHits.mapPartitions(part => {
       val lca = new LowestCommonAncestor(bcTax.value)
 
-      part.map { case (title, totalDistinct, hits) =>
-
-        val sample = sre match {
-          case Some(re) => re.findFirstMatchIn(title).
-            map(_.group(1)).getOrElse("other")
-          case _ => "all"
-        }
+      part.map { case (sample, totalDistinct, hits) =>
 
         val hitMap = new Int2IntArrayMap(hits.length)
         var i = 0
