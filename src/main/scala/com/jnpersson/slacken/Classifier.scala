@@ -99,15 +99,14 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     val bcTax = index.bcTaxonomy
     val k = index.params.k
     val sre = cpar.sampleRegex.map(_.r)
+    assert(cpar.perReadOutput)
 
     subjectsHits.mapPartitions(part => {
       val lca = new LowestCommonAncestor(bcTax.value)
 
       part.map { case (title, hits, distinct) =>
-        if (cpar.perReadOutput) {
-          //The ordering of hits is not needed if we are not generating per read output
-          java.util.Arrays.sort(hits, Classifier.hitsComparator)
-        }
+        //The ordering of hits is needed if we are not generating per read output
+        java.util.Arrays.sort(hits, Classifier.hitsComparator)
 
         val sample = sre match {
           case Some(re) => re.findFirstMatchIn(title).
@@ -283,7 +282,6 @@ class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
   def classifyHits(subjectsHits: Dataset[(SeqTitle, Int, Array[(Taxon, Int)])],
                    cpar: ClassifyParams, threshold: Double): Dataset[ClassifiedRead] = {
     val bcTax = index.bcTaxonomy
-    val k = index.params.k
     assert(!cpar.perReadOutput) //not yet supported
 
     subjectsHits.mapPartitions(part => {
