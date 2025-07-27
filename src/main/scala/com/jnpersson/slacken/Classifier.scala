@@ -22,7 +22,7 @@ import com.jnpersson.kmers.minimizer.InputFragment
 import com.jnpersson.kmers.{HDFSUtil, SeqTitle}
 import it.unimi.dsi.fastutil.ints.{Int2IntArrayMap, Int2IntMap}
 import org.apache.spark.sql.{DataFrame, Dataset, SaveMode, SparkSession}
-import org.apache.spark.sql.functions.{collect_list, count, desc, ifnull, lit, regexp_extract, regexp_extract_all, struct}
+import org.apache.spark.sql.functions.{collect_list, count, desc, ifnull, lit, regexp_extract, regexp_extract_all, struct, udf}
 
 import scala.collection.JavaConverters._
 
@@ -284,28 +284,29 @@ class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     val bcTax = index.bcTaxonomy
     assert(!cpar.perReadOutput) //not yet supported
 
-    subjectsHits.mapPartitions(part => {
+    def classifyUdfFunction(numDistinct: Int, hits: Array[(Taxon, Int)]): (Boolean, Taxon) = {
       val lca = new LowestCommonAncestor(bcTax.value)
-
-      part.map { case (sample, totalDistinct, hits) =>
-
-        val hitMap = new Int2IntArrayMap(hits.length)
-        var i = 0
-        var totalKmers = 0
-        while (i < hits.length) {
-          val taxon = hits(i)._1
-          val count = hits(i)._2
-          if (taxon != MATE_PAIR_BORDER && taxon != AMBIGUOUS_SPAN)
-            hitMap.put(taxon, count)
-          if (taxon != MATE_PAIR_BORDER)
-            totalKmers += count
-          i += 1
-        }
-
-        val r = Classifier.classifySimple(lca, sample, hitMap, totalKmers, totalDistinct, threshold, cpar)
-        (sample, r.classified, r.taxon)
+      val hitMap = new Int2IntArrayMap(hits.length)
+      var i = 0
+      var totalKmers = 0
+      while (i < hits.length) {
+        val taxon = hits(i)._1
+        val count = hits(i)._2
+        if (taxon != MATE_PAIR_BORDER && taxon != AMBIGUOUS_SPAN)
+          hitMap.put(taxon, count)
+        if (taxon != MATE_PAIR_BORDER)
+          totalKmers += count
+        i += 1
       }
-    }).toDF("sampleId", "classified", "taxon")
+
+      val r = Classifier.classifySimple(lca, "", hitMap, totalKmers, numDistinct, threshold, cpar)
+      (r.classified, r.taxon)
+    }
+
+    val classifyUdf = udf(classifyUdfFunction(_, _))
+
+    subjectsHits.withColumn("classification", classifyUdf($"numDistinct", $"hits")).
+      select($"sampleId", $"classification._1".as("classified"), $"classification._2".as("taxon"))
   }
 
 
