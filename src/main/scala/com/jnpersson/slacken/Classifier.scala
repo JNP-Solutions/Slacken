@@ -21,7 +21,7 @@ import com.jnpersson.kmers.input.FileInputs
 import com.jnpersson.kmers.minimizer.InputFragment
 import com.jnpersson.kmers.{HDFSUtil, SeqTitle}
 import it.unimi.dsi.fastutil.ints.{Int2IntArrayMap, Int2IntMap}
-import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
+import org.apache.spark.sql.{DataFrame, Dataset, SaveMode, SparkSession}
 import org.apache.spark.sql.functions.{collect_list, count, desc, ifnull, lit, regexp_extract, regexp_extract_all, struct}
 
 import scala.collection.JavaConverters._
@@ -84,12 +84,12 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     }
   }
 
-  def classify(subjects: Dataset[InputFragment], cpar: ClassifyParams, threshold: Double): Dataset[ClassifiedRead] = {
+  def classify(subjects: Dataset[InputFragment], cpar: ClassifyParams, threshold: Double): DataFrame = {
     if (!cpar.perReadOutput) {
       new SQLClassifier(index).classify(subjects, cpar, threshold)
     } else {
       val hits = index.collectHitsBySequence(subjects, cpar.perReadOutput)
-      classifyHits(hits, cpar, threshold)
+      classifyHits(hits, cpar, threshold).toDF()
     }
   }
 
@@ -245,7 +245,7 @@ class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
       as[(SeqTitle, Int, Array[(Taxon, Int)])]
   }
 
-  def classify(subjects: Dataset[InputFragment], cpar: ClassifyParams, threshold: Double): Dataset[ClassifiedRead] = {
+  def classify(subjects: Dataset[InputFragment], cpar: ClassifyParams, threshold: Double): DataFrame = {
     val hits = subjectsToPerSampleHitGroups(subjects, cpar)
     classifyHits(hits, cpar, threshold)
   }
@@ -271,7 +271,7 @@ class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     try {
       for {t <- cpar.thresholds} {
         val classified = classifyHits(subjectsHits, cpar, t)
-        new Classifier(index).writePerSampleOutput(classified, outputLocation, t, cpar)
+        writePerSampleOutput(classified, outputLocation, t, cpar)
       }
     } finally {
       subjectsHits.unpersist()
@@ -279,8 +279,8 @@ class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
   }
 
   /** Classify input sequence-hit dataset for a single sample and single confidence threshold value */
-  def classifyHits(subjectsHits: Dataset[(SeqTitle, Int, Array[(Taxon, Int)])],
-                   cpar: ClassifyParams, threshold: Double): Dataset[ClassifiedRead] = {
+  def classifyHits(subjectsHits: Dataset[(String, Int, Array[(Taxon, Int)])],
+                   cpar: ClassifyParams, threshold: Double): DataFrame = {
     val bcTax = index.bcTaxonomy
     assert(!cpar.perReadOutput) //not yet supported
 
@@ -302,9 +302,51 @@ class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
           i += 1
         }
 
-        Classifier.classifySimple(lca, sample, hitMap, totalKmers, totalDistinct, threshold, cpar)
+        val r = Classifier.classifySimple(lca, sample, hitMap, totalKmers, totalDistinct, threshold, cpar)
+        (sample, r.classified, r.taxon)
       }
-    })
+    }).toDF("sampleId", "classified", "taxon")
+  }
+
+
+  /**
+   * For each sample in the classified reads, aggregate reports and write outputs.
+   *
+   * @param reads          triples of (sample ID, classified flag, taxon) for each read
+   * @param outputLocation directory/prefix to write to
+   * @param threshold      the confidence threshold that was used in this classification
+   * @param cpar           parameters for classification
+   * @return               the sample IDs that were discovered and processed, or "all" if not using multi-sample mode
+   */
+  def writePerSampleOutput(reads: DataFrame, outputLocation: String, threshold: Double,
+                           cpar: ClassifyParams): Iterable[String] = {
+    val thresholds = cpar.thresholds
+    // find the maximum number of digits after the decimal point for values in the threshold list
+    // to enable proper sorting of file names with threshold values
+    val maxDecimalLength = thresholds.map(num => num.toString.split("\\.")(1).length).max
+    val thresholdStr = s"%.${maxDecimalLength}f".format(threshold)
+    val location = outputLocation + "_c" + thresholdStr
+
+    val keepLines = if (cpar.withUnclassified) {
+      reads
+    } else {
+      reads.where($"classified" === true)
+    }
+
+    //Write aggregate classification reports only
+
+    val sampleIterator = keepLines.groupBy("sampleId", "taxon").agg(count("*").as("count"))
+      .groupBy("sampleId").agg(collect_list(struct($"taxon".as("_1"), $"count".as("_2")))).
+      as[(String, Array[(Taxon, Long)])].
+      toLocalIterator().asScala
+
+    val samples = for {
+      (sample, countByTaxon) <- sampleIterator
+      report = new KrakenReport(index.taxonomy, countByTaxon)
+      loc = Classifier.reportOutputLocation(location, sample)
+      _ = HDFSUtil.usingWriter(loc, wr => report.print(wr))
+    } yield sample
+    samples.toList
   }
 
 }

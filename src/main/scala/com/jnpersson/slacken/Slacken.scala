@@ -450,6 +450,7 @@ class Slacken(index: KeyValueIndex,
   if (confidence < 0 || confidence > 1) {
     throw new Exception(s"--confidence values must be >= 0 and <= 1 ($confidence was given)")
   }
+
   val cls = new Classifier(index)
   def cpar = ClassifyParams(minHitGroups, unclassified, List(confidence), sampleRegex, detailed)
 
@@ -476,9 +477,8 @@ class Slacken(index: KeyValueIndex,
    * @return file names of generated report files
    */
   def writeReports(classified: DataFrame, location: String): Iterable[String] = {
-    import spark.sqlContext.implicits._
-    val clReads = classified.as[ClassifiedRead]
-    val samples = cls.writePerSampleOutput(clReads, location, confidence, cpar)
+    val sqlCls = new SQLClassifier(index)
+    val samples = sqlCls.writePerSampleOutput(classified, location, confidence, cpar)
     samples.map(s => Classifier.reportOutputLocation(location, s))
   }
 }
