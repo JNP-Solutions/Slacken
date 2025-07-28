@@ -5,8 +5,8 @@ version 1.0
 
 task Slacken {
    input {
-     File readsR1
-     File readsR2
+     Array[File] readsR1
+     Array[File] readsR2
      String indexLocation
      String sampleRegex
      Float confidence
@@ -29,8 +29,8 @@ task Slacken {
 
 workflow RunSlacken {
   input {
-     File readsR1
-     File readsR2
+     Array[File] readsR1
+     Array[File] readsR2
      String indexLocation
      String sampleRegex
      Float confidence
