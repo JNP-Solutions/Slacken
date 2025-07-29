@@ -33,7 +33,7 @@ private[jnpersson] abstract class SparkTool(appName: String) {
       enableHiveSupport().
       getOrCreate()
 
-    //BareLocalFileSystem bypasses the need for winutils.exe on Windows and does no harm on other OS's
+  //BareLocalFileSystem bypasses the need for winutils.exe on Windows and does no harm on other OS's
     //This affects access to file:/ paths (effectively local files)
     sp.sparkContext.hadoopConfiguration.
       setClass("fs.file.impl", classOf[BareLocalFileSystem], classOf[FileSystem])
@@ -58,6 +58,7 @@ object SparkTool {
   }
 }
 
+//noinspection TypeAnnotation
 trait HasInputReader {
   this: ScallopConf =>
 
@@ -69,7 +70,7 @@ trait HasInputReader {
  * CLI configuration for a Spark-based application.
  */
 //noinspection TypeAnnotation
-class SparkConfiguration(args: Array[String])(implicit val spark: SparkSession) extends ScallopConf(args) {
+class SparkConfiguration(args: Seq[String])(implicit val spark: SparkSession) extends ScallopConf(args) {
   protected val showAllOpts =
     args.contains("--detailed-help") //to make this value available during the option construction stage
 

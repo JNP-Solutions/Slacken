@@ -20,8 +20,9 @@ package com.jnpersson.slacken
 import com.jnpersson.kmers.input.FileInputs
 import com.jnpersson.kmers.minimizer.InputFragment
 import com.jnpersson.kmers.{HDFSUtil, SeqTitle}
+import it.unimi.dsi.fastutil.ints.{Int2IntArrayMap, Int2IntMap}
 import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
-import org.apache.spark.sql.functions.{collect_list, count, desc, struct}
+import org.apache.spark.sql.functions.{collect_list, count, desc, ifnull, lit, regexp_extract, regexp_extract_all, struct}
 
 import scala.collection.JavaConverters._
 
@@ -75,30 +76,37 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
 
    */
   def classifyAndWrite(inputs: Dataset[InputFragment], outputLocation: String, cpar: ClassifyParams): Unit = {
-    val hits = index.collectHitsBySequence(inputs, cpar.perReadOutput)
-    classifyHitsAndWrite(hits, outputLocation, cpar)
+    if (!cpar.perReadOutput) {
+      new SQLClassifier(index).classifyAndWrite(inputs, outputLocation, cpar)
+    } else {
+      val hits = index.collectHitsBySequence(inputs, cpar.perReadOutput)
+      classifyHitsAndWrite(hits, outputLocation, cpar)
+    }
   }
 
   def classify(subjects: Dataset[InputFragment], cpar: ClassifyParams, threshold: Double): Dataset[ClassifiedRead] = {
-    val hits = index.collectHitsBySequence(subjects, cpar.perReadOutput)
-    classifyHits(hits, cpar, threshold)
+    if (!cpar.perReadOutput) {
+      new SQLClassifier(index).classify(subjects, cpar, threshold)
+    } else {
+      val hits = index.collectHitsBySequence(subjects, cpar.perReadOutput)
+      classifyHits(hits, cpar, threshold)
+    }
   }
 
   /** Classify input sequence-hit dataset for a single sample and single confidence threshold value */
-  def classifyHits(subjectsHits: Dataset[(SeqTitle, Array[TaxonHit])],
+  def classifyHits(subjectsHits: Dataset[(SeqTitle, Array[TaxonHit], Long)],
                    cpar: ClassifyParams, threshold: Double): Dataset[ClassifiedRead] = {
     val bcTax = index.bcTaxonomy
     val k = index.params.k
     val sre = cpar.sampleRegex.map(_.r)
+    assert(cpar.perReadOutput)
 
     subjectsHits.mapPartitions(part => {
       val lca = new LowestCommonAncestor(bcTax.value)
 
-      part.map { case (title, hits) =>
-        if (cpar.perReadOutput) {
-          //The ordering of hits is not needed if we are not generating per read output
-          java.util.Arrays.sort(hits, Classifier.hitsComparator)
-        }
+      part.map { case (title, hits, distinct) =>
+        //The ordering of hits is needed if we are not generating per read output
+        java.util.Arrays.sort(hits, Classifier.hitsComparator)
 
         val sample = sre match {
           case Some(re) => re.findFirstMatchIn(title).
@@ -106,7 +114,7 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
           case _ => "all"
         }
 
-        Classifier.classify(lca, sample, title, hits, threshold, k, cpar)
+        Classifier.classify(lca, sample, title, hits, distinct, threshold, k, cpar)
       }
     })
   }
@@ -118,7 +126,7 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
    * @param outputLocation location (directory, if multi-sample or prefix, if single sample) to write output
    * @param cpar           classification parameters
    */
-  def classifyHitsAndWrite(subjectsHits: Dataset[(SeqTitle, Array[TaxonHit])], outputLocation: String,
+  def classifyHitsAndWrite(subjectsHits: Dataset[(SeqTitle, Array[TaxonHit], Long)], outputLocation: String,
                            cpar: ClassifyParams): Unit = {
     if (cpar.thresholds.size > 1) {
       subjectsHits.cache()
@@ -216,6 +224,91 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
   }
 }
 
+/** Routines for classifying reads using a taxonomic k-mer LCA index.
+ * This is an alternative implementation that prefers spark SQL over UDFs where possible.
+ * Per-read output is not supported (only reports).
+ * @param index Minimizer-LCA index
+ */
+class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
+  import spark.implicits._
+
+  private def subjectsToPerSampleHitGroups(subjects: Dataset[InputFragment], cpar: ClassifyParams):
+    Dataset[(String, Taxon, Array[(Taxon, Taxon)])] = {
+    val spans = index.getSpans(subjects, withTitle = true)
+    val hits = index.spansToGroupedHitsCounted(spans)
+    val withSample = cpar.sampleRegex match {
+      case Some(re) =>
+      hits.withColumn("sampleId", ifnull(regexp_extract($"seqTitle", re, 1), lit("other")))
+      case None =>  hits.withColumn("sampleId", lit("all"))
+    }
+    withSample.select("sampleId", "numDistinct", "hits").
+      as[(SeqTitle, Int, Array[(Taxon, Int)])]
+  }
+
+  def classify(subjects: Dataset[InputFragment], cpar: ClassifyParams, threshold: Double): Dataset[ClassifiedRead] = {
+    val hits = subjectsToPerSampleHitGroups(subjects, cpar)
+    classifyHits(hits, cpar, threshold)
+  }
+
+  def classifyAndWrite(subjects: Dataset[InputFragment], outputLocation: String, cpar: ClassifyParams): Unit = {
+    val hits = subjectsToPerSampleHitGroups(subjects, cpar)
+    classifyHitsAndWrite(hits, outputLocation, cpar)
+  }
+
+  /** Classify subject sequences using the given index, optionally for multiple samples,
+   * writing the results to a designated output location
+   *
+   * @param subjectsHits       sequences to be classified
+   * @param outputLocation location (directory, if multi-sample or prefix, if single sample) to write output
+   * @param cpar           classification parameters
+   */
+  def classifyHitsAndWrite(subjectsHits: Dataset[(String, Int, Array[(Taxon, Int)])], outputLocation: String,
+                           cpar: ClassifyParams): Unit = {
+    if (cpar.thresholds.size > 1) {
+      subjectsHits.cache()
+    }
+
+    try {
+      for {t <- cpar.thresholds} {
+        val classified = classifyHits(subjectsHits, cpar, t)
+        new Classifier(index).writePerSampleOutput(classified, outputLocation, t, cpar)
+      }
+    } finally {
+      subjectsHits.unpersist()
+    }
+  }
+
+  /** Classify input sequence-hit dataset for a single sample and single confidence threshold value */
+  def classifyHits(subjectsHits: Dataset[(SeqTitle, Int, Array[(Taxon, Int)])],
+                   cpar: ClassifyParams, threshold: Double): Dataset[ClassifiedRead] = {
+    val bcTax = index.bcTaxonomy
+    assert(!cpar.perReadOutput) //not yet supported
+
+    subjectsHits.mapPartitions(part => {
+      val lca = new LowestCommonAncestor(bcTax.value)
+
+      part.map { case (sample, totalDistinct, hits) =>
+
+        val hitMap = new Int2IntArrayMap(hits.length)
+        var i = 0
+        var totalKmers = 0
+        while (i < hits.length) {
+          val taxon = hits(i)._1
+          val count = hits(i)._2
+          if (taxon != MATE_PAIR_BORDER && taxon != AMBIGUOUS_SPAN)
+            hitMap.put(taxon, count)
+          if (taxon != MATE_PAIR_BORDER)
+            totalKmers += count
+          i += 1
+        }
+
+        Classifier.classifySimple(lca, sample, hitMap, totalKmers, totalDistinct, threshold, cpar)
+      }
+    })
+  }
+
+}
+
 object Classifier {
 
   /** Location where per-read outputs are written for a given sample. The per-sample directories
@@ -244,11 +337,12 @@ object Classifier {
    * @param cpar Classify parameters
    */
   def classify(lca: LowestCommonAncestor, sampleId: String, title: SeqTitle, sortedHits: Array[TaxonHit],
+               distinctHits: Long,
                confidenceThreshold: Double, k: Int, cpar: ClassifyParams): ClassifiedRead = {
     val totalSummary = TaxonCounts.fromHits(sortedHits)
 
     val taxon = lca.resolveTree(totalSummary, confidenceThreshold)
-    val classified = taxon != Taxonomy.NONE && sufficientHitGroups(sortedHits, cpar.minHitGroups)
+    val classified = taxon != Taxonomy.NONE && distinctHits >= cpar.minHitGroups
 
     val reportTaxon = if (classified) taxon else Taxonomy.NONE
     if (cpar.perReadOutput) {
@@ -259,22 +353,19 @@ object Classifier {
     }
   }
 
-  /** For the given set of sorted hits, was there a sufficient number of hit groups wrt the given minimum? */
-  def sufficientHitGroups(hits: Array[TaxonHit], minimum: Int): Boolean = {
-    var hitCount = 0
+  //Simpler version that does not support per-read classification
+  def classifySimple(lca: LowestCommonAncestor, sampleId: String, hitCounts: Int2IntMap,
+                     totalKmers: Int,
+               distinctHits: Int,
+               confidenceThreshold: Double, cpar: ClassifyParams): ClassifiedRead = {
+    val requiredScore = Math.ceil(confidenceThreshold * totalKmers)
+    val taxon = lca.resolveTree(hitCounts, requiredScore)
+    val classified = taxon != Taxonomy.NONE && distinctHits >= cpar.minHitGroups
 
-    //count separate hit groups (adjacent but with different minimizers) for each sequence, imitating kraken2 classify.cc
-    var h = 0
-    while (h < hits.length && hitCount < minimum) {
-      val hit = hits(h)
-      if (hit.taxon != Taxonomy.NONE && hit.distinct) {
-        hitCount += 1
-      }
-      h += 1
-    }
-    hitCount >= minimum
+    val reportTaxon = if (classified) taxon else Taxonomy.NONE
+    ClassifiedRead(sampleId, classified, "", reportTaxon, Array.empty, "", "")
   }
-
+  
   val hitsComparator = java.util.Comparator.comparingInt((hit: TaxonHit) => hit.ordinal)
 
 }

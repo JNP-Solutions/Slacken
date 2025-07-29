@@ -36,7 +36,7 @@ import java.io.{FileWriter, PrintWriter}
  */
 object CAMIToKrakenReport {
 
-  implicit val spark = SparkSession.builder().appName("CAMIToKraken").
+  implicit val spark: SparkSession = SparkSession.builder().appName("CAMIToKraken").
     enableHiveSupport().
     getOrCreate()
 

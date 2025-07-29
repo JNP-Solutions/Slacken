@@ -31,7 +31,6 @@ import java.util.regex.PatternSyntaxException
 
 
 abstract class SparkCmd(title: String)(implicit val spark: SparkSession) extends RunCmd(title)
-
 /** Command line options for commands that require an explicit taxonomy */
 trait RequireTaxonomy {
   this: ScallopConf =>
@@ -84,14 +83,14 @@ trait ClassifyCommand extends RequireIndex with HasInputReader {
   validate(confidence) { cs =>
     cs.find(c => c < 0 || c > 1) match {
       case Some(c) => Left(s"--confidence values must be >= 0 and <= 1 ($c was given)")
-      case None => Right(Unit)
+      case None => Right(())
     }
   }
 
   validate(sampleRegex) { reg =>
     try {
       reg.r
-      Right(Unit)
+      Right(())
     } catch {
       case pse: PatternSyntaxException =>
         println(pse.getMessage)
@@ -102,7 +101,7 @@ trait ClassifyCommand extends RequireIndex with HasInputReader {
 
 /** Command line options for Slacken */
 //noinspection TypeAnnotation
-class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends SparkConfiguration(args) with HasInputReader {
+class SlackenConf(args: Seq[String])(implicit spark: SparkSession) extends SparkConfiguration(args) with HasInputReader {
   shortSubcommandsHelp(true)
 
   version(s"Slacken ${getClass.getPackage.getImplementationVersion} (c) 2019-2025 Johan Nyström-Persson")
@@ -234,7 +233,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
     validate(initConfidence) { c =>
       if (c < 0 || c > 1)
         Left(s"--read-confidence must be >=0 and <= 1 ($c was given)")
-      else Right(Unit)
+      else Right(())
     }
     mutuallyExclusive(minCount, minDistinct, reads)
 
@@ -381,10 +380,11 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
     case RequiredOptionNotFound(_) =>
       //Print help for the appropriate subcommand
       val cmds = subcommands.collect { case rc: RunCmd => rc }
-      if (cmds.nonEmpty) {
-        cmds.head.builder.printHelp()
-      } else {
-        builder.printHelp()
+      cmds match {
+        case c :: cs =>
+          c.builder.printHelp()
+        case _ =>
+          builder.printHelp()
       }
       super.onError(e)
     case _ => super.onError(e)
@@ -400,7 +400,7 @@ class SlackenConf(args: Array[String])(implicit spark: SparkSession) extends Spa
 object Slacken extends SparkTool("Slacken") {
   def main(args: Array[String]): Unit = {
     try {
-      val conf = new SlackenConf(args)(sparkSession()).finishSetup()
+      val conf = new SlackenConf(args.toSeq)(sparkSession()).finishSetup()
       Commands.run(conf)
     } catch {
       case se: ScallopExitException =>

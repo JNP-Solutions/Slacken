@@ -21,9 +21,9 @@ package com.jnpersson.slacken
 import com.jnpersson.kmers.TestGenerators._
 import com.jnpersson.kmers.input.DirectInputs
 import com.jnpersson.kmers.minimizer._
-import com.jnpersson.kmers.{IndexParams, NTSeq, SparkSessionTestWrapper, Testing => DTesting}
+import com.jnpersson.kmers.{IndexParams, MinimizerCLIConf, MinimizerFormats, NTSeq, SparkSessionTestWrapper, Testing => DTesting}
 import com.jnpersson.slacken.Taxonomy.{NONE, Species}
-import org.apache.spark.sql.functions
+import org.apache.spark.sql.{SparkSession, functions}
 import org.apache.spark.sql.functions.count
 import org.scalacheck.Gen
 import org.scalatest.funsuite.AnyFunSuite
@@ -35,10 +35,10 @@ import scala.util.Random
 
 class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with SparkSessionTestWrapper with Matchers {
 
-  implicit val sp = spark
+  implicit val sp: SparkSession = spark
   import spark.sqlContext.implicits._
 
-  implicit val formats = SlackenMinimizerFormats
+  implicit val formats: MinimizerFormats[MinimizerCLIConf] = SlackenMinimizerFormats
 
   val numberOfGenomes = 100
   //multiply by 8 to make the leaf node level approximately right sized

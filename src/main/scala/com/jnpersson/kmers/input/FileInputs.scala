@@ -27,6 +27,8 @@ import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions.{collect_list, element_at, lit, monotonically_increasing_id, slice, substring}
 import org.apache.spark.sql.{Dataset, SparkSession}
 
+import scala.collection.parallel.immutable.ParVector
+import scala.collection.compat._
 
 /**
  * A set of input files that can be parsed into [[InputFragment]]
@@ -109,7 +111,7 @@ class FileInputs(val files: Seq[String], k: Int, inputGrouping: InputGrouping = 
       case _ =>
         expandedFiles.map(forFile)
     }
-    val fs = readers.par.map(_.getInputFragments(withAmbiguous, sampleFraction)).seq
+    val fs = readers.to(ParVector).map(_.getInputFragments(withAmbiguous, sampleFraction)).seq
     spark.sparkContext.union(fs.map(_.rdd)).toDS()
   }
 
@@ -208,7 +210,7 @@ class FastqTextInput(file: String)(implicit spark: SparkSession) extends HadoopI
   }.rdd
 
   def getSequenceTitles: Dataset[SeqTitle] =
-    rdd.map(x => x(0)).toDS
+    rdd.map(x => x(0)).toDS()
 
   protected[input] def getFragments(): Dataset[InputFragment] =
     rdd.map(ar => {
@@ -239,7 +241,7 @@ class IndexedFastaInput(file: String, k: Int)(implicit spark: SparkSession)
     sc.newAPIHadoopFile(input, classOf[IndexedFastaFormat], classOf[Text], classOf[PartialSequence], conf).values
 
   def getSequenceTitles: Dataset[SeqTitle] =
-    rdd.map(_.getKey).toDS.distinct
+    rdd.map(_.getKey).toDS().distinct
 
   protected[input] def getFragments(): Dataset[InputFragment] = {
     val k = this.k
@@ -267,6 +269,6 @@ class IndexedFastaInput(file: String, k: Int)(implicit spark: SparkSession)
         val key = partialSeq.getKey.split(" ")(0)
         makeInputFragment(key, partialSeq.getSeqPosition, partialSeq.getBuffer, start, useEnd)
       }
-    }).toDS
+    }).toDS()
   }
 }
