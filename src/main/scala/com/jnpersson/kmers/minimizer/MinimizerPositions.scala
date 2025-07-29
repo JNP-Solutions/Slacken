@@ -19,6 +19,11 @@ package com.jnpersson.kmers.minimizer
 
 import com.jnpersson.kmers.util.{KmerTable, NTBitArray}
 
+object MinimizerPositions {
+  final val VALID = 1
+  final val INVALID = 0
+}
+
 /** This class adapts KmerTable for use as a list of minimizers of some underlying sequence.
  * This is more memory efficient than representing each NTBitArray as an object by itself.
  * Each entry in the KmerTable corresponds to a position in a sequence.
@@ -32,10 +37,10 @@ final class MinimizerPositions(val data: KmerTable, width: Int) extends IndexedS
   private val validTag = data.kmerWidth
 
   def isValid(position: Int): Boolean =
-    data.kmers(validTag)(position) == 1
+    data.kmers(validTag)(position) == MinimizerPositions.VALID
 
-  def setValid(position: Int, flag: Boolean): Unit = {
-    data.kmers(validTag)(position) = if (flag) 1 else 0
+  def setValid(position: Int, flag: Long): Unit = {
+    data.kmers(validTag)(position) = flag
   }
 
   /** Obtain the minimizer for a given position. Allocates a new object. */

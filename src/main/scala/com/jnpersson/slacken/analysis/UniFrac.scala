@@ -28,8 +28,8 @@ class UniFrac(tax: Taxonomy, sample1: BitSet, sample2: BitSet) {
   val tree1: BitSet = fullTree(sample1)
   val tree2: BitSet = fullTree(sample2)
   val sharedTree: BitSet = tree1.intersect(tree2)
-  val distinct1: BitSet = tree1 -- sharedTree
-  val distinct2: BitSet = tree2 -- sharedTree
+  val distinct1: BitSet = tree1 &~= sharedTree
+  val distinct2: BitSet = tree2 &~= sharedTree
   val bothTree = fullTree(sample1 ++ sample2)
 
   /** Compute the full phylogenetic tree to the root starting from the given leaf nodes */

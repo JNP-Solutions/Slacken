@@ -19,6 +19,7 @@ package com.jnpersson.kmers
 
 import com.jnpersson.kmers.input.FileInputs
 import com.jnpersson.kmers.minimizer.InputFragment
+import org.apache.spark.sql.SparkSession
 import org.scalacheck.{Gen, Shrink}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
@@ -31,7 +32,7 @@ import java.nio.file.{Files, Path => FPath}
 class InputReaderProps extends AnyFunSuite with SparkSessionTestWrapper with ScalaCheckPropertyChecks {
   import TestGenerators._
 
-  implicit val sp = spark
+  implicit val sp: SparkSession = spark
 
   val k = 35
 

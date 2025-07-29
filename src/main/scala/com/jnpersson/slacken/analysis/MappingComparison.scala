@@ -131,7 +131,6 @@ class MappingComparison(tax: Broadcast[Taxonomy],
     unfiltered.filter(contains($"refTaxon"))
   }
 
-
   def allMetrics(dataFile: String, reference: String): Iterator[Metrics] = {
     val referenceData = readReferenceData(reference).cache()
     println(s"Filtered reference size: ${referenceData.count()}")
@@ -194,9 +193,9 @@ class MappingComparison(tax: Broadcast[Taxonomy],
       x => rank.nonEmpty || tax.value.depth(x) >= Species.depth)
 
     val truePos = refTaxa.intersect(cmpTaxa).size
-    val falsePos = (cmpTaxa -- refTaxa -- vagueTaxa).size
+    val falsePos = (cmpTaxa &~= refTaxa -- vagueTaxa).size
     val vaguePos = cmpTaxa.intersect(vagueTaxa).size
-    val falseNeg = (refTaxa -- cmpTaxa).size
+    val falseNeg = (refTaxa &~= cmpTaxa).size
     val precision = truePos.toDouble / (cmpTaxa -- vagueTaxa).size
     val recall = truePos.toDouble / refTaxa.size
 

@@ -154,7 +154,7 @@ object Supermers {
       def hasNext: Boolean =
         at < sequence.length
 
-      def next: (NTSeq, SegmentFlag, Int) = {
+      def next(): (NTSeq, SegmentFlag, Int) = {
         if (matches.hasNext && matches.head.start == at) {
           val m = matches.next()
           at = m.end
