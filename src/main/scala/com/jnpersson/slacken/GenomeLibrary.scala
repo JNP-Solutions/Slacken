@@ -82,7 +82,7 @@ object GenomeLibrary {
     import spark.sqlContext.implicits._
 
     //Taxa from the taxon to genome mapping file
-    val labelledNodes = getTaxonLabels(labelFile).select("_2").distinct().as[Taxon].collect()
+    val labelledNodes = getTaxonLabels(labelFile).select("_c1").distinct().as[Taxon].collect()
     val invalidLabelledNodes = labelledNodes.filter(x => !tax.isDefined(x))
     if (invalidLabelledNodes.nonEmpty) {
       println(s"${invalidLabelledNodes.length} unknown genomes in $labelFile were not indexed (missing from the taxonomy):")
