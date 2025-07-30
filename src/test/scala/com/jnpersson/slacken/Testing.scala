@@ -173,7 +173,7 @@ object TestData {
   val numberOf35Mers = Map(526997 -> 2902850, 455631 -> 3565872, 9606 -> 639784)
 
   def inputs(k: Int)(implicit spark: SparkSession) =
-    new FileInputs(List("testData/slacken/slacken_tinydata.fna"), k, 10000000)
+    new FileInputs(List("testData/slacken/slacken_tinydata.fna"), k)
 
   def library(k: Int)(implicit spark: SparkSession): GenomeLibrary =
     GenomeLibrary(inputs(k), "testData/slacken/seqid2taxid.map")
