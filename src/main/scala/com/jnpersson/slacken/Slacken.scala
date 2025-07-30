@@ -161,7 +161,9 @@ class SlackenConf(args: Seq[String])(implicit spark: SparkSession) extends Spark
         val ni = i.withRecords(recs)
         ni.writeRecords(params.location)
         Taxonomy.copyToLocation(taxonomy(), index() + "_taxonomy")
-        ni.showIndexStats(None)
+
+        val ni2 = loadIndex()
+        ni2.showIndexStats(None)
         GenomeLibrary.inputStats(genomes.labelFile, getTaxonomy(index()))
       }
     }
