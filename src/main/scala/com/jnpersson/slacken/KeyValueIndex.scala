@@ -299,9 +299,9 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
 
   /** Group super-mers (minimizer spans) by sequence title and convert them to taxon hit.
    * In the process we also group and count taxon hits by each individual taxon. The ordering of taxon hits is lost.
-   * @return tuples of (sequence ID, total distinct hits, pairs of (taxon, k-mer count)).
+   * @return tuples of (sequence ID, total distinct hits, total k-mers including ambiguous, pairs of (taxon, k-mer count)).
    */
-  def spansToGroupedHitsCounted(subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Int, Array[(Taxon, Int)])] = {
+  def spansToGroupedHitsCounted(subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Int, Int, Array[(Taxon, Int)])] = {
     //The 'subject' struct constructs an OrdinalSpan
     val taggedSpans = subjects.select(
       Seq($"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
@@ -314,17 +314,18 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
         struct(spanToHit(withOrdinal = false) : _*).as("hit")
       )
 
-    //Group all hits by sequence title again so that we can reassemble (the hits from) each sequence according
-    // to the original order.
+    //Group all hits by sequence title again. Count and aggregate hits and summary information.
     taxonHits.groupBy("seqTitle", "hit.taxon").agg(sum("hit.count").cast("int").as("count"),
-        //Count the number of distinct hits, so we can check if we had sufficient hit groups
-        sum(when($"hit.distinct" === true && $"hit.taxon" =!= lit(Taxonomy.NONE), lit(1)).otherwise(lit(0))).
+        count_if($"hit.distinct" === true && $"hit.taxon" =!= lit(Taxonomy.NONE)).
           cast("int").as("numDistinct")).
       groupBy("seqTitle").agg(
         sum("numDistinct").cast("int").as("numDistinct"),
-        collect_list(struct("taxon", "count")).as("hits")
+        sum(when($"taxon" =!= lit(MATE_PAIR_BORDER), $"count").otherwise(lit(0))).cast("int").as("totalCount"),
+          collect_list(when($"taxon" =!= lit(MATE_PAIR_BORDER) && $"taxon" =!= lit(AMBIGUOUS_SPAN),
+            struct("taxon", "count"))
+        ).as("hits")
       ).
-      as[(SeqTitle, Int, Array[(Taxon, Int)])]
+      as[(SeqTitle, Int, Int, Array[(Taxon, Int)])]
   }
 
 

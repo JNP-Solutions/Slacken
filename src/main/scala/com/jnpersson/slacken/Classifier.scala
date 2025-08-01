@@ -233,7 +233,7 @@ class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
   import spark.implicits._
 
   private def subjectsToPerSampleHitGroups(subjects: Dataset[InputFragment], cpar: ClassifyParams):
-    Dataset[(String, Taxon, Array[(Taxon, Taxon)])] = {
+    Dataset[(String, Int, Int, Array[(Taxon, Int)])] = {
     val spans = index.getSpans(subjects, withTitle = true)
     val hits = index.spansToGroupedHitsCounted(spans)
     val withSample = cpar.sampleRegex match {
@@ -241,8 +241,8 @@ class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
       hits.withColumn("sampleId", ifnull(regexp_extract($"seqTitle", re, 1), lit("other")))
       case None =>  hits.withColumn("sampleId", lit("all"))
     }
-    withSample.select("sampleId", "numDistinct", "hits").
-      as[(SeqTitle, Int, Array[(Taxon, Int)])]
+    withSample.select("sampleId", "numDistinct", "totalCount", "hits").
+      as[(SeqTitle, Int, Int, Array[(Taxon, Int)])]
   }
 
   def classify(subjects: Dataset[InputFragment], cpar: ClassifyParams, threshold: Double): DataFrame = {
@@ -262,7 +262,7 @@ class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
    * @param outputLocation location (directory, if multi-sample or prefix, if single sample) to write output
    * @param cpar           classification parameters
    */
-  def classifyHitsAndWrite(subjectsHits: Dataset[(String, Int, Array[(Taxon, Int)])], outputLocation: String,
+  def classifyHitsAndWrite(subjectsHits: Dataset[(String, Int, Int, Array[(Taxon, Int)])], outputLocation: String,
                            cpar: ClassifyParams): Unit = {
     if (cpar.thresholds.size > 1) {
       subjectsHits.cache()
@@ -278,13 +278,17 @@ class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     }
   }
 
-  /** Classify input sequence-hit dataset for a single sample and single confidence threshold value */
-  def classifyHits(subjectsHits: Dataset[(String, Int, Array[(Taxon, Int)])],
+  /** Classify input sequence-hit dataset for a single sample and single confidence threshold value.
+   * For this version of the method, MATE_PAIR_BORDER and AMBIGUOUS_SPAN should not be present in the taxon count pairs.
+   *
+   * @param subjectsHits tuples of (sequence id, number of distinct hits, total k-mer count, taxon hit counts)
+   */
+  def classifyHits(subjectsHits: Dataset[(String, Int, Int, Array[(Taxon, Int)])],
                    cpar: ClassifyParams, threshold: Double): DataFrame = {
     val bcTax = index.bcTaxonomy
     assert(!cpar.perReadOutput) //not yet supported
 
-    def classifyUdfFunction(numDistinct: Int, hits: Array[(Taxon, Int)]): (Boolean, Taxon) = {
+    def classifyUdfFunction(numDistinct: Int, totalKmers: Int, hits: Array[(Taxon, Int)]): (Boolean, Taxon) = {
       val lca = new LowestCommonAncestor(bcTax.value)
       val hitMap = new Int2IntArrayMap(hits.length)
       var i = 0
@@ -292,10 +296,7 @@ class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
       while (i < hits.length) {
         val taxon = hits(i)._1
         val count = hits(i)._2
-        if (taxon != MATE_PAIR_BORDER && taxon != AMBIGUOUS_SPAN)
-          hitMap.put(taxon, count)
-        if (taxon != MATE_PAIR_BORDER)
-          totalKmers += count
+        hitMap.put(taxon, count)
         i += 1
       }
 
@@ -303,9 +304,9 @@ class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
       (r.classified, r.taxon)
     }
 
-    val classifyUdf = udf(classifyUdfFunction(_, _))
+    val classifyUdf = udf(classifyUdfFunction(_, _, _))
 
-    subjectsHits.withColumn("classification", classifyUdf($"numDistinct", $"hits")).
+    subjectsHits.withColumn("classification", classifyUdf($"numDistinct", $"totalCount", $"hits")).
       select($"sampleId", $"classification._1".as("classified"), $"classification._2".as("taxon"))
   }
 
