@@ -22,7 +22,7 @@ import com.jnpersson.kmers.minimizer.InputFragment
 import com.jnpersson.kmers.{HDFSUtil, SeqTitle}
 import it.unimi.dsi.fastutil.ints.{Int2IntArrayMap, Int2IntMap}
 import org.apache.spark.sql.{DataFrame, Dataset, SaveMode, SparkSession}
-import org.apache.spark.sql.functions.{collect_list, count, desc, ifnull, lit, regexp_extract, regexp_extract_all, struct, udf}
+import org.apache.spark.sql.functions.{collect_list, count, desc, ifnull, lit, regexp_extract, regexp_extract_all, struct, udf, when}
 
 import scala.collection.JavaConverters._
 
@@ -288,7 +288,7 @@ class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     val bcTax = index.bcTaxonomy
     assert(!cpar.perReadOutput) //not yet supported
 
-    def classifyUdfFunction(numDistinct: Int, totalKmers: Int, hits: Array[(Taxon, Int)]): (Boolean, Taxon) = {
+    def classifyUdfFunction(totalKmers: Int, hits: Array[(Taxon, Int)]): (Boolean, Taxon) = {
       val lca = new LowestCommonAncestor(bcTax.value)
       val hitMap = new Int2IntArrayMap(hits.length)
       var i = 0
@@ -300,13 +300,18 @@ class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
         i += 1
       }
 
-      val r = Classifier.classifySimple(lca, "", hitMap, totalKmers, numDistinct, threshold, cpar)
+      val r = Classifier.classifySimple(lca, "", hitMap, totalKmers, threshold, cpar)
       (r.classified, r.taxon)
     }
 
-    val classifyUdf = udf(classifyUdfFunction(_, _, _))
+    val classifyUdf = udf(classifyUdfFunction(_, _))
 
-    subjectsHits.withColumn("classification", classifyUdf($"numDistinct", $"totalCount", $"hits")).
+    subjectsHits.
+      withColumn("classification",
+        when(lit(cpar.minHitGroups) >= $"numDistinct",
+          classifyUdf($"totalCount", $"hits")).
+          otherwise(struct(lit(false).as("_1"), lit(Taxonomy.NONE).as("_2")))
+      ).
       select($"sampleId", $"classification._1".as("classified"), $"classification._2".as("taxon"))
   }
 
@@ -397,14 +402,14 @@ object Classifier {
     }
   }
 
-  //Simpler version that does not support per-read classification
+  //Simpler version that does not support per-read classification.
+  //The number of distinct hit groups ia assumed to be sufficient.
   def classifySimple(lca: LowestCommonAncestor, sampleId: String, hitCounts: Int2IntMap,
                      totalKmers: Int,
-               distinctHits: Int,
-               confidenceThreshold: Double, cpar: ClassifyParams): ClassifiedRead = {
+                     confidenceThreshold: Double, cpar: ClassifyParams): ClassifiedRead = {
     val requiredScore = Math.ceil(confidenceThreshold * totalKmers)
     val taxon = lca.resolveTree(hitCounts, requiredScore)
-    val classified = taxon != Taxonomy.NONE && distinctHits >= cpar.minHitGroups
+    val classified = taxon != Taxonomy.NONE
 
     val reportTaxon = if (classified) taxon else Taxonomy.NONE
     ClassifiedRead(sampleId, classified, "", reportTaxon, Array.empty, "", "")
