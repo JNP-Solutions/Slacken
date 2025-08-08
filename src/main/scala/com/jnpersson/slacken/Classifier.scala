@@ -292,8 +292,7 @@ class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
       val lca = new LowestCommonAncestor(bcTax.value)
       val hitMap = new Int2IntArrayMap(taxa, counts)
 
-      val r = Classifier.classifySimple(lca, "", hitMap, totalKmers, threshold, cpar)
-      (r.classified, r.taxon)
+      Classifier.classifySimple(lca, hitMap, totalKmers, threshold)
     }
 
     val classifyUdf = udf(classifyUdfFunction(_, _, _))
@@ -396,15 +395,15 @@ object Classifier {
 
   //Simpler version that does not support per-read classification.
   //The number of distinct hit groups ia assumed to be sufficient.
-  def classifySimple(lca: LowestCommonAncestor, sampleId: String, hitCounts: Int2IntMap,
+  def classifySimple(lca: LowestCommonAncestor, hitCounts: Int2IntMap,
                      totalKmers: Int,
-                     confidenceThreshold: Double, cpar: ClassifyParams): ClassifiedRead = {
+                     confidenceThreshold: Double): (Boolean, Taxon) = {
     val requiredScore = Math.ceil(confidenceThreshold * totalKmers)
     val taxon = lca.resolveTree(hitCounts, requiredScore)
     val classified = taxon != Taxonomy.NONE
 
     val reportTaxon = if (classified) taxon else Taxonomy.NONE
-    ClassifiedRead(sampleId, classified, "", reportTaxon, Array.empty, "", "")
+    (classified, reportTaxon)
   }
   
   val hitsComparator = java.util.Comparator.comparingInt((hit: TaxonHit) => hit.ordinal)
