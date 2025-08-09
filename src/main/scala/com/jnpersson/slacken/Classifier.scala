@@ -281,7 +281,9 @@ class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
   /** Classify input sequence-hit dataset for a single sample and single confidence threshold value.
    * For this version of the method, MATE_PAIR_BORDER and AMBIGUOUS_SPAN should not be present in the taxon count pairs.
    *
-   * @param subjectsHits tuples of (sequence id, number of distinct hits, total k-mer count, taxon hit counts)
+   * @param subjectsHits tuples of (sample id, number of distinct hits, total k-mer count, taxa, per taxon hit counts)
+   * @param cpar classification parameters
+   * @param threshold confidence threshold for classification
    */
   def classifyHits(subjectsHits: Dataset[(String, Int, Int, Array[Taxon], Array[Int])],
                    cpar: ClassifyParams, threshold: Double): DataFrame = {
