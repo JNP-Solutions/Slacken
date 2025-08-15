@@ -179,7 +179,7 @@ class FastaTextInput(file: String)(implicit spark: SparkSession) extends HadoopI
     }).toDS()
 
   def getSequenceTitles: Dataset[SeqTitle] =
-    rdd.map(x => x(0)).toDS
+    rdd.map(x => x(0)).toDS()
 }
 
 /**
@@ -217,7 +217,7 @@ class FastqTextInput(file: String)(implicit spark: SparkSession) extends HadoopI
       val id = ar(0).split(" ")(0).substring(1) //remove leading @
       val nucleotides = ar(1)
       InputFragment(id, FIRST_LOCATION, nucleotides, None)
-    }).toDS
+    }).toDS()
 }
 
 /**
@@ -241,7 +241,7 @@ class IndexedFastaInput(file: String, k: Int)(implicit spark: SparkSession)
     sc.newAPIHadoopFile(input, classOf[IndexedFastaFormat], classOf[Text], classOf[PartialSequence], conf).values
 
   def getSequenceTitles: Dataset[SeqTitle] =
-    rdd.map(_.getKey).toDS().distinct
+    rdd.map(_.getKey).toDS().distinct()
 
   protected[input] def getFragments(): Dataset[InputFragment] = {
     val k = this.k

@@ -107,7 +107,7 @@ class SlackenConf(args: Seq[String])(implicit spark: SparkSession) extends Spark
   version(s"Slacken ${getClass.getPackage.getImplementationVersion} (c) 2019-2025 Johan Nyström-Persson")
   banner("Use <subcommand> --help to see help for a command. Use --detailed-help to see all options.")
 
-  implicit val formats = SlackenMinimizerFormats
+  implicit val formats: MinimizerFormats[MinimizerCLIConf] = SlackenMinimizerFormats
 
   /** Find genome library files (.fna) in a directory and construct a GenomeLibrary
    * @param location directory to search
