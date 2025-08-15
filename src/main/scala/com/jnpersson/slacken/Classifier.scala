@@ -17,14 +17,13 @@
 
 package com.jnpersson.slacken
 
-import com.jnpersson.kmers.input.FileInputs
 import com.jnpersson.kmers.minimizer.InputFragment
 import com.jnpersson.kmers.{HDFSUtil, SeqTitle}
 import it.unimi.dsi.fastutil.ints.{Int2IntArrayMap, Int2IntMap}
 import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
-import org.apache.spark.sql.functions.{collect_list, count, desc, ifnull, lit, regexp_extract, regexp_extract_all, struct}
+import org.apache.spark.sql.functions.{collect_list, count, desc, ifnull, lit, regexp_extract, struct}
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 
 /** A classified read.
