@@ -109,8 +109,6 @@ class SlackenConf(args: Seq[String])(implicit spark: SparkSession) extends Spark
 
   implicit val formats = SlackenMinimizerFormats
 
-  override def defaultMaxSequenceLength: Int = 100000000 //100M bps
-
   /** Find genome library files (.fna) in a directory and construct a GenomeLibrary
    * @param location directory to search
    * @param k optionally override the default k-mer length
