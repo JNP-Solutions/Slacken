@@ -62,14 +62,8 @@ object SparkTool {
 trait HasInputReader {
   this: ScallopConf =>
 
-  protected def defaultMaxSequenceLength = 10000000 //10M bps
-  val maxSequenceLength = opt[Int](name = "maxlen",
-    descr = s"Maximum length of a single short sequence/read (default $defaultMaxSequenceLength)",
-    default = Some(defaultMaxSequenceLength),
-    hidden = true)
-
   def inputReader(files: Seq[String], k: Int, grouping: InputGrouping)(implicit spark: SparkSession) =
-    new FileInputs(files, k, maxSequenceLength(), grouping)
+    new FileInputs(files, k, grouping)
 }
 
 /**
