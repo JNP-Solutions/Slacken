@@ -27,7 +27,7 @@ import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql._
 
-import scala.collection.mutable
+import scala.collection.immutable.BitSet
 
 /** Metagenomic index compatible with the Kraken 2 algorithm.
  * This index stores k-mers and LCA taxa as key-value pairs.
@@ -134,7 +134,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
    * @param taxonFilter If given, limit input sequences to only taxa in this set (and their descendants)
    * @return index records
    */
-  def makeRecords(library: GenomeLibrary, taxonFilter: Option[mutable.BitSet] = None): DataFrame = {
+  def makeRecords(library: GenomeLibrary, taxonFilter: Option[BitSet] = None): DataFrame = {
     val input = taxonFilter match {
       case Some(tf) =>
         val titlesTaxa = library.getTaxonLabels.
@@ -394,7 +394,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
       val presentTaxa = allTaxa.iterator.map(_._1)
       val inputTaxa = GenomeLibrary.getTaxonLabels(labels).select("_2").distinct().as[Taxon].collect()
       //count of 1 per genome
-      val missingLeaf = (mutable.BitSet.empty ++ inputTaxa -- presentTaxa).toArray.map(t => (t, 1L))
+      val missingLeaf = (BitSet.empty ++ inputTaxa -- presentTaxa).toArray.map(t => (t, 1L))
       HDFSUtil.usingWriter(output + "_missing_report.txt", wr =>
         new KrakenReport(taxonomy, missingLeaf).print(wr)
       )

@@ -23,6 +23,7 @@ import com.jnpersson.slacken.Taxonomy.Rank
 import org.apache.spark.sql.SparkSession
 
 import scala.annotation.tailrec
+import scala.collection.immutable.BitSet
 import scala.collection.mutable
 
 object Taxonomy {
@@ -310,8 +311,8 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
 
   /** Complete a taxonomic tree downward (entire clades) starting from the given set,
    * including all descendants */
-  def taxaWithDescendants(taxa: Iterable[Taxon]): mutable.BitSet =
-    taxa.foldLeft(mutable.BitSet.empty ++ taxa)(addDescendants)
+  def taxaWithDescendants(taxa: Iterable[Taxon]): BitSet =
+    BitSet.empty ++ taxa.foldLeft(mutable.BitSet.empty ++ taxa)(addDescendants)
 
   def addDescendants(to: mutable.BitSet, from: Taxon): mutable.BitSet = {
     to ++= children(from)

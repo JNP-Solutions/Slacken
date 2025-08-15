@@ -22,9 +22,10 @@ import com.jnpersson.kmers.Helpers.formatPerc
 import com.jnpersson.kmers.HDFSUtil
 import com.jnpersson.kmers.input.FileInputs
 import com.jnpersson.slacken.Taxonomy.Rank
-import org.apache.spark.sql.functions.{count, udf, concat_ws}
-import org.apache.spark.sql.{DataFrame, SaveMode, Dataset, RelationalGroupedDataset, SparkSession, functions}
+import org.apache.spark.sql.functions.{concat_ws, count, udf}
+import org.apache.spark.sql.{DataFrame, Dataset, RelationalGroupedDataset, SaveMode, SparkSession, functions}
 
+import scala.collection.immutable.BitSet
 import scala.collection.mutable
 
 sealed trait TaxonCriteria
@@ -246,7 +247,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
   /** Find an estimated taxon set in the given reads (to be classified),
    * emphasising recall over precision.
    */
-  def findTaxonSet(subjects: Dataset[InputFragment], writeLocation: Option[String]): mutable.BitSet = {
+  def findTaxonSet(subjects: Dataset[InputFragment], writeLocation: Option[String]): BitSet = {
     val t = startTimer("Find taxon set in subjects")
 
     val finder = taxonCriteria match {
@@ -256,7 +257,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
       case MinimizerDistinctCount(threshold) => new CountFilter(distinctMinimizersPerTaxon(subjects), threshold)
     }
 
-    val keepTaxa = finder.taxa
+    val keepTaxa = BitSet.empty ++ finder.taxa
 
     for {loc <- writeLocation}
       HDFSUtil.writeTextLines(loc, keepTaxa.iterator.map(_.toString))
@@ -280,9 +281,9 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
 
   private lazy val taxonSetInLibrary = genomes.taxonSet(taxonomy)
 
-  def readGoldSet(goldSetOpts: GoldSetOptions): mutable.BitSet = {
+  def readGoldSet(goldSetOpts: GoldSetOptions): BitSet = {
     val bcTax = base.bcTaxonomy
-    val goldSet = mutable.BitSet.empty ++
+    val goldSet = BitSet.empty ++
       spark.read.csv(goldSetOpts.taxonFile).map(x => bcTax.value.primary(x.getString(0).toInt)).collect()
 
     println(s"Gold set contained ${goldSet.size} taxa")
@@ -358,7 +359,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
    * @param subjects         reads for detecting a taxon set
    * @param setWriteLocation location to write the detected taxon set (optionally) for later inspection
    */
-  def makeRecords(subjects: Dataset[InputFragment], setWriteLocation: Option[String]): (DataFrame, mutable.BitSet) = {
+  def makeRecords(subjects: Dataset[InputFragment], setWriteLocation: Option[String]): (DataFrame, BitSet) = {
 
     val taxonSet = goldSetOpts match {
       case Some(dgs@GoldSetOptions(_, _, true)) =>
