@@ -23,7 +23,7 @@ import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.functions.{count, udf}
 import org.apache.spark.sql.{Dataset, SparkSession}
 
-import scala.collection.mutable
+import scala.collection.immutable.BitSet
 
 
 /** A library containing some number of genomes (or scaffolds etc) labelled with taxa.
@@ -32,13 +32,13 @@ import scala.collection.mutable
  * @param labelFile Path to a file labelling each sequence with a taxon (2-column TSV)
  */
 final case class GenomeLibrary(inputs: FileInputs, labelFile: String) {
-  def taxonSet(taxonomy: Taxonomy)(implicit spark: SparkSession): mutable.BitSet = {
+  def taxonSet(taxonomy: Taxonomy)(implicit spark: SparkSession): BitSet = {
     import spark.sqlContext.implicits._
 
     //Collect a set of all taxa that have sequence in the library, and their ancestors
     //This (reading the labels file) is more efficient than reading the entire library and looking for distinct taxa,
     //but if the two diverge, then the label file will be taken as the source of truth here.
-    val withSequence = mutable.BitSet.empty ++
+    val withSequence = BitSet.empty ++
       getTaxonLabels.map(_._2).distinct().collect()
     taxonomy.taxaWithAncestors(withSequence)
   }

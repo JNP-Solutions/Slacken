@@ -304,8 +304,8 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
   }
 
   /** Complete a taxonomic tree upwards to ROOT by including all ancestors */
-  def taxaWithAncestors(taxa: Iterable[Taxon]): mutable.BitSet =
-    taxa.foldLeft(mutable.BitSet.empty)((set, a) => {
+  def taxaWithAncestors(taxa: Iterable[Taxon]): BitSet =
+    BitSet.empty ++ taxa.foldLeft(mutable.BitSet.empty)((set, a) => {
       set ++= pathToRoot(a).takeWhile(e => ! set.contains(e))
     })
 

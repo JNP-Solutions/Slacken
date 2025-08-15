@@ -26,7 +26,7 @@ import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.functions.{avg, isnotnull, udf}
 import org.apache.spark.sql.{DataFrame, Dataset, SparkSession, functions}
 
-import scala.collection.mutable
+import scala.collection.immutable.BitSet
 
 /** A single line of per-taxon metrics, corresponding to the classification of one sample and a set of parmeters. */
 final case class PerTaxonMetrics(classifiedCount: Long, refCount: Long, precision: Double, recall: Double) {
@@ -178,7 +178,7 @@ class MappingComparison(tax: Broadcast[Taxonomy],
       withColumn("taxon", ancestorAtLevel($"refTaxon")).
       where(isnotnull($"taxon"))
 
-    val refTaxa = mutable.BitSet.empty ++ refClass.
+    val refTaxa = BitSet.empty ++ refClass.
       select("taxon").distinct().
       as[Taxon].collect()
     val vagueTaxa = tax.value.taxaWithAncestors(refTaxa) -- refTaxa
@@ -188,14 +188,14 @@ class MappingComparison(tax: Broadcast[Taxonomy],
       filter(s"count >= $minCountTaxon")
 
     //when ranks are not rounded to a standard level, we remove every classification above species level instead
-    val cmpTaxa = mutable.BitSet.empty ++ cmpClass.select("taxon").
+    val cmpTaxa = BitSet.empty ++ cmpClass.select("taxon").
       as[Taxon].collect().filter(
       x => rank.nonEmpty || tax.value.depth(x) >= Species.depth)
 
     val truePos = refTaxa.intersect(cmpTaxa).size
-    val falsePos = (cmpTaxa &~= refTaxa -- vagueTaxa).size
+    val falsePos = ((cmpTaxa &~ refTaxa) -- vagueTaxa).size
     val vaguePos = cmpTaxa.intersect(vagueTaxa).size
-    val falseNeg = (refTaxa &~= cmpTaxa).size
+    val falseNeg = (refTaxa &~ cmpTaxa).size
     val precision = truePos.toDouble / (cmpTaxa -- vagueTaxa).size
     val recall = truePos.toDouble / refTaxa.size
 
