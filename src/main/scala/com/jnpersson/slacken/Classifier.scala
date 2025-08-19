@@ -67,14 +67,14 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
   import spark.sqlContext.implicits._
 
   /** Classify subject sequences (as a dataset) */
-  def collectHitsBySequence(subjects: Dataset[InputFragment], withOrdinal: Boolean): Dataset[(SeqTitle, Array[TaxonHit], Long)] =
-    spansToGroupedHits(index.getSpans(subjects, withTitle = true), withOrdinal)
+  def collectHitsBySequence(subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit], Long)] =
+    spansToGroupedHits(index.getSpans(subjects, withTitle = true))
 
   /** Group super-mers (minimizer spans) by sequence title and convert them to taxon hits.
    * The ordering of taxon hits is preserved.
    * @return tuples of (sequence ID, taxon hits, total number of distinct hits)
    */
-  def spansToGroupedHits(subjects: Dataset[OrdinalSpan], withOrdinal: Boolean): Dataset[(SeqTitle, Array[TaxonHit], Long)] = {
+  def spansToGroupedHits(subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit], Long)] = {
     //The 'subject' struct constructs an OrdinalSpan
     val taggedSpans = subjects.select(
       Seq($"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
@@ -84,7 +84,7 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     val taxonHits = taggedSpans.join(index.records, index.idColumnNames, "left").
       select(
         $"seqTitle",
-        struct(index.spanToHit(withOrdinal) : _*).as("hit")
+        struct(index.spanToHit: _*).as("hit")
       )
 
     //Group all hits by sequence title again so that we can reassemble (the hits from) each sequence according
@@ -106,7 +106,7 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     if (!cpar.perReadOutput) {
       new SQLClassifier(index).classifyAndWrite(inputs, outputLocation, cpar)
     } else {
-      val hits = collectHitsBySequence(inputs, cpar.perReadOutput)
+      val hits = collectHitsBySequence(inputs)
       classifyHitsAndWrite(hits, outputLocation, cpar)
     }
   }
@@ -115,7 +115,7 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     if (!cpar.perReadOutput) {
       new SQLClassifier(index).classify(subjects, cpar, threshold)
     } else {
-      val hits = collectHitsBySequence(subjects, cpar.perReadOutput)
+      val hits = collectHitsBySequence(subjects)
       classifyHits(hits, cpar, threshold)
     }
   }
@@ -273,7 +273,7 @@ class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     val taxonHits = taggedSpans.join(index.records, index.idColumnNames, "left").
       select(
         $"seqTitle",
-        struct(index.spanToHit(withOrdinal = false) : _*).as("hit")
+        struct(index.spanToHit : _*).as("hit")
       )
 
     //Group all hits by sequence title again so that we can reassemble (the hits from) each sequence according

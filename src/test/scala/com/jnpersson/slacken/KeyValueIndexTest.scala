@@ -101,7 +101,7 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
           val cpar = ClassifyParams(2, withUnclassified = true)
           //The property of known reads classifying correctly.
           val cls = new Classifier(idx.withRecords(minimizers))
-          val subjectsHits = cls.collectHitsBySequence(reads, withOrdinal = false)
+          val subjectsHits = cls.collectHitsBySequence(reads)
 
           cls.classifyHits(subjectsHits, cpar, 0.0).filter(hit => {
             //Check that each read got classified to the expected taxon. In the generated reads
@@ -114,7 +114,7 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
           //the property of noise reads not classifying. Hard to check with random data for
           //small m. In the future we could generate better test data to get around this.
           if (m >= 30) {
-            val subjectsHits = cls.collectHitsBySequence(noiseReads, withOrdinal = false)
+            val subjectsHits = cls.collectHitsBySequence(noiseReads)
             cls.classifyHits(subjectsHits, cpar, 0.0).filter(r =>
               r.classified
             ).isEmpty should be(true)
@@ -203,7 +203,7 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
       //The results aren't yet checked for correctness.
       val (records, taxa) = dyn.makeRecords(reads, None)
       val cls = new Classifier(idx.withRecords(records))
-      val hits = cls.collectHitsBySequence(reads, cpar.perReadOutput)
+      val hits = cls.collectHitsBySequence(reads)
     }
     reads.unpersist()
   }

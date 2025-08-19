@@ -208,9 +208,9 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
   }
 
   /** Build a TaxonHit from an OrdinalSpan in SQL */
-  def spanToHit(withOrdinal: Boolean): List[Column] =
+  def spanToHit: List[Column] =
     List($"distinct",
-      if (withOrdinal) $"ordinal" else lit(0).as("ordinal"),
+      $"ordinal",
       when($"flag" === lit(AMBIGUOUS_FLAG), lit(AMBIGUOUS_SPAN)).
         when($"flag" === lit(MATE_PAIR_BORDER_FLAG), lit(MATE_PAIR_BORDER)).
         when(isnotnull($"taxon"), $"taxon").
@@ -230,7 +230,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
 
     taggedSpans.join(records, idColumnNames, "left").
       select(
-        spanToHit(false) : _*
+        spanToHit : _*
       ).as[TaxonHit]
   }
 
@@ -247,7 +247,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
 
     taggedSpans.join(records, idColumnNames, "left").
       select(
-        struct(spanToHit(false): _*).as("_1"), $"minimizer".as("_2")
+        struct(spanToHit : _*).as("_1"), $"minimizer".as("_2")
       ).as[(TaxonHit, Array[Long])]
   }
 
