@@ -94,14 +94,15 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
           val splitter = MinSplitter(mp, k)
           val params = IndexParams(spark.sparkContext.broadcast(splitter), 16, location)
           val idx = makeIdx(params, taxonomy)
-          val cls = new Classifier(idx)
 
           val joint = genomesDS.join(labels, "header").select("taxon", "nucleotides").as[(Taxon, NTSeq)]
           val minimizers = idx.makeRecords(joint)
 
           val cpar = ClassifyParams(2, withUnclassified = true)
           //The property of known reads classifying correctly.
-          val subjectsHits = idx.withRecords(minimizers).collectHitsBySequence(reads, withOrdinal = false)
+          val cls = new Classifier(idx.withRecords(minimizers))
+          val subjectsHits = cls.collectHitsBySequence(reads, withOrdinal = false)
+
           cls.classifyHits(subjectsHits, cpar, 0.0).filter(hit => {
             //Check that each read got classified to the expected taxon. In the generated reads
             //the title contains the taxon, as a bookkeeping trick.
@@ -113,7 +114,7 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
           //the property of noise reads not classifying. Hard to check with random data for
           //small m. In the future we could generate better test data to get around this.
           if (m >= 30) {
-            val subjectsHits = idx.withRecords(minimizers).collectHitsBySequence(noiseReads, withOrdinal = false)
+            val subjectsHits = cls.collectHitsBySequence(noiseReads, withOrdinal = false)
             cls.classifyHits(subjectsHits, cpar, 0.0).filter(r =>
               r.classified
             ).isEmpty should be(true)
@@ -201,7 +202,8 @@ class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with S
       //Testing the basic code path for dynamic classification.
       //The results aren't yet checked for correctness.
       val (records, taxa) = dyn.makeRecords(reads, None)
-      val hits = idx.withRecords(records).collectHitsBySequence(reads, cpar.perReadOutput)
+      val cls = new Classifier(idx.withRecords(records))
+      val hits = cls.collectHitsBySequence(reads, cpar.perReadOutput)
     }
     reads.unpersist()
   }
