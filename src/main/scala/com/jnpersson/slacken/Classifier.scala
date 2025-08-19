@@ -21,8 +21,7 @@ import com.jnpersson.kmers.minimizer.InputFragment
 import com.jnpersson.kmers.{HDFSUtil, SeqTitle}
 import it.unimi.dsi.fastutil.ints.{Int2IntArrayMap, Int2IntMap}
 import org.apache.spark.sql.{DataFrame, Dataset, SaveMode, SparkSession}
-import org.apache.spark.sql.functions.{collect_list, count, desc, ifnull, lit, regexp_extract, struct, udf, when}
-
+import org.apache.spark.sql.functions.{collect_list, count, count_if, desc, ifnull, lit, regexp_extract, struct, sum, udf, when}
 
 import scala.jdk.CollectionConverters._
 
@@ -67,6 +66,34 @@ final case class ClassifyParams(minHitGroups: Int, withUnclassified: Boolean, th
 class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
   import spark.sqlContext.implicits._
 
+  /** Classify subject sequences (as a dataset) */
+  def collectHitsBySequence(subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit], Long)] =
+    spansToGroupedHits(index.getSpans(subjects, withTitle = true))
+
+  /** Group super-mers (minimizer spans) by sequence title and convert them to taxon hits.
+   * The ordering of taxon hits is preserved.
+   * @return tuples of (sequence ID, taxon hits, total number of distinct hits)
+   */
+  def spansToGroupedHits(subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Array[TaxonHit], Long)] = {
+    //The 'subject' struct constructs an OrdinalSpan
+    val taggedSpans = subjects.select(
+      Seq($"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
+        index.idColumnsFromMinimizer
+        :_*)
+
+    val taxonHits = taggedSpans.join(index.records, index.idColumnNames, "left").
+      select(
+        $"seqTitle",
+        struct(index.spanToHit: _*).as("hit")
+      )
+
+    //Group all hits by sequence title again so that we can reassemble (the hits from) each sequence according
+    // to the original order.
+    taxonHits.groupBy("seqTitle").agg(collect_list("hit").as("hits"),
+        //Count the number of distinct hits, so we can check if we had sufficient hit groups
+        sum(when($"hit.distinct" === true && $"hit.taxon" =!= lit(Taxonomy.NONE), lit(1)).otherwise(lit(0))).as("numDistinct")).
+      as[(SeqTitle, Array[TaxonHit], Long)]
+  }
   /** Classify subject sequences using the index stored at the default location, optionally for multiple samples,
    * writing the results to a designated output location
    *
@@ -79,7 +106,7 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     if (!cpar.perReadOutput) {
       new SQLClassifier(index).classifyAndWrite(inputs, outputLocation, cpar)
     } else {
-      val hits = index.collectHitsBySequence(inputs, cpar.perReadOutput)
+      val hits = collectHitsBySequence(inputs)
       classifyHitsAndWrite(hits, outputLocation, cpar)
     }
   }
@@ -88,7 +115,7 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     if (!cpar.perReadOutput) {
       new SQLClassifier(index).classify(subjects, cpar, threshold)
     } else {
-      val hits = index.collectHitsBySequence(subjects, cpar.perReadOutput)
+      val hits = collectHitsBySequence(subjects)
       classifyHits(hits, cpar, threshold).toDF()
     }
   }
@@ -232,10 +259,41 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
 class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
   import spark.implicits._
 
+
+  /** Group super-mers (minimizer spans) by sequence title and convert them to taxon hit.
+   * In the process we also group and count taxon hits by each individual taxon. The ordering of taxon hits is lost.
+   * @return tuples of (sequence ID, total distinct hits, total k-mers including ambiguous, pairs of (taxon, k-mer count)).
+   */
+  def spansToGroupedHits(subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Int, Int, Array[Taxon], Array[Int])] = {
+    //The 'subject' struct constructs an OrdinalSpan
+    val taggedSpans = subjects.select(
+      Seq($"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
+        index.idColumnsFromMinimizer
+        :_*)
+
+    val taxonHits = taggedSpans.join(index.records, index.idColumnNames, "left").
+      select(
+        $"seqTitle",
+        struct(index.spanToHit : _*).as("hit")
+      )
+
+    //Group all hits by sequence title again. Count and aggregate hits and summary information.
+    taxonHits.groupBy("seqTitle", "hit.taxon").agg(sum("hit.count").cast("int").as("count"),
+        count_if($"hit.distinct" === true && $"hit.taxon" =!= lit(Taxonomy.NONE)).
+          cast("int").as("numDistinct")).
+      groupBy("seqTitle").agg(
+        sum("numDistinct").cast("int").as("numDistinct"),
+        sum(when($"taxon" =!= lit(MATE_PAIR_BORDER), $"count").otherwise(lit(0))).cast("int").as("totalCount"),
+        collect_list(when($"taxon" =!= lit(MATE_PAIR_BORDER) && $"taxon" =!= lit(AMBIGUOUS_SPAN), $"taxon")).as("taxa"),
+        collect_list(when($"taxon" =!= lit(MATE_PAIR_BORDER) && $"taxon" =!= lit(AMBIGUOUS_SPAN), $"count")).as("count"),
+      ).
+      as[(SeqTitle, Int, Int, Array[Taxon], Array[Int])]
+  }
+
   private def subjectsToPerSampleHitGroups(subjects: Dataset[InputFragment], cpar: ClassifyParams):
     Dataset[(String, Int, Int, Array[Taxon], Array[Int])] = {
     val spans = index.getSpans(subjects, withTitle = true)
-    val hits = index.spansToGroupedHitsCounted(spans)
+    val hits = spansToGroupedHits(spans)
     val withSample = cpar.sampleRegex match {
       case Some(re) =>
       hits.withColumn("sampleId", ifnull(regexp_extract($"seqTitle", re, 1), lit("other")))

@@ -207,10 +207,10 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
     })
   }
 
-  /** Build a TaxonHit from an OrdinalSpan in spark SQL */
-  private def spanToHit(withOrdinal: Boolean): List[Column] =
+  /** Build a TaxonHit from an OrdinalSpan in SQL */
+  def spanToHit: List[Column] =
     List($"distinct",
-      if (withOrdinal) $"ordinal" else lit(0).as("ordinal"),
+      $"ordinal",
       when($"flag" === lit(AMBIGUOUS_FLAG), lit(AMBIGUOUS_SPAN)).
         when($"flag" === lit(MATE_PAIR_BORDER_FLAG), lit(MATE_PAIR_BORDER)).
         when(isnotnull($"taxon"), $"taxon").
@@ -230,7 +230,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
 
     taggedSpans.join(records, idColumnNames, "left").
       select(
-        spanToHit(false) : _*
+        spanToHit : _*
       ).as[TaxonHit]
   }
 
@@ -247,7 +247,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
 
     taggedSpans.join(records, idColumnNames, "left").
       select(
-        struct(spanToHit(false): _*).as("_1"), $"minimizer".as("_2")
+        struct(spanToHit : _*).as("_1"), $"minimizer".as("_2")
       ).as[(TaxonHit, Array[Long])]
   }
 
@@ -267,67 +267,6 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
       join(taxa.toDF("taxon"), List("taxon")).as[(Taxon, Long)].
       collect()
   }
-
-  /** Classify subject sequences (as a dataset) */
-  def collectHitsBySequence(subjects: Dataset[InputFragment], withOrdinal: Boolean): Dataset[(SeqTitle, Array[TaxonHit], Long)] =
-    spansToGroupedHits(getSpans(subjects, withTitle = true), withOrdinal)
-
-  /** Group super-mers (minimizer spans) by sequence title and convert them to taxon hits.
-   * The ordering of taxon hits is preserved.
-   * @return tuples of (sequence ID, taxon hits, total number of distinct hits)
-   */
-  def spansToGroupedHits(subjects: Dataset[OrdinalSpan], withOrdinal: Boolean): Dataset[(SeqTitle, Array[TaxonHit], Long)] = {
-    //The 'subject' struct constructs an OrdinalSpan
-    val taggedSpans = subjects.select(
-      Seq($"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
-        idColumnsFromMinimizer
-        :_*)
-
-    val taxonHits = taggedSpans.join(records, idColumnNames, "left").
-      select(
-        $"seqTitle",
-        struct(spanToHit(withOrdinal) : _*).as("hit")
-      )
-
-    //Group all hits by sequence title again so that we can reassemble (the hits from) each sequence according
-    // to the original order.
-    taxonHits.groupBy("seqTitle").agg(collect_list("hit").as("hits"),
-      //Count the number of distinct hits, so we can check if we had sufficient hit groups
-        sum(when($"hit.distinct" === true && $"hit.taxon" =!= lit(Taxonomy.NONE), lit(1)).otherwise(lit(0))).as("numDistinct")).
-      as[(SeqTitle, Array[TaxonHit], Long)]
-  }
-
-  /** Group super-mers (minimizer spans) by sequence title and convert them to taxon hit.
-   * In the process we also group and count taxon hits by each individual taxon. The ordering of taxon hits is lost.
-   * @return tuples of (sequence ID, total distinct hits, total k-mers including ambiguous, pairs of (taxon, k-mer count)).
-   */
-  def spansToGroupedHitsCounted(subjects: Dataset[OrdinalSpan]): Dataset[(SeqTitle, Int, Int, Array[Taxon], Array[Int])] = {
-    //The 'subject' struct constructs an OrdinalSpan
-    val taggedSpans = subjects.select(
-      Seq($"distinct", $"kmers", $"flag", $"ordinal", $"seqTitle") ++
-        idColumnsFromMinimizer
-        :_*)
-
-    val taxonHits = taggedSpans.join(records, idColumnNames, "left").
-      select(
-        $"seqTitle",
-        struct(spanToHit(withOrdinal = false) : _*).as("hit")
-      )
-
-    //Group all hits by sequence title again. Count and aggregate hits and summary information.
-    taxonHits.groupBy("seqTitle", "hit.taxon").agg(sum("hit.count").cast("int").as("count"),
-        count_if($"hit.distinct" === true && $"hit.taxon" =!= lit(Taxonomy.NONE)).
-          cast("int").as("numDistinct")).
-      groupBy("seqTitle").agg(
-        sum("numDistinct").cast("int").as("numDistinct"),
-        sum(when($"taxon" =!= lit(MATE_PAIR_BORDER), $"count").otherwise(lit(0))).cast("int").as("totalCount"),
-        collect_list(when($"taxon" =!= lit(MATE_PAIR_BORDER) && $"taxon" =!= lit(AMBIGUOUS_SPAN), $"taxon")).as("taxa"),
-        collect_list(when($"taxon" =!= lit(MATE_PAIR_BORDER) && $"taxon" =!= lit(AMBIGUOUS_SPAN), $"count")).as("count"),
-        ).
-    as[(SeqTitle, Int, Int, Array[Taxon], Array[Int])]
-  }
-
-
 
   /** Print basic statistics for this index.
    * Optionally, input sequences and a label file can be specified, and they will then be checked against
