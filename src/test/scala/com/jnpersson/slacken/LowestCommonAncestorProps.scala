@@ -22,7 +22,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 
-class ClassifierProps extends AnyFunSuite with ScalaCheckPropertyChecks with Matchers {
+class LowestCommonAncestorProps extends AnyFunSuite with ScalaCheckPropertyChecks with Matchers {
 
   import Testing._
 
