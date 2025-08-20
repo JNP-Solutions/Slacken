@@ -47,7 +47,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
     spark.sparkContext.broadcast(taxonomy)
 
   val idLongs = NTBitArray.longsForSize(params.m)
-  private val recordColumnNames: Seq[String] = idColumnNames :+ "taxon"
+  val recordColumnNames: Seq[String] = idColumnNames :+ "taxon"
 
 
   /** Sanity check input data.
@@ -75,50 +75,15 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
     }
   }
 
-  /** Find (minimizer, taxon) pairs in the given pairs of (taxon, NT sequence).
-   * @param seqTaxa pairs of (taxon, NT sequence)
-   * @return pairs of (minimizer, taxon).
-   */
-  def findMinimizers(seqTaxa: Dataset[(Taxon, NTSeq)]): DataFrame = {
-    val bcSplit = this.bcSplit
-
-    numIdColumns match {
-      case 1 =>
-        seqTaxa.flatMap(r =>
-          bcSplit.value.superkmerPositions(r._2).map { min =>
-            (min.rank(0), r._1)
-          }
-        ).toDF(recordColumnNames: _*)
-      case 2 =>
-        seqTaxa.flatMap(r =>
-          bcSplit.value.superkmerPositions(r._2).map { min =>
-            (min.rank(0), min.rank(1), r._1)
-          }
-        ).toDF(recordColumnNames: _*)
-      case 3 =>
-        seqTaxa.flatMap(r =>
-          bcSplit.value.superkmerPositions(r._2).map { min =>
-            (min.rank(0), min.rank(1), min.rank(2), r._1)
-          }
-        ).toDF(recordColumnNames: _*)
-      case 4 =>
-        seqTaxa.flatMap(r =>
-          bcSplit.value.superkmerPositions(r._2).map { min =>
-            (min.rank(0), min.rank(1), min.rank(2), min.rank(3), r._1)
-          }
-        ).toDF(recordColumnNames: _*)
-      case _ =>
-        //In case of minimizers wider than 128 bp (4 longs), expand this section
-        ???
-    }
-  }
+  def minimizers: Minimizers =
+    new SplitterMinimizers(this)
 
   /** Given input genomes and their taxon IDs, build index records of minimizers and LCA taxa.
    * @param taxaSequences pairs of (taxon, genome DNA)
    * @return index records
    */
   def makeRecords(taxaSequences: Dataset[(Taxon, NTSeq)]): DataFrame = {
-    val minimizersTaxa = findMinimizers(taxaSequences)
+    val minimizersTaxa = minimizers.find(taxaSequences)
 
     val bcTax = this.bcTaxonomy
     val udafLca = udaf(TaxonLCA(bcTax))

@@ -60,7 +60,7 @@ class IndexStatistics(index: KeyValueIndex)(implicit spark: SparkSession) {
    */
   def showTaxonCoverageStats(genomes: GenomeLibrary): Unit = {
     val inputSequences = genomes.joinSequencesAndLabels()
-    val mins = index.findMinimizers(inputSequences)
+    val mins = index.minimizers.find(inputSequences)
 
     //1. Count how many times per input taxon each minimizer occurs
     val agg = mins.groupBy(index.idColumns :+ $"taxon": _*).agg(count("*").as("countAll"))
@@ -85,7 +85,7 @@ class IndexStatistics(index: KeyValueIndex)(implicit spark: SparkSession) {
    */
   def showTaxonFullCoverageStats(genomes: GenomeLibrary): Dataset[(Taxon, String, String)] = {
     val inputSequences = genomes.joinSequencesAndLabels()
-    val mins = index.findMinimizers(inputSequences)
+    val mins = index.minimizers.find(inputSequences)
 
     //1. Count how many times per input taxon each minimizer occurs
     val minCounts = mins.groupBy(index.idColumns :+ $"taxon": _*).agg(count("*").as("countAll"), lit(1L).as("countDistinct"))
