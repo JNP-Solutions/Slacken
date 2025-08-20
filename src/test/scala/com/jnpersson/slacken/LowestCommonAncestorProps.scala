@@ -60,6 +60,36 @@ class LowestCommonAncestorProps extends AnyFunSuite with ScalaCheckPropertyCheck
     TaxonFraction(taxon, f)
   }
 
+  //Calculate the expected result of resolveTree in a way that is (hopefully)
+  //easy to trust and validate. Then check the actual (highly optimised)
+  //resolveTree implementation against this.
+  def correctClassification(lca: LowestCommonAncestor, taxonomy: Taxonomy,
+                            hits: Array[TaxonHit], threshold: Double): Taxon = {
+    //First, calculate the expected classification result for the generated pseudo-read.
+    val distinctTaxa = hits.map(_.taxon).filter(_ != Taxonomy.NONE).distinct
+
+    //Descending sort by fraction. Find most heavily weighted path.
+    val bestHits = distinctTaxa.map(x => fractionAbove(taxonomy, x, hits)).
+      sortBy(_.fraction).reverse.toList
+
+    var bestHit = bestHits.headOption.getOrElse(TaxonFraction(Taxonomy.NONE, 0))
+    var remainingHits = if (bestHits.nonEmpty) bestHits.tail else bestHits
+
+    //Equal scores for multiple paths get resolved by LCA
+    while (remainingHits.nonEmpty && remainingHits.head.fraction == bestHit.fraction) {
+      bestHit = TaxonFraction(lca(bestHit.taxon, remainingHits.head.taxon), bestHit.fraction)
+      remainingHits = remainingHits.tail
+    }
+    val bestTaxon = bestHit.taxon
+
+    //Find the coverage fraction at each level in the bestTaxon's path to root
+    val fractionLevels = taxonomy.pathToRoot(bestTaxon).map(tax => fractionBelow(taxonomy, tax, hits))
+    //Find an ancestor in the path of bestHit that has a sufficient support fraction
+    fractionLevels.dropWhile(_.fraction < threshold).toStream.
+      map(_.taxon).
+      headOption.getOrElse(Taxonomy.NONE)
+  }
+
   test("resolveTree") {
     forAll(taxonomies(100), Gen.choose(10, 200).label("kmers"),
       Gen.choose(0.0, 1.0).label("invalidFrac"), Gen.choose(0.0, 1.0).label("threshold")) {
@@ -67,33 +97,10 @@ class LowestCommonAncestorProps extends AnyFunSuite with ScalaCheckPropertyCheck
       whenever(kmers >= 0 && invalidFrac >= 0 && threshold >= 0) {
         val lca = new LowestCommonAncestor(t)
         forAll(readHits(t.taxa.toArray, kmers, invalidFrac)) { hits =>
-          //First, calculate the expected classification result for the generated pseudo-read.
-          val distinctTaxa = hits.map(_.taxon).filter(_ != Taxonomy.NONE).distinct
+          val correct = correctClassification(lca, t, hits, threshold)
 
-          //Descending sort by fraction. Find most heavily weighted path.
-          val bestHits = distinctTaxa.map(x => fractionAbove(t, x, hits)).
-            sortBy(_.fraction).reverse.toList
-
-          var bestHit = bestHits.headOption.getOrElse(TaxonFraction(Taxonomy.NONE, 0))
-          var remainingHits = if (bestHits.nonEmpty) bestHits.tail else bestHits
-
-          //Equal scores for multiple paths get resolved by LCA
-          while (remainingHits.nonEmpty && remainingHits.head.fraction == bestHit.fraction) {
-            bestHit = TaxonFraction(lca(bestHit.taxon, remainingHits.head.taxon), bestHit.fraction)
-            remainingHits = remainingHits.tail
-          }
-          val bestTaxon = bestHit.taxon
-
-          //Find the coverage fraction at each level in the bestTaxon's path to root
-          val fractionLevels = t.pathToRoot(bestTaxon).map(tax => fractionBelow(t, tax, hits))
-          //Find an ancestor in the path of bestHit that has a sufficient support fraction
-          val sufficientFraction = fractionLevels.dropWhile(_.fraction < threshold).toStream.
-            map(_.taxon).
-            headOption.getOrElse(Taxonomy.NONE)
-
-//        println(s"$bestHit ${fractionBelow(t, bestHit.taxon, hits)} ${TaxonCounts.fromHits(hits)}")
           val r = lca.resolveTree(TaxonCounts.fromHits(hits), threshold)
-          r should equal(sufficientFraction)
+          r should equal(correct)
         }
       }
     }

@@ -77,7 +77,10 @@ class ClassifierTest extends AnyFunSuite with ScalaCheckPropertyChecks with Spar
     //Simulate very long reads to reduce the risk of misclassification by chance in random data
     val reads = simulateReads(200, 1000).toDS()
     val genomesDS = genomes.toDF("nucleotides", "header")
-    val labels = seqIdToTaxId.toDF("header", "taxon").cache()
+    val labels = seqIdToTaxId.toDF("header", "taxon")
+    val genomesLabels = genomesDS.join(labels, "header").select("taxon", "nucleotides").
+      as[(Taxon, NTSeq)].cache()
+
     val noiseReads = DTesting.getList(randomReads(200, 200), 1000).
       zipWithIndex.map(x => x._1.copy(header = x._2.toString)).toDS()
 
@@ -92,14 +95,13 @@ class ClassifierTest extends AnyFunSuite with ScalaCheckPropertyChecks with Spar
           val params = IndexParams(spark.sparkContext.broadcast(splitter), 16, location)
           val idx = makeIdx(params, taxonomy)
 
-          val joint = genomesDS.join(labels, "header").select("taxon", "nucleotides").as[(Taxon, NTSeq)]
-          val minimizers = idx.makeRecords(joint)
+          val minimizers = idx.makeRecords(genomesLabels)
 
-          val cpar = ClassifyParams(2, withUnclassified = true)
           //The property of known reads classifying correctly.
           val cls = new Classifier(idx.withRecords(minimizers))
           val subjectsHits = cls.collectHitsBySequence(reads)
 
+          val cpar = ClassifyParams(2, withUnclassified = true)
           cls.classifyHits(subjectsHits, cpar, 0.0).filter(hit => {
             //Check that each read got classified to the expected taxon. In the generated reads
             //the title contains the taxon, as a bookkeeping trick.
