@@ -359,7 +359,7 @@ class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
 
     subjectsHits.
       withColumn("classification",
-        when(lit(cpar.minHitGroups) >= $"numDistinct",
+        when(lit(cpar.minHitGroups) <= $"numDistinct",
           classifyUdf($"totalCount", $"taxa", $"count")).
           otherwise(struct(lit(false).as("_1"), lit(Taxonomy.NONE).as("_2")))
       ).
