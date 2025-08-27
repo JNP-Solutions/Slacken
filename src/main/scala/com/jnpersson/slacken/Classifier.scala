@@ -91,7 +91,7 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     // to the original order.
     taxonHits.groupBy("seqTitle").agg(collect_list("hit").as("hits"),
         //Count the number of distinct hits, so we can check if we had sufficient hit groups
-        sum(when($"hit.distinct" === true && $"hit.taxon" =!= lit(Taxonomy.NONE), lit(1)).otherwise(lit(0))).as("numDistinct")).
+        count_if($"hit.distinct" === true && $"hit.taxon" =!= lit(Taxonomy.NONE)).as("numDistinct")).
       as[(SeqTitle, Array[TaxonHit], Long)]
   }
   /** Classify subject sequences using the index stored at the default location, optionally for multiple samples,
@@ -283,7 +283,7 @@ class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
           cast("int").as("numDistinct")).
       groupBy("seqTitle").agg(
         sum("numDistinct").cast("int").as("numDistinct"),
-        sum(when($"taxon" =!= lit(MATE_PAIR_BORDER), $"count").otherwise(lit(0))).cast("int").as("totalCount"),
+        sum(when($"taxon" =!= lit(MATE_PAIR_BORDER), $"count")).cast("int").as("totalCount"),
         collect_list(when($"taxon" =!= lit(MATE_PAIR_BORDER) && $"taxon" =!= lit(AMBIGUOUS_SPAN), $"taxon")).as("taxa"),
         collect_list(when($"taxon" =!= lit(MATE_PAIR_BORDER) && $"taxon" =!= lit(AMBIGUOUS_SPAN), $"count")).as("count"),
       ).
