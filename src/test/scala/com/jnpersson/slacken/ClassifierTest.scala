@@ -76,7 +76,7 @@ class ClassifierTest extends AnyFunSuite with ScalaCheckPropertyChecks with Spar
   def randomGenomesTest[R](makeIdx: (IndexParams, Taxonomy) => KeyValueIndex, maxM: Int): Unit = {
     //Simulate very long reads to reduce the risk of misclassification by chance in random data
     val reads = simulateReads(200, 1000).toDS()
-    val genomesDS = genomes.toDF("nucleotides", "header")
+    val genomesDS = genomes.toDF("header", "nucleotides")
     val labels = seqIdToTaxId.toDF("header", "taxon")
     val genomesLabels = genomesDS.join(labels, "header").select("taxon", "nucleotides").
       as[(Taxon, NTSeq)].cache()

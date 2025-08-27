@@ -21,7 +21,7 @@ lazy val root = (project in file(".")).
     }
     )
 
-val sparkVersion = "3.5.0"
+val sparkVersion = "3.5.6"
 
 //For backwards compatibility with Java 17, when compiling on a newer JDK, the options below are needed.
 //Also applies to javacOptions below.
