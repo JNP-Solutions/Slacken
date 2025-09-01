@@ -44,8 +44,7 @@ class ClassifierTest extends AnyFunSuite with ScalaCheckPropertyChecks with Spar
   val leafNodes = taxonomy.taxa.filter(taxonomy.isLeafNode).toList
   val genomes = DTesting.getList(dnaStrings(1000, 10000), leafNodes.size).
     zip(leafNodes).
-    map(g => (s"Taxon${g._2 + 2}", g._1))
-  val seqIdToTaxId = leafNodes.map(i => (s"Taxon$i", i))
+    map(g => (s"Taxon${g._2 + 2}", g._1, g._2)) //header, nucleotides, taxon
 
   /** Simulate a random read from the given genome */
   def simulatedRead(genome: NTSeq, length: Int = 101): NTSeq = {
@@ -60,7 +59,7 @@ class ClassifierTest extends AnyFunSuite with ScalaCheckPropertyChecks with Spar
     } else {
       val genome = Random.nextInt(genomes.size)
       val read = simulatedRead(genomes(genome)._2, length)
-      val taxon = genome + 2
+      val taxon = genomes(genome)._3
       val title = s"$id:$taxon"
       val f = InputFragment(title, 0, read, None)
       simulateReads(length, id - 1, f :: acc)
@@ -76,9 +75,8 @@ class ClassifierTest extends AnyFunSuite with ScalaCheckPropertyChecks with Spar
   def randomGenomesTest[R](makeIdx: (IndexParams, Taxonomy) => KeyValueIndex, maxM: Int): Unit = {
     //Simulate very long reads to reduce the risk of misclassification by chance in random data
     val reads = simulateReads(200, 1000).toDS()
-    val genomesDS = genomes.toDF("header", "nucleotides")
-    val labels = seqIdToTaxId.toDF("header", "taxon")
-    val genomesLabels = genomesDS.join(labels, "header").select("taxon", "nucleotides").
+    val genomesDS = genomes.toDF("header", "nucleotides", "taxon")
+    val genomesLabels = genomesDS.select("taxon", "nucleotides").
       as[(Taxon, NTSeq)].cache()
 
     val noiseReads = DTesting.getList(randomReads(200, 200), 1000).
@@ -101,7 +99,7 @@ class ClassifierTest extends AnyFunSuite with ScalaCheckPropertyChecks with Spar
           val cls = new Classifier(idx.withRecords(minimizers))
           val subjectsHits = cls.collectHitsBySequence(reads)
 
-          val cpar = ClassifyParams(2, withUnclassified = true)
+          val cpar = ClassifyParams(1, withUnclassified = true)
           cls.classifyHits(subjectsHits, cpar, 0.0).filter(hit => {
             //Check that each read got classified to the expected taxon. In the generated reads
             //the title contains the taxon, as a bookkeeping trick.
