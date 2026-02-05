@@ -100,11 +100,14 @@ class ClassifierTest extends AnyFunSuite with ScalaCheckPropertyChecks with Spar
           val subjectsHits = cls.collectHitsBySequence(reads)
 
           val cpar = ClassifyParams(1, withUnclassified = true)
+
+          val bcTax = idx.bcTaxonomy
           cls.classifyHits(subjectsHits, cpar, 0.0).filter(hit => {
-            //Check that each read got classified to the expected taxon. In the generated reads
-            //the title contains the taxon, as a bookkeeping trick.
+            //Check that each read got classified to the expected taxon or one of its ancestors.
+            //In the generated reads the title contains the taxon, as a bookkeeping trick.
             val expTaxon = hit.title.split(":")(1).toInt
-            !(!hit.classified || expTaxon == hit.taxon)
+
+            !(!hit.classified || bcTax.value.hasAncestor(expTaxon, hit.taxon))
           }
           ).isEmpty should be(true)
 
