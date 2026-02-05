@@ -111,14 +111,15 @@ class ClassifierTest extends AnyFunSuite with ScalaCheckPropertyChecks with Spar
           }
           ).isEmpty should be(true)
 
-          //the property of noise reads not classifying. Hard to check with random data for
-          //small m. In the future we could generate better test data to get around this.
-          if (m >= 30) {
-            val subjectsHits = cls.collectHitsBySequence(noiseReads)
-            cls.classifyHits(subjectsHits, cpar, 0.0).filter(r =>
-              r.classified
-            ).isEmpty should be(true)
-          }
+          //the property of noise reads not classifying.
+          //This check is currently commented out as random data is not a reliable way to test this.
+          //K-mers have a chance of coming from known genomes.
+//          if (m >= 30) {
+//            val subjectsHits = cls.collectHitsBySequence(noiseReads)
+//            cls.classifyHits(subjectsHits, cpar, 0.0).filter(r =>
+//              r.classified
+//            ).isEmpty should be(true)
+//          }
         }
       }
     }
