@@ -2,13 +2,15 @@ name := "Slacken"
 
 version := "2.0.0"
 
-lazy val scala212 = "2.12.20"
+lazy val scala212 = "2.12.21"
 
-lazy val scala213 = "2.13.15"
+lazy val scala213 = "2.13.18"
 
 lazy val supportedScalaVersions = List(scala212, scala213)
 
 ThisBuild / scalaVersion := scala212
+
+ThisBuild / scapegoatVersion := "3.3.2"
 
 lazy val root = (project in file(".")).
   settings(
@@ -22,6 +24,8 @@ lazy val root = (project in file(".")).
     )
 
 val sparkVersion = "3.5.6"
+
+//scalacOptions ++= Seq("--deprecation")
 
 //For backwards compatibility with Java 17, when compiling on a newer JDK, the options below are needed.
 //Also applies to javacOptions below.
