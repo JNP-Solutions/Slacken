@@ -41,7 +41,7 @@ libraryDependencies += "it.unimi.dsi" % "fastutil" % "latest.integration"
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.19" % "test"
 
-libraryDependencies += "org.scalatestplus" %% "scalacheck-1-18" % "3.2.19.0" % "test"
+libraryDependencies += "org.scalatestplus" %% "scalacheck-1-19" % "latest.integration" % "test"
 
 libraryDependencies += "org.scala-lang.modules" %% "scala-collection-compat" % "2.13.0"
 
