@@ -296,7 +296,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
  */
 class BrackenWeights(keyValueIndex: KeyValueIndex, readLen: Int)(implicit val spark: SparkSession) {
 
-  import spark.sqlContext.implicits._
+  import spark.implicits._
 
   //Split into subfragments of maximum this length for performance reasons. Otherwise, temporary
   //arrays and maps used to track minimizers and LCA taxa of each fragment could become too large.

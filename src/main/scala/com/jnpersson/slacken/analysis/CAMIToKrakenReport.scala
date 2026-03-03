@@ -62,7 +62,7 @@ object CAMIToKrakenReport {
 }
 
 class CAMIToKrakenReport(mappingLocation: String, tax: Taxonomy, minRank: Option[Rank])(implicit spark: SparkSession) {
-  import spark.sqlContext.implicits._
+  import spark.implicits._
   val bcTax = spark.sparkContext.broadcast(tax)
 
   /** Mappings for only reads at or below the taxonomic cutoff level */

@@ -41,7 +41,7 @@ import scala.collection.compat._
  */
 class FileInputs(val files: Seq[String], k: Int, inputGrouping: InputGrouping = Ungrouped)(implicit spark: SparkSession) {
   protected val conf = new HConfiguration(spark.sparkContext.hadoopConfiguration)
-  import spark.sqlContext.implicits._
+  import spark.implicits._
 
   /** Clone this Inputs with a different value of k. */
   def withK(newK: Int): FileInputs =
@@ -154,7 +154,7 @@ abstract class HadoopInputReader[R <: AnyRef](file: String)(implicit spark: Spar
  * Supports compression via Spark's text reader.
  */
 class FastaTextInput(file: String)(implicit spark: SparkSession) extends HadoopInputReader[Array[String]](file) {
-  import spark.sqlContext.implicits._
+  import spark.implicits._
   import HadoopInputReader._
 
   protected def loadFile(input: String): RDD[Array[String]] = {
@@ -186,7 +186,7 @@ class FastaTextInput(file: String)(implicit spark: SparkSession) extends HadoopI
  * Reader for fastq records. Supports compression via Spark's text input layer.
  */
 class FastqTextInput(file: String)(implicit spark: SparkSession) extends HadoopInputReader[Array[String]](file) {
-  import spark.sqlContext.implicits._
+  import spark.implicits._
   import HadoopInputReader._
 
   protected def loadFile(input: String): RDD[Array[String]] = {
@@ -231,7 +231,7 @@ class FastqTextInput(file: String)(implicit spark: SparkSession) extends HadoopI
 class IndexedFastaInput(file: String, k: Int)(implicit spark: SparkSession)
   extends HadoopInputReader[PartialSequence](file) {
 
-  import spark.sqlContext.implicits._
+  import spark.implicits._
   import HadoopInputReader._
 
   //Fastdoop parameter for correct overlap between partial sequences

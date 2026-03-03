@@ -26,7 +26,7 @@ import scala.collection.mutable
 
 class BrackenWeightsTest extends AnyFunSuite with SparkSessionTestWrapper with Matchers {
   implicit val sp: SparkSession = spark
-  import spark.sqlContext.implicits._
+  import spark.implicits._
 
   test("Read counts from the underlying genomes are correct") {
     val k = 35

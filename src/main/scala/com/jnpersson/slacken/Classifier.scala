@@ -64,7 +64,7 @@ final case class ClassifyParams(minHitGroups: Int, withUnclassified: Boolean, th
  * @param index Minimizer-LCA index
  */
 class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
-  import spark.sqlContext.implicits._
+  import spark.implicits._
 
   /** Classify subject sequences (as a dataset) */
   def collectHitsBySequence(subjects: Dataset[InputFragment]): Dataset[(SeqTitle, Array[TaxonHit], Long)] =

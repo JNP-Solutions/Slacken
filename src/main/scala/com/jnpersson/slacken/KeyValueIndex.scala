@@ -39,7 +39,7 @@ import scala.collection.immutable.BitSet
  */
 final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val taxonomy: Taxonomy)
                          (implicit val spark: SparkSession) extends KmerKeyedIndex {
-  import spark.sqlContext.implicits._
+  import spark.implicits._
 
   def bcSplit: Broadcast[AnyMinSplitter] = params.bcSplit
   def split: AnyMinSplitter = bcSplit.value

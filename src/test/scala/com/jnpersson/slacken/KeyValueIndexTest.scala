@@ -30,7 +30,7 @@ import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 class KeyValueIndexTest extends AnyFunSuite with ScalaCheckPropertyChecks with SparkSessionTestWrapper with Matchers {
 
   implicit val sp: SparkSession = spark
-  import spark.sqlContext.implicits._
+  import spark.implicits._
 
   test("Insert testData genomes, write to disk, and check index contents") {
     val location = "testData/slacken/slacken_test_kv"

@@ -33,7 +33,7 @@ import scala.collection.immutable.BitSet
  */
 final case class GenomeLibrary(inputs: FileInputs, labelFile: String) {
   def taxonSet(taxonomy: Taxonomy)(implicit spark: SparkSession): BitSet = {
-    import spark.sqlContext.implicits._
+    import spark.implicits._
 
     //Collect a set of all taxa that have sequence in the library, and their ancestors
     //This (reading the labels file) is more efficient than reading the entire library and looking for distinct taxa,
@@ -48,7 +48,7 @@ final case class GenomeLibrary(inputs: FileInputs, labelFile: String) {
   }
 
   def joinSequencesAndLabels()(implicit spark: SparkSession): Dataset[(Taxon, NTSeq)] = {
-    import spark.sqlContext.implicits._
+    import spark.implicits._
 
     val titlesTaxa = getTaxonLabels.toDF("header", "taxon")
     val idSeqDF = inputs.getInputFragments()
@@ -72,14 +72,14 @@ object GenomeLibrary {
    * @return
    */
   def getTaxonLabels(file: String)(implicit spark: SparkSession): Dataset[(String, Taxon)] = {
-    import spark.sqlContext.implicits._
+    import spark.implicits._
     spark.read.option("sep", "\t").csv(file).
       select($"_c0", $"_c1".cast("int")).as[(String, Taxon)]
   }
 
   /** Show statistics for a taxon label file */
   def inputStats(labelFile: String, tax: Taxonomy)(implicit spark: SparkSession): Unit = {
-    import spark.sqlContext.implicits._
+    import spark.implicits._
 
     //Taxa from the taxon to genome mapping file
     val labelledNodes = getTaxonLabels(labelFile).select("_c1").distinct().as[Taxon].collect()

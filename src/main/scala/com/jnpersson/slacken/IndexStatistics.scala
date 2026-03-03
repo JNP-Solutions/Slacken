@@ -27,7 +27,7 @@ import org.apache.spark.sql._
 class IndexStatistics(index: KeyValueIndex)(implicit spark: SparkSession) {
   private val taxonomy = index.taxonomy
 
-  import spark.sqlContext.implicits._
+  import spark.implicits._
 
   /**
    * Generates K-mer counts (with duplicates) for each taxon in the library and creates a TotalKmerCountReport

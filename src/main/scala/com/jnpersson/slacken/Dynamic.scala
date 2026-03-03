@@ -82,7 +82,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
               goldSetOpts: Option[GoldSetOptions],
               outputLocation: String)(implicit spark: SparkSession) {
 
-  import spark.sqlContext.implicits._
+  import spark.implicits._
 
   def taxonomy: Taxonomy = base.taxonomy
 

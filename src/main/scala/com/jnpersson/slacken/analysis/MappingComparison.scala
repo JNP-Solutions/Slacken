@@ -81,7 +81,7 @@ class MappingComparison(tax: Broadcast[Taxonomy],
                         minCountTaxon: Long,
                         multiSample: Boolean)(implicit spark: SparkSession) {
   import MappingComparison._
-  import spark.sqlContext.implicits._
+  import spark.implicits._
 
 
   /** Process directories of multi-sample classifications.

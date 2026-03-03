@@ -31,7 +31,7 @@ import org.apache.spark.sql.{Dataset, SparkSession}
  * They must use the same minimizer scheme for the comparison to be meaningful.
  */
 class MinimizerMigration(index: KeyValueIndex, reference: KeyValueIndex)(implicit spark: SparkSession) {
-  import spark.sqlContext.implicits._
+  import spark.implicits._
 
   /** Compute triples of: (taxon in index, taxon in reference, number of steps that the taxon moved up),
    */
