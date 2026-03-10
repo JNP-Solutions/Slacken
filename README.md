@@ -1,5 +1,6 @@
 ## Slacken
 
+[![install with bioconda](https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg?style=flat)](http://bioconda.github.io/recipes/slacken/README.html)
 [![Build and test](https://github.com/JNP-Solutions/Slacken/actions/workflows/scala.yml/badge.svg)](https://github.com/jtnystrom/Discount/actions/workflows/ci.yml)
 [![Docker Pulls](https://badgen.net/docker/pulls/jnpsolutions/slacken?icon=docker&label=pulls)](https://hub.docker.com/r/jnpsolutions/slacken/)
 ![GitHub License](https://img.shields.io/github/license/jnp-solutions/slacken)
@@ -21,15 +22,14 @@ Slacken has its own database format (Parquet based) and can not use pre-built Kr
 
 For more motivation and details, please see [our 2025 paper in NAR Genomics and Bioinformatics](https://academic.oup.com/nargab/article/7/2/lqaf076/8158581).
 
-**Users of version 1.x, please note the new command line syntax in version 2.0.** All commands and examples in this 
-README and on the Wiki have been updated. [See the commands overview.](https://github.com/JNP-Solutions/Slacken/wiki/Slacken-commands-overview)
-
 Copyright (c) Johan Nyström-Persson 2019-2025.
 
 ## Contents
-1. [Quick start using Docker on Linux](#quick-start-using-docker-on-linux)
-2. [Common usage](#common-usage)
-  - [Introduction](#introduction)
+1. [Quick start](#quick-start)
+  - [With BioConda](#with-bioconda)
+  - [With Docker on Linux](#with-docker-on-linux)
+  - [Libraries and test data](#libraries-and-test-data)
+2. [Usage](#usage)
   - [Pre-built genomic libraries](#obtaining-a-pre-built-genomic-library)
   - [Classifying reads (1-step)](#classifying-reads-1-step)
   - [Multi-sample mode](#multi-sample-mode)
@@ -46,15 +46,33 @@ Copyright (c) Johan Nyström-Persson 2019-2025.
 4. [References](#references)
 
 
-## Quick start using Docker on Linux
+## Quick start 
 
 Minimal single-machine prerequisites:
-* 16 GB or more of free RAM (32 GB or more recommended).
-* A fast SSD drive for temporary space. The amount of space required depends on the size of the 
-libraries and samples, and the commands you want to run. At least 500 GB of space will be needed for this guide.
-* We assume that you are running Linux and have Docker installed. We have tested with Docker v26.1. If you do not use Linux, or if you want to avoid Docker, please refer to
-  [Running with a Spark distribution](#running-with-a-spark-distribution) below.
+* 16 GB or more of available RAM (32 GB or more recommended).
+* A fast SSD drive for temporary space. The amount of space required depends on the size of the
+  libraries and samples, and the commands you want to run. At least 500 GB of space will be needed for this guide.
 * If you want to run Bracken, we assume that you have it installed.
+
+You can easily install Slacken using either BioConda or Docker. For most users, BioConda is probably the easiest way.
+
+### With BioConda
+
+See the [BioConda instructions](http://bioconda.github.io/recipes/slacken/README.html) to install Slacken.
+
+After installation, you can run `slacken.sh --help` to test. To configure memory usage and the scratch space location, 
+please set the environment variables SLACKEN_MEMORY and SLACKEN_TMP, respectively. For example:
+
+```commandline
+export SLACKEN_MEMORY=32g #Default is 16g
+export SLACKEN_TMP=/fast #Default is /tmp
+```
+
+Now you can proceed to obtain [libraries and test data](#libraries-and-test-data).
+
+### With Docker on Linux
+
+Here, we assume that you are running Linux and have Docker installed. We have tested with Docker v26.1.
 
 #### Download
 
@@ -95,6 +113,10 @@ It may be helpful to put this script in your `$PATH`, e.g.:
   export PATH=$PATH:$(pwd)/Slacken
 ```
 
+If you installed Slacken using Docker, in the examples below please use `dockerSlacken.sh` instead of `slacken.sh`.
+
+### Libraries and test data
+
 Download the pre-built standard library to the previously specified data location.
 After successful extraction, we delete the tar.gz to free up some space.
 
@@ -118,7 +140,7 @@ Slacken currently does not support compressed (e.g. gz or bz2) input files.
 1-step classification corresponds to the regular Kraken 2 method:
 
 ```commandline
-dockerSlacken.sh classify -i /data/standard-224c/std_35_31_s7 -p \
+slacken.sh classify -i /data/standard-224c/std_35_31_s7 -p \
     -o /data/sample0 -c 0.15 \
     /data/anonymous_reads.part_001.fq /data/anonymous_reads.part_002.fq
 ```
@@ -126,6 +148,7 @@ dockerSlacken.sh classify -i /data/standard-224c/std_35_31_s7 -p \
 In this command, `standard-224c/std_35_31_s7` is the location of the pre-built library. `-p` indicates that we wish to 
 classify paired-end reads. 0.15 is the confidence threshold for classifying a read, as in Kraken 2.
 
+For Docker users only: 
 If you get error messages about files not existing or not being readable, check that you put the files inside the SLACKEN_DATA 
 directory that you specified above. Inside Docker, that will show up as /data. Depending on the file's location, symbolic
 links might not work.
@@ -159,7 +182,7 @@ on the fly. It then classifies all reads again using this second library.
 space in the data directory (or 250 GB without `--bracken-length`).
 
 ```commandline
-dockerSlacken.sh classify2 -i /data/standard-224c/std_35_31_s7 \
+slacken.sh classify2 -i /data/standard-224c/std_35_31_s7 \
  -o /data/sample0_R100 -c 0.15 -p \
   --reads 100 --bracken-length 150 \
   -l /data/standard-224c \
@@ -192,13 +215,10 @@ bracken -d sample0_R100 -r 150 -i sample0_R100_c0.15_classified/all_kreport.txt 
 This concludes the quick start guide. If you have problems getting Slacken to work, we are happy to answer queries to 
 the best of our ability. Feel free to open an issue in this repo, or email us directly (johan@jnpsolutions.io).
 
-## Common usage
+## Usage
 
 Below, we describe the most common commands in more detail. For convenience, the complete list of Slacken commands is
 also available on its own [wiki page](https://github.com/JNP-Solutions/Slacken/wiki/Slacken-commands-overview).
-
-In the following examples we are using `slacken.sh` to invoke Slacken. If you prefer to use the Docker version, 
-please use `dockerSlacken.sh` instead.
 
 ### Obtaining a pre-built genomic library
 
@@ -217,7 +237,7 @@ these libraries may also be accessed directly from the public S3 bucket without 
 The "1-step" classification corresponds to the standard Kraken 2 method. It classifies reads based on the pre-built library only.
 
 ```commandline
-./slacken.sh classify -i /data/standard-224c/std_35_31_s7 -o test_class \
+slacken.sh classify -i /data/standard-224c/std_35_31_s7 -o test_class \
  sample1.fasta 
 ```
 
@@ -231,7 +251,7 @@ Where
 To classify mate pairs, the `-p` flag may be used. Input files are then expected to be paired up in sequence:
 
 ```commandline
-./slacken.sh classify -i /data/standard-224c/std_35_31_s7 -p -o test_class \
+slacken.sh classify -i /data/standard-224c/std_35_31_s7 -p -o test_class \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq 
 ```
 
@@ -247,7 +267,7 @@ Samples are identified by means of a regular expression that extracts the sample
 For example:
 
 ```commandline
-./slacken.sh classify -i /data/standard-224c/std_35_31_s7 -p \
+slacken.sh classify -i /data/standard-224c/std_35_31_s7 -p \
  --sample-regex "(S[0-9]+)" -o test_class \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq
 ```
@@ -271,7 +291,7 @@ They can be used directly with Bracken to re-estimate taxon abundances in a taxo
 For example, for read length 150:
 
 ```commandline
-./slacken.sh bracken-build -i /data/standard-224c/std_35_31_s7 \
+slacken.sh bracken-build -i /data/standard-224c/std_35_31_s7 \
  -l /data/standard-224c --read-len 150
 ```
 
@@ -292,7 +312,7 @@ and used to classify the reads for the final result.
 For example (100 reads heuristic):
 
 ```commandline
-./slacken.sh classify2 -i /data/standard-224c/std_35_31_s7 -p \
+slacken.sh classify2 -i /data/standard-224c/std_35_31_s7 -p \
   -o test_class \
   --reads 100 --library /data/standard-224c --bracken-length 150 \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq
@@ -338,7 +358,7 @@ a library can be built from those taxa during classification by supplying:
 For example:
 
 ```commandline
-./slacken.sh classify2 -i /data/standard-224c/std_35_31_s7 -p \
+slacken.sh classify2 -i /data/standard-224c/std_35_31_s7 -p \
  -o test_class \
   --classify-with-gold -g goldSet.txt --library /data/standard-224c --bracken-length 150 \
   sample01.1.fq sample01.2.fq sample02.1.fq sample02.2.fq
@@ -397,7 +417,7 @@ export SLACKEN_MEMORY=32g
 ```
 
 Check that it works:
-`./slacken.sh --help`. 
+`slacken.sh --help`. 
 
 These options may also be permanently configured by editing `slacken.sh`.
 
@@ -480,7 +500,7 @@ logic for building the "refseq prefer complete" library. Please refer to README.
 After the input files have been prepared as above, the index may be built:
 
 ```commandline
-./slacken.sh -p 2000 build -i mySlackenLib -k 35 -m 31 -t k2/taxonomy \
+slacken.sh -p 2000 build -i mySlackenLib -k 35 -m 31 -t k2/taxonomy \
   -l k2 
 ```
 
@@ -497,7 +517,7 @@ per output file)
 We have found that 2000 partitions is suitable for the standard library, and 30,000 is reasonable for a large library 
 with 1.8 TB of FASTA input sequences.
 
-More help: `./slacken.sh --help` (or see the equivalent [wiki page](https://github.com/JNP-Solutions/Slacken/wiki/Slacken-commands-overview)).
+More help: `slacken.sh --help` (or see the equivalent [wiki page](https://github.com/JNP-Solutions/Slacken/wiki/Slacken-commands-overview)).
 
 
 ### Discrepancies between Slacken and Kraken 2
