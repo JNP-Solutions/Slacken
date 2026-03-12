@@ -27,11 +27,11 @@ val sparkVersion = "3.5.6"
 
 //scalacOptions ++= Seq("--deprecation")
 
-//For backwards compatibility with Java 17, when compiling on a newer JDK, the options below are needed.
-//Also applies to javacOptions below.
-scalacOptions ++= Seq("--feature", "-release", "8")
+//Compile for Java 17 compatibility.
+scalacOptions ++= Seq("--feature", "-release", "17")
 
-javacOptions ++= Seq("--release=8")
+//Compile for Java 17 compatibility.
+javacOptions ++= Seq("--release=17")
 
 resolvers += "Spark Packages Repo" at "https://dl.bintray.com/spark-packages/maven"
 
