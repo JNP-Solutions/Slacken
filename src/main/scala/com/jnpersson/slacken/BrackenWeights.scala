@@ -26,10 +26,9 @@ import it.unimi.dsi.fastutil.longs.LongArrays.HASH_STRATEGY
 import org.apache.spark.sql.functions.{collect_list, count, ifnull, lit, regexp_replace, sum, udf}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 
-import java.util
-import scala.collection.mutable.ArrayBuffer
-import scala.collection.{BitSet, mutable}
-import scala.collection.compat._
+import scala.collection.{BitSet}
+import scala.collection.JavaConverters._
+import java.util.ArrayDeque
 
 
 /** Sliding window corresponding to a list of taxon hits. Each hit is a super-mer with some number of k-mers.
@@ -73,24 +72,25 @@ class FragmentWindow(private var hits: Iterator[TaxonHit], kmersPerWindow: Int) 
     hit.ordinal + (hit.count - 1) < windowStart
 
   //Mutating buffer that reflects hits in the current window
-  val currentWindow: mutable.ArrayBuffer[TaxonHit] = {
+  //Scala 2.13 has an ArrayDeque but scala 2.12 does not, so we use Java's ArrayDeque here
+  val currentWindow: ArrayDeque[TaxonHit] = {
     val (window, rem) = hits.span(inWindow)
     hits = rem
-    window.to(ArrayBuffer)
+    new ArrayDeque[TaxonHit](window.toList.asJava)
   }
 
   //Populate the initial state
   for {
-    h <- currentWindow
+    h <- currentWindow.asScala
     if h.distinct && h.taxon != NONE
   } {
     numHitGroups += 1
   }
 
-  lastInWindow = currentWindow.last
+  lastInWindow = currentWindow.peekLast()
 
   for {
-    h <- currentWindow
+    h <- currentWindow.asScala
     kmerStart <- h.ordinal until h.ordinal + h.count
     if inWindow(kmerStart)
   } {
@@ -101,7 +101,7 @@ class FragmentWindow(private var hits: Iterator[TaxonHit], kmersPerWindow: Int) 
   /** Move the window one step forward. */
   def advance(): Unit = {
     //Decrement one taxon
-    val remove = currentWindow.head
+    val remove = currentWindow.peekFirst()
 
     val updated = countSummary.applyAsInt(remove.taxon) - 1
     if (updated > 0)
@@ -113,8 +113,8 @@ class FragmentWindow(private var hits: Iterator[TaxonHit], kmersPerWindow: Int) 
     windowEnd += 1
 
     //Did the first hit pass out of the window?
-    if (passedWindow(currentWindow.head)) {
-      currentWindow.remove(0)
+    if (passedWindow(currentWindow.peekFirst())) {
+      currentWindow.removeFirst()
       if (remove.distinct && remove.taxon != NONE) {
         numHitGroups -= 1
       }
@@ -124,7 +124,7 @@ class FragmentWindow(private var hits: Iterator[TaxonHit], kmersPerWindow: Int) 
     if (lastInWindow.ordinal + lastInWindow.count < windowEnd //no longer touching the boundary
       && hits.hasNext) {
       val add = hits.next()
-      currentWindow += add
+      currentWindow.addLast(add)
       lastInWindow = add
       if (add.distinct && add.taxon != NONE) {
         numHitGroups += 1
