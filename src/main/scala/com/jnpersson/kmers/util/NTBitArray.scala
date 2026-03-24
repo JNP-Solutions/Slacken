@@ -196,7 +196,7 @@ object NTBitArray {
  * Some operations mutate this object, and others return a new object instead.
  * A new copy can always be obtained with clone(). No operations can change the size of the contained sequence.
  *
- * @param data the encoded data. Array of longs, each storing up to 16 nts, with optional padding at the end.
+ * @param data the encoded data. Array of longs, each storing up to 32 nts, with optional padding at the end.
  *             The data is left-aligned inside the long, starting from MSB.
  * @param size the size of this data represented (in NTs)
  */
