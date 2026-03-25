@@ -112,7 +112,9 @@ class FileInputs(val files: Seq[String], k: Int, inputGrouping: InputGrouping = 
         expandedFiles.map(forFile)
     }
     val fs = readers.to(ParVector).map(_.getInputFragments(withAmbiguous, sampleFraction)).seq
-    spark.sparkContext.union(fs.map(_.rdd)).toDS()
+    spark.sparkContext.union(fs.map(_.rdd)).
+      toDS().
+      repartition() //to spread the data in case of unevenly sized input files
   }
 
   /**
