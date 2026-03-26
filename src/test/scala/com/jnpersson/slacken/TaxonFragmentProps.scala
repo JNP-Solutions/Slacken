@@ -17,30 +17,31 @@
 
 package com.jnpersson.slacken
 
-import org.scalatest.funsuite.AnyFunSuite
-import org.scalatest.matchers.should.Matchers
-import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 import com.jnpersson.kmers.TestGenerators._
-import org.scalacheck.Gen
+import org.scalacheck.{Gen, Prop, Properties}
+import org.scalacheck.Prop._
 
-class TaxonFragmentProps extends AnyFunSuite with ScalaCheckPropertyChecks with Matchers {
+class TaxonFragmentProps extends Properties("TaxonFragment") {
   def fragments = dnaStrings(10000, 100000)
   val ks = Gen.choose(50, 200)
   val splitSize = Gen.choose(100, 10000)
 
-  test("splits preserve all reads") {
+  property("splits preserve all reads") =
     forAll(ks, fragments, splitSize) { (k, f, ss) =>
-      whenever(f.length >= k && k >= 2 && k <= ss) {
+      (f.length >= k && k >= 2 && k <= ss) ==> {
         val tf = TaxonFragment(0, f, "", 0)
         val split = tf.splitToMaxLength(ss, k)
         val sfs = split.map(_.nucleotides).toArray
-        for { pair <- sfs.sliding(2)
-              if pair.length == 2 } {
-          pair(0).takeRight(k - 1) should equal(pair(1).take(k - 1))
+
+        val adjacentOverlapsMatch = sfs.sliding(2).filter(_.length == 2).forall { pair =>
+          pair(0).takeRight(k - 1) == pair(1).take(k - 1)
         }
-        sfs.map(x => x.substring(0, x.length - (k - 1))).mkString("") + sfs.last.takeRight(k - 1) should equal(f)
+
+        val reconstructed =
+          sfs.map(x => x.substring(0, x.length - (k - 1))).mkString("") + sfs.last.takeRight(k - 1)
+
+        (adjacentOverlapsMatch) :| "adjacent splits overlap by k-1" &&
+          (reconstructed == f) :| "original fragment can be reconstructed from splits"
       }
     }
-
-  }
 }

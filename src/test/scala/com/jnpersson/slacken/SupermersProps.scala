@@ -19,12 +19,10 @@ package com.jnpersson.slacken
 
 import com.jnpersson.kmers.TestGenerators._
 import com.jnpersson.kmers.minimizer._
-import org.scalacheck.Gen
-import org.scalatest.funsuite.AnyFunSuite
-import org.scalatest.matchers.should.Matchers
-import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
+import org.scalacheck.{Gen, Prop, Properties}
+import org.scalacheck.Prop._
 
-class SupermersProps extends AnyFunSuite with ScalaCheckPropertyChecks with Matchers {
+class SupermersProps extends Properties("Supermers") {
   import Testing._
   import com.jnpersson.kmers.TestGenerators.shrinkNTSeq
   import com.jnpersson.kmers.TestGenerators.shrinkMAndK
@@ -37,22 +35,26 @@ class SupermersProps extends AnyFunSuite with ScalaCheckPropertyChecks with Matc
     s <- Gen.stringOfN(length, Gen.oneOf(nonDnaRnaChars))
   } yield s
 
-  test("splitByAmbiguity") {
-    forAll((mAndKPairs, "mk")) { case (m, k) =>
-      forAll(minimizerPriorities(m),
-        dnaStrings(1, 2 * k), ambiguousSequence(1, 2 * k),
+  property("splitByAmbiguity") =
+    forAll(mAndKPairs) { case (m, k) =>
+      forAll(
+        minimizerPriorities(m), dnaStrings(1, 2 * k), ambiguousSequence(1, 2 * k),
         dnaStrings(1, 2 * k), ambiguousSequence(1, 2 * k)
       ) { (mp, ua1, a1, ua2, a2) =>
         val sm = new Supermers(MinSplitter(mp, k), 1)
         val test = s"$ua1$a1$ua2$a2"
         val (ambig, unambig) = sm.splitByAmbiguity(test).partition(_._2 == AMBIGUOUS_FLAG)
 
-        unambig.toList.map(_._1) should equal(List(ua1, ua2).filter(_.length >= k))
-        ambig.toList.map(_._1).mkString("") should equal(
-          List(Some(ua1).filter(_.length < k), Some(a1), Some(ua2).filter(_.length < k), Some(a2)).flatten.
-            mkString("")
-        )
+        val expectedUnambig = List(ua1, ua2).filter(_.length >= k)
+        val expectedAmbig =
+          List(Some(ua1).filter(_.length < k), Some(a1), Some(ua2).filter(_.length < k), Some(a2)).
+            flatten
+
+        val unambigOk = unambig.toList.map(_._1) == expectedUnambig
+        val ambigOk = ambig.toList.map(_._1) == expectedAmbig
+
+        Prop(unambigOk) :| "unambiguous fragments match expectation" &&
+          Prop(ambigOk) :| "ambiguous fragments match expectation"
       }
     }
-  }
 }
