@@ -56,7 +56,7 @@ class MinSplitterProps extends Properties("MinSplitter") {
       }
     }
 
-  property("extracted minimizers are minimal m-mers") =
+  property("extracted minimizers are the minimal m-mers in each super-mer") =
     forAll(mAndKPairs) { case (m, k) =>
       forAll(minimizerPriorities(m), dnaStrings(k)) { (pri, x) =>
         (k <= x.size) ==> {
@@ -64,11 +64,12 @@ class MinSplitterProps extends Properties("MinSplitter") {
           val scanner = ShiftScanner(pri)
           val regions = extractor.splitEncode(x).toList
 
+          //Checking the minimizer in each region.
           //An improved version of this test would compare not only features but also the position of the motif
-          val expected = regions.map(r => scanner.allMatches(r.nucleotides)._2.validBitArrayIterator.min.data.toList)
-          val results = regions.map(_.rank.toList)
+          val expected = regions.map(r => scanner.allMatches(r.nucleotides)._2.validBitArrayIterator.min)
+          val results = regions.map(r => NTBitArray(r.rank, m))
 
-          results == expected
+          (results == expected) :| s"$expected == $results"
         }
       }
     }
