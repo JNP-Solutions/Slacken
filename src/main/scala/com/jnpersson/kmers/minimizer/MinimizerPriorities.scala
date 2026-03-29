@@ -106,7 +106,7 @@ trait MinimizerPriorities extends Serializable {
     import NTBitArray.empty
     val p = priorityOf(motif)
     if (p ne empty) {
-      System.arraycopy(p.data, 0, buffer.data, 0, buffer.data.size)
+      System.arraycopy(p.data, 0, buffer.data, 0, buffer.data.length)
       buffer
     } else empty
   }
