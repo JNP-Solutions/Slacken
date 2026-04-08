@@ -161,11 +161,23 @@ class FastaTextInput(file: String)(implicit spark: SparkSession) extends HadoopI
 
   protected def loadFile(input: String): RDD[Array[String]] = {
     import spark.implicits._
-    spark.read.option("lineSep", ">").text(file).as[String]. //allows multi-line fasta records to be separated cleanly
+
+    def isLineSep(x: Char) =
+      x == '\n' || x == '\r'
+
+    spark.read.
+      option("lineSep", ">").text(file).as[String]. //allows multi-line fasta records to be separated cleanly
       flatMap(x => {
-        val spl = x.split("[\n\r]+")
-        if (spl.length >= 2) {
-          Some(spl)
+        val firstLineSep = x.indexWhere(isLineSep)
+        val nextNonLineSep = x.indexWhere(x => !isLineSep(x), firstLineSep + 1)
+
+        if (firstLineSep != -1 && nextNonLineSep != -1) {
+          Some(Array(
+              x.substring(0, firstLineSep), //header line
+              x.substring(nextNonLineSep). //remove newlines from the actual sequence
+                replace("\n", "").
+                replace("\r", "")
+            ))
         } else {
           None
         }
@@ -175,8 +187,12 @@ class FastaTextInput(file: String)(implicit spark: SparkSession) extends HadoopI
   protected[input] def getFragments(): Dataset[InputFragment] =
     rdd.map(x => {
       val headerLine = x(0)
-      val id = headerLine.split(" ")(0)
-      val nucleotides = x.drop(1).mkString("")
+      val spaceIndex = headerLine.indexOf(' ')
+      val id = if (spaceIndex != -1)
+        headerLine.substring(0, spaceIndex)
+      else
+        headerLine
+      val nucleotides = x(1)
       InputFragment(id, FIRST_LOCATION, nucleotides, None)
     }).toDS()
 
