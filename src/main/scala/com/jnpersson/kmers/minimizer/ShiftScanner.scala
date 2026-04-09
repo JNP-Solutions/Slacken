@@ -109,7 +109,7 @@ final case class ShiftScanner(priorities: MinimizerPriorities) {
     while ((validSize < width - 1) && pos < size) {
       val x = data(pos)
       if (x != WHITESPACE) {
-        matches.addLongs(invalidMinimizer) //Sets the valid tag to 0
+        matches.addRow(invalidMinimizer) //Sets the valid tag to 0
         window.shiftAddBP(x.toByte)
         thisLong = (thisLong << 2) | x
 
@@ -131,10 +131,12 @@ final case class ShiftScanner(priorities: MinimizerPriorities) {
         //priorityOf will give the rank/ID
         val priority = priorities.writePriorityOf(window, priorityBuffer)
         if (priority ne empty) {
-          matches.addLongs(priorityBuffer.data)
-          matches.addLong(MinimizerPositions.VALID)
+          matches.beginRow()
+          matches.addLongsUnsafe(priorityBuffer.data)
+          matches.addLongUnsafe(MinimizerPositions.VALID)
+          matches.finishRow()
         } else {
-          matches.addLongs(invalidMinimizer)
+          matches.addRow(invalidMinimizer)
         }
 
         validSize += 1

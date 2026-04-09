@@ -115,8 +115,9 @@ object KmerTable {
       //exact size can be known
       supermers.iterator.map(s => s.size - (bpar.k - 1)).sum
     } else {
-      //generous estimate based on practical results for m=10,11
-      supermers.size * 20
+      //Conservative estimate for initial size. In a practical test with k=35, m=10, the average super-mer length was 11.
+      //The arrays will resize to accommodate the actual result.
+      supermers.size * 7
     }
     fromSupermers(supermers.iterator, bpar, tagData, sizeEstimate)
   }
@@ -134,7 +135,6 @@ object KmerTable {
     builder.result(bpar.sort)
   }
 }
-
 /** Builder for k-mer tables. K-mers are built by gradually adding longs in order.
  *
  * @param width        Width of k-mers (in longs, e.g. ceil(k/32)), including tag data
@@ -143,27 +143,80 @@ object KmerTable {
  * @param k            k
  */
 final class KmerTableBuilder(width: Int, tagWidth: Int, sizeEstimate: Int, k: Int) {
-  private[this] val builders = Array.fill(width)(new mutable.ArrayBuilder.ofLong)
-  for (b <- builders) {
-    b.sizeHint(sizeEstimate)
+  /** Resizable Long buffers. These always have the same size. */
+  private[this] val buffers = Array.fill(width)(new Array[Long](sizeEstimate))
+
+  /** Number of items stored in the buffers */
+  var size = 0
+
+  def ensureSize(reqSize: Int): Unit = {
+    if (buffers(0).length < reqSize) {
+      var newSize = buffers(0).length * 2
+      while (newSize < reqSize)
+        newSize = newSize * 2
+
+      for { i <- buffers.indices } {
+        buffers(i) = java.util.Arrays.copyOf(buffers(i), newSize)
+      }
+    }
+  }
+  private[this] var writeColumn = 0
+
+  /** Start a new row in this table.
+   * The row can be added to using the addLong and addLongs methods.
+   * After the row is complete, finishRow should be called.
+   * The buffers may grow when this method is called.
+   */
+  def beginRow(): Unit = {
+    ensureSize(size + 1)
   }
 
-  private[this] var writeColumn = 0
+  /** Complete a row in this table.
+   */
+  def finishRow(): Unit = {
+    size += 1
+  }
 
   /** Add a single long value. Calling this method 'width' times adds a single k-mer to the table. */
   def addLong(x: Long): Unit = {
-    builders(writeColumn) += x
+    beginRow()
+    addLongUnsafe(x)
+    if (writeColumn == 0) {
+      //completed one row
+      finishRow()
+    }
+  }
+
+  /** Add a long without checking bounds.
+   * Users are responsible for calling beginRow() and finishRow() as needed.
+   */
+  def addLongUnsafe(x: Long): Unit = {
+    buffers(writeColumn)(size) = x
     writeColumn += 1
     writeColumn = writeColumn % width
   }
 
-  /** Add multiple long values. */
-  def addLongs(xs: Array[Long]): Unit = {
+  /** Add multiple long values without checking bounds.
+   * Users are responsible for calling beginRow() and finishRow() as needed.
+   */
+  def addLongsUnsafe(xs: Array[Long]): Unit = {
     var i = 0
     while (i < xs.length) {
-      addLong(xs(i))
+      addLongUnsafe(xs(i))
       i += 1
     }
+  }
+
+  /** Add a complete row. The array must have the correct number of elements matching
+   * the width of this table. */
+  def addRow(xs: Array[Long]): Unit = {
+    beginRow()
+    var i = 0
+    while (i < xs.length) {
+      buffers(i)(size) = xs(i)
+      i += 1
+    }
+    finishRow()
   }
 
   /** Construct a k-mer table that contains all the inserted k-mers.
@@ -173,16 +226,15 @@ final class KmerTableBuilder(width: Int, tagWidth: Int, sizeEstimate: Int, k: In
    * @return The resulting k-mer table
    */
   def result(sort: Boolean): KmerTable = {
-    val r = builders.map(_.result())
-    if (r(0).nonEmpty && sort) {
-      LongArrays.radixSort(r)
+    if (size > 0 && sort) {
+      LongArrays.radixSort(buffers, 0, size)
     }
     width - tagWidth match {
-      case 1 => new KmerTable1(r, width, tagWidth, k)
-      case 2 => new KmerTable2(r, width, tagWidth, k)
-      case 3 => new KmerTable3(r, width, tagWidth, k)
-      case 4 => new KmerTable4(r, width, tagWidth, k)
-      case _ => new KmerTableN(r, width, tagWidth, k)
+      case 1 => new KmerTable1(buffers, width, tagWidth, k, size)
+      case 2 => new KmerTable2(buffers, width, tagWidth, k, size)
+      case 3 => new KmerTable3(buffers, width, tagWidth, k, size)
+      case 4 => new KmerTable4(buffers, width, tagWidth, k, size)
+      case _ => new KmerTableN(buffers, width, tagWidth, k, size)
     }
   }
 }
@@ -203,10 +255,9 @@ trait KmerVisitor {
  * @param tagWidth number of additional columns on the right used for tag data
  * @param k length of k-mers
  */
-abstract class KmerTable(val kmers: Array[Array[Long]], val width: Int, val tagWidth: Int, val k: Int)
+abstract class KmerTable(val kmers: Array[Array[Long]], val width: Int, val tagWidth: Int, val k: Int,
+                         override val length: Int)
   extends IndexedSeq[Array[Long]] {
-
-  override def length = kmers(0).length
 
   /** K-mer only at position i. Allocates a new object. */
   def apply(i: Int): Array[Long] =
@@ -334,7 +385,7 @@ abstract class KmerTable(val kmers: Array[Array[Long]], val width: Int, val tagW
     }
 }
 
-object EmptyKmerTable extends KmerTable(Array(Array()), 1, 0, 0)
+object EmptyKmerTable extends KmerTable(Array(Array()), 1, 0, 0, 0)
 
 /**
  * Specialized KmerTable for n = 1 (k <= 32)
@@ -342,9 +393,10 @@ object EmptyKmerTable extends KmerTable(Array(Array()), 1, 0, 0)
  * @param width number of columns (longs per row) in the table, including k-mer and tag data
  * @param tagWidth number of additional columns on the right used for tag data
  * @param k length of k-mers
+ * @param length number of items in the table
  */
-final class KmerTable1(kmers: Array[Array[Long]], width: Int, tagWidth: Int, k: Int) extends
-  KmerTable(kmers, width, tagWidth, k) {
+final class KmerTable1(kmers: Array[Array[Long]], width: Int, tagWidth: Int, k: Int, length: Int) extends
+  KmerTable(kmers, width, tagWidth, k, length) {
 
   override def equalKmers(i: Int, kmer: Array[Long]): Boolean = {
     kmers(0)(i) == kmer(0)
@@ -365,9 +417,10 @@ final class KmerTable1(kmers: Array[Array[Long]], width: Int, tagWidth: Int, k: 
  * @param width number of columns (longs per row) in the table, including k-mer and tag data
  * @param tagWidth number of additional columns on the right used for tag data
  * @param k length of k-mers
+ * @param length number of items in the table
  */
-final class KmerTable2(kmers: Array[Array[Long]], width: Int, tagWidth: Int, k: Int)
-  extends KmerTable(kmers, width, tagWidth, k) {
+final class KmerTable2(kmers: Array[Array[Long]], width: Int, tagWidth: Int, k: Int, length: Int)
+  extends KmerTable(kmers, width, tagWidth, k, length) {
 
   override def equalKmers(i: Int, kmer: Array[Long]): Boolean = {
     kmers(0)(i) == kmer(0) &&
@@ -393,9 +446,10 @@ final class KmerTable2(kmers: Array[Array[Long]], width: Int, tagWidth: Int, k: 
  * @param width number of columns (longs per row) in the table, including k-mer and tag data
  * @param tagWidth number of additional columns on the right used for tag data
  * @param k length of k-mers
+ * @param length number of items in the table
  */
-final class KmerTable3(kmers: Array[Array[Long]], width: Int, tagWidth: Int, k: Int)
-  extends KmerTable(kmers, width, tagWidth, k) {
+final class KmerTable3(kmers: Array[Array[Long]], width: Int, tagWidth: Int, k: Int, length: Int)
+  extends KmerTable(kmers, width, tagWidth, k, length) {
   override def equalKmers(i: Int, kmer: Array[Long]): Boolean = {
     kmers(0)(i) == kmer(0) &&
       kmers(1)(i) == kmer(1) &&
@@ -423,9 +477,10 @@ final class KmerTable3(kmers: Array[Array[Long]], width: Int, tagWidth: Int, k: 
  * @param width number of columns (longs per row) in the table, including k-mer and tag data
  * @param tagWidth number of additional columns on the right used for tag data
  * @param k length of k-mers
+ * @param length number of items in the table
  */
-final class KmerTable4(kmers: Array[Array[Long]], width: Int, tagWidth: Int, k: Int)
-  extends KmerTable(kmers, width, tagWidth, k) {
+final class KmerTable4(kmers: Array[Array[Long]], width: Int, tagWidth: Int, k: Int, length: Int)
+  extends KmerTable(kmers, width, tagWidth, k, length) {
 
   override def equalKmers(i: Int, kmer: Array[Long]): Boolean = {
     kmers(0)(i) == kmer(0) &&
@@ -457,9 +512,10 @@ final class KmerTable4(kmers: Array[Array[Long]], width: Int, tagWidth: Int, k: 
  * @param width number of columns (longs per row) in the table, including k-mer and tag data
  * @param tagWidth number of additional columns on the right used for tag data
  * @param k length of k-mers
+ * @param length number of items in the table
  */
-final class KmerTableN(kmers: Array[Array[Long]], width: Int, tagWidth: Int, k: Int)
-  extends KmerTable(kmers, width, tagWidth, k) {
+final class KmerTableN(kmers: Array[Array[Long]], width: Int, tagWidth: Int, k: Int, length: Int)
+  extends KmerTable(kmers, width, tagWidth, k, length) {
 
   override def equalKmers(i: Int, kmer: Array[Long]): Boolean = {
     var j = 0

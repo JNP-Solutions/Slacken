@@ -163,14 +163,14 @@ object NTBitArray {
     while (i < n - 1) {
       val x = (data(i) << 2) | (data(i + 1) >>> 62)
       data(i) = x
-      destination.addLong(x)
+      destination.addLongUnsafe(x)
       i += 1
     }
     //i == n -1
     val kmod32 = k & 31
     val x = (data(i) << 2) | (addRight.toLong << ((32 - kmod32) * 2))
     data(i) = x
-    destination.addLong(x)
+    destination.addLongUnsafe(x)
   }
 
   /**
@@ -484,14 +484,16 @@ final case class NTBitArray(data: Array[Long], size: Int) extends Ordered[NTBitA
     val lastKmer = sliceAsLongArray(0, k)
     var i = 0
     if (provider.isPresent(i) && (orientation == Both || sliceIsForwardOrientation(i, k))) {
-      destination.addLongs(lastKmer)
-      provider.writeForCol(i, destination)
+      destination.beginRow()
+      destination.addLongsUnsafe(lastKmer)
+      provider.writeForCol(i, destination) //uses safe methods to finish the row
     }
     i += 1
     while (i < NTBitArray.this.size - k + 1) {
       if (provider.isPresent(i) && (orientation == Both || sliceIsForwardOrientation(i, k))) {
+        destination.beginRow()
         shiftLongKmerAndWrite(lastKmer, apply(i - 1 + k), k, destination)
-        provider.writeForCol(i, destination)
+        provider.writeForCol(i, destination)  //uses safe methods to finish the row
       } else {
         shiftLongArrayKmerLeft(lastKmer, apply(i - 1 + k), k)
       }

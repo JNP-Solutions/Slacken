@@ -179,7 +179,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
       if flag == SEQUENCE_FLAG
       sm <- splitter.superkmerPositions(seq)
     } {
-      builder.addLongs(sm.rank)
+      builder.addRow(sm.rank)
     }
 
     val r = builder.result(true).distinctKmers
