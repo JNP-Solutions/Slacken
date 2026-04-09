@@ -232,7 +232,13 @@ class FastqTextInput(file: String)(implicit spark: SparkSession) extends HadoopI
 
   protected[input] def getFragments(): Dataset[InputFragment] =
     rdd.map(ar => {
-      val id = ar(0).split(" ")(0).substring(1) //remove leading @
+      val headerLine = ar(0)
+      val firstSpace = headerLine.indexOf(' ')
+      val id = if (firstSpace != -1)
+        headerLine.substring(1, firstSpace) //remove leading 0
+      else
+        headerLine.substring(1)
+
       val nucleotides = ar(1)
       InputFragment(id, FIRST_LOCATION, nucleotides, None)
     }).toDS()
