@@ -132,6 +132,7 @@ final case class ShiftScanner(priorities: MinimizerPriorities) {
         val priority = priorities.writePriorityOf(window, priorityBuffer)
         if (priority ne empty) {
           matches.beginRow()
+          //TODO optimize this - addLongsUnsafe should ideally be specialized for different widths
           matches.addLongsUnsafe(priorityBuffer.data)
           matches.addLongUnsafe(MinimizerPositions.VALID)
           matches.finishRow()

@@ -75,8 +75,14 @@ object KmerTable {
   }
 
   /** Obtain a new KmerTableBuilder */
-  def builder(k: Int, sizeEstimate: Int = 100, tagWidth: Int = 0): KmerTableBuilder =
-    new KmerTableBuilder(longsForK(k) + tagWidth, tagWidth, sizeEstimate, k)
+  def builder(k: Int, sizeEstimate: Int = 100, tagWidth: Int = 0): KmerTableBuilder = {
+    val width = longsForK(k) + tagWidth
+    width match {
+      case 1 => new KmerTableBuilder1(width, tagWidth, sizeEstimate, k)
+      case 2 => new KmerTableBuilder2(width, tagWidth, sizeEstimate, k)
+      case _ => new KmerTableBuilder(width, tagWidth, sizeEstimate, k)
+    }
+  }
 
   /** Obtain a KmerTable from a single segment/superkmer */
   def fromSegment(segment: NTBitArray, bpar: BuildParams): KmerTable =
@@ -127,7 +133,9 @@ object KmerTable {
 
     val n = KmerTable.longsForK(bpar.k)
     val tagWidth = tagData.tagWidth
-    val builder = new KmerTableBuilder(n + tagWidth, tagWidth, sizeEstimate, bpar.k)
+    val width = n + tagWidth
+    val builder = KmerTable.builder(bpar.k, sizeEstimate, tagWidth)
+
     for { (s, row) <- supermers.zipWithIndex } {
       val provider = new NestedRowTagProvider(row, tagData)
       s.writeKmersToBuilder(builder, bpar.k, bpar.orientation, provider)
@@ -142,12 +150,12 @@ object KmerTable {
  * @param sizeEstimate Estimated number of k-mers that will be inserted
  * @param k            k
  */
-final class KmerTableBuilder(width: Int, tagWidth: Int, sizeEstimate: Int, k: Int) {
-  /** Resizable Long buffers. These always have the same size. */
-  private[this] val buffers = Array.fill(width)(new Array[Long](sizeEstimate))
+class KmerTableBuilder(width: Int, tagWidth: Int, sizeEstimate: Int, k: Int) {
+  /** Resizable Long buffers. These will always be of equal length. */
+  protected val buffers = Array.fill(width)(new Array[Long](sizeEstimate))
 
   /** Number of items stored in the buffers */
-  var size = 0
+  protected var size = 0
 
   def ensureSize(reqSize: Int): Unit = {
     if (buffers(0).length < reqSize) {
@@ -236,6 +244,33 @@ final class KmerTableBuilder(width: Int, tagWidth: Int, sizeEstimate: Int, k: In
       case 4 => new KmerTable4(buffers, width, tagWidth, k, size)
       case _ => new KmerTableN(buffers, width, tagWidth, k, size)
     }
+  }
+}
+
+/** A KmerTableBuilder where each row is 1 Long.
+ * This subclass optimizes addRow() to avoid a loop.
+ */
+final class KmerTableBuilder1(width: Int, tagWidth: Int, sizeEstimate: Int, k: Int)
+  extends KmerTableBuilder(width, tagWidth, sizeEstimate, k){
+
+  override def addRow(xs: Array[Long]): Unit = {
+    beginRow()
+    buffers(0)(size) = xs(0)
+    finishRow()
+  }
+}
+
+/** A KmerTableBuilder where each row is 2 Longs.
+ * This subclass optimizes addRow() to avoid a loop.
+ */
+final class KmerTableBuilder2(width: Int, tagWidth: Int, sizeEstimate: Int, k: Int)
+  extends KmerTableBuilder(width, tagWidth, sizeEstimate, k){
+
+  override def addRow(xs: Array[Long]): Unit = {
+    beginRow()
+    buffers(0)(size) = xs(0)
+    buffers(1)(size) = xs(1)
+    finishRow()
   }
 }
 
