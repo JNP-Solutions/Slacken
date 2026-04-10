@@ -144,10 +144,12 @@ object KmerTable {
   }
 }
 /** Builder for k-mer tables. K-mers are built by gradually adding longs in order.
+ * The builder is not reusable.
  *
- * @param width        Width of k-mers (in longs, e.g. ceil(k/32)), including tag data
+ * @param width        Total width of k-mers (in longs, e.g. ceil(k/32)), including tag data. This
+ *                     is the total number of columns in the final table.
  * @param tagWidth     With of extra longs used to annotate k-mers with additional information (part of width)
- * @param sizeEstimate Estimated number of k-mers that will be inserted
+ * @param sizeEstimate Estimated number of k-mers that will be inserted. This is the number of rows in the final table.
  * @param k            k
  */
 class KmerTableBuilder(width: Int, tagWidth: Int, sizeEstimate: Int, k: Int) {
