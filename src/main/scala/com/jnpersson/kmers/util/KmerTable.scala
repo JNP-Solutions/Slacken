@@ -237,7 +237,7 @@ class KmerTableBuilder(width: Int, tagWidth: Int, sizeEstimate: Int, k: Int) {
    */
   def result(sort: Boolean): KmerTable = {
     if (size > 0 && sort) {
-      LongArrays.radixSort(buffers, 0, size)
+      com.jnpersson.util.LongArrays.radixSort(buffers, 0, size)
     }
     width - tagWidth match {
       case 1 => new KmerTable1(buffers, width, tagWidth, k, size)
