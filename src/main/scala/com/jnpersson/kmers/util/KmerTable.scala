@@ -229,6 +229,11 @@ class KmerTableBuilder(width: Int, tagWidth: Int, sizeEstimate: Int, k: Int) {
     finishRow()
   }
 
+  def skipRow(): Unit = {
+    beginRow()
+    finishRow()
+  }
+
   /** Construct a k-mer table that contains all the inserted k-mers.
    * After calling this method, this builder is invalid and should be discarded.
    *
