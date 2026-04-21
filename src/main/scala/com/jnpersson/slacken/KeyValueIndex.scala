@@ -362,12 +362,12 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
     }
     val newSplitter: AnyMinSplitter = MinSplitter(newPriorities, params.k)
     val bcSpl = spark.sparkContext.broadcast(newSplitter)
-    val bcSs = spark.sparkContext.broadcast(newPriorities)
+    val bcSpacedSeed = spark.sparkContext.broadcast(newPriorities)
     val newParams = params.copy(bcSpl, params.buckets, "")
 
     val applySpaceUdf = udf((data: Array[Long]) => {
-      val min = NTBitArray(data, bcSs.value.width)
-      bcSs.value.maskSpacesOnly(min).data
+      val min = NTBitArray(data, bcSpacedSeed.value.width)
+      bcSpacedSeed.value.maskSpacesOnly(min).data
     })
 
     val bcTax = this.bcTaxonomy
