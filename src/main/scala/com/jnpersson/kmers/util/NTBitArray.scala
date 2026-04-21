@@ -103,6 +103,10 @@ object NTBitArray {
   def blank(size: Int): NTBitArray =
     NTBitArray(longBuffer(size), size)
 
+  /** Create a new builder with the given capacity. */
+  def builder(capacity: Int): NTBitArrayBuilder =
+    new NTBitArrayBuilder(longBuffer(capacity))
+
   /** Populate an NTBitArray with a fixed pattern repeatedly to reach a given size. No shifting will be performed. */
   def fill(data: Long, size: Int): NTBitArray = {
     val r = longBuffer(size, data)
@@ -189,6 +193,40 @@ object NTBitArray {
    */
   def longsToString(data: Array[Long], offset: Int, size: Int): NTSeq =
     decoder.longsToString(data, offset, size)
+}
+
+/** A builder for NTBitArrays.
+ * It is the user's responsibility to ensure that they do not write past the
+ * end of the array.
+ * The array is built from the left to the right end.
+ */
+final class NTBitArrayBuilder(data: Array[Long]) {
+  //The position in the data array currently being written
+  private[this] var writePos = 0
+  private[this] var writeLong = 0L
+  private[this] var size = 0
+
+  /** Add a single BP (two bits) to this builder. */
+  def += (x: Int): Unit = {
+    writeLong = (writeLong << 2) | x
+    size += 1
+    if (size % 32 == 0) {
+      data(writePos) = writeLong
+      writePos += 1
+      writeLong = 0L
+    }
+  }
+
+  /** Finalize the NTBitArray. After this has been called, the builder is no longer valid
+   * and should be discarded. */
+  def result: NTBitArray = {
+    //left align the bits inside the long array
+    if (size > 0 && size % 32 != 0) {
+      val finalShift = 64 - (size % 32) * 2
+      data(writePos) = writeLong << finalShift
+    }
+    NTBitArray(data, size)
+  }
 }
 
 /**
@@ -524,7 +562,7 @@ final case class NTBitArray(data: Array[Long], size: Int) extends Ordered[NTBitA
     val finalKeepBits = if (partSize % 32 == 0) 64 else (partSize % 32) * 2
     val finalLongMask = -1L << (64 - finalKeepBits)
 
-    val numLongs = if (partSize % 32 == 0) { partSize / 32 } else { partSize / 32 + 1 }
+    val numLongs = longsForSize(partSize)
     val sourceLongs = data.length
     var i = 0
     var read = offset / 32

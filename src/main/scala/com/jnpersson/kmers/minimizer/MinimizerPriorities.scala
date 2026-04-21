@@ -134,7 +134,7 @@ trait MinimizerPriorities extends Serializable {
   /** Human-readable string corresponding to a given minimizer.
    * Not optimized for frequent use. */
   def humanReadable(priority: NTBitArray): NTSeq =
-    decoder.get.longsToString(motifFor(priority).data, 0, width)
+    decoder.get().toString(motifFor(priority))
 
   /** Number of buckets (minimizers) expected to be very large (frequent), if any */
   def numLargeBuckets: Long = 0
@@ -284,18 +284,20 @@ final case class SpacedSeed(s: Int, inner: MinimizerPriorities) extends Minimize
   assert (s <= inner.width / 2)
 
   final val spaceMask: NTBitArray = {
+    val builder = NTBitArray.builder(width)
 
-    //Set all bits
-    val r = NTBitArray.fill(-1, width)
-
+    //Set all bits until width - 2 * s
     var i = 0
-    val finalBits = 3L << (64 - (width % 32) * 2)
-    while (i < s) {
-      r <<= 4 //clear 4 bits
-      r.data(r.data.length - 1) = r.data(r.data.length - 1) | finalBits //set 2 bits
+    while (i < width - 2 * s) {
+      builder += 0x3
       i += 1
     }
-    r
+    while (i < width) {
+      builder += 0x0
+      builder += 0x3
+      i += 2
+    }
+    builder.result
   }
 
   def maskSpacesOnly(motif: NTBitArray): NTBitArray =

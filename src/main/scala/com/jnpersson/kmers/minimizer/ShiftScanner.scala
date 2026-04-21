@@ -85,13 +85,11 @@ final case class ShiftScanner(priorities: MinimizerPriorities) {
    * @return a pair of (encoded nucleotide string, minimizer IDs)
    */
   def allMatches(data: Int => Int, size: Int): (NTBitArray, MinimizerPositions) = {
-    var writeLong = 0
-
     //Upper bound on size.
     //The array will be longer than needed and contain extra 0s at the end when there is whitespace, but the
     //correct size will be tracked and used.
-    val encoded = NTBitArray.blank(size)
-    var thisLong = 0L
+    val encoded = NTBitArray.builder(size)
+
     //Amount of valid bps we have consumed
     var validSize = 0
 
@@ -108,22 +106,19 @@ final case class ShiftScanner(priorities: MinimizerPriorities) {
       if (x != WHITESPACE) {
         matches.skipRow() //Sets the valid tag to 0 for this position
         window.shiftAddBP(x.toByte)
-        thisLong = (thisLong << 2) | x
+        encoded += x
 
         validSize += 1
-        if (validSize % 32 == 0) {
-          encoded.data(writeLong) = thisLong
-          writeLong += 1
-          thisLong = 0L
-        }
       }
       pos += 1
     }
+
     while (pos < size) {
       val x = data(pos)
       if (x != WHITESPACE) {
         window.shiftAddBP(x.toByte)
-        thisLong = (thisLong << 2) | x
+        encoded += x
+
         //window will now correspond to the "encoded form" of a motif (reversible mapping to 32-bit Int)
         //priorityOf will give the rank/ID
         val priority = priorities.writePriorityOf(window, priorityBuffer)
@@ -135,25 +130,11 @@ final case class ShiftScanner(priorities: MinimizerPriorities) {
         } else {
           matches.skipRow()
         }
-
-        validSize += 1
-        if (validSize % 32 == 0) {
-          encoded.data(writeLong) = thisLong
-          writeLong += 1
-          thisLong = 0L
-        }
       }
       pos += 1
     }
-
-    //left align the bits inside the long array
-    if (validSize > 0 && validSize % 32 != 0) {
-      val finalShift = 64 - (validSize % 32) * 2
-      encoded.data(writeLong) = thisLong << finalShift
-    }
-
     val finalMatches = matches.result(false)
-    (encoded.copy(size = validSize), new MinimizerPositions(finalMatches, width))
+    (encoded.result, new MinimizerPositions(finalMatches, width))
   }
 
   /**
