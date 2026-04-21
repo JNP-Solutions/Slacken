@@ -155,7 +155,6 @@ final case class ShiftScanner(priorities: MinimizerPriorities) {
       encoded(writeLong) = thisLong << finalShift
     }
 
-    //Remove non-matches from the end of the matches array
     val finalMatches = matches.result(false)
     (NTBitArray(encoded, validSize), new MinimizerPositions(finalMatches, width))
   }

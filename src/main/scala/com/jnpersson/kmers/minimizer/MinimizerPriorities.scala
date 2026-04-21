@@ -255,13 +255,12 @@ final case class MinTable(byPriority: Array[Int], width: Int, override val numLa
     if (p == -1) empty else NTBitArray.fromLong(p, width)
   }
 
+  private final val priorityShift = (32 - width) * 2
   override def writePriorityOf(motif: NTBitArray, buffer: NTBitArray): NTBitArray = {
-    assert(buffer.size == width, "Buffer size must match width")
     val p = priorityLookup(motif.toInt)
     if (p == -1) empty
     else {
-      val shift = (32 - width) * 2
-      buffer.data(0) = p.toLong << shift
+      buffer.data(0) = p.toLong << priorityShift
       buffer
     }
   }
