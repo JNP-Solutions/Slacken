@@ -33,14 +33,15 @@ final case class InputFragment(header: SeqTitle, location: SeqLocation, nucleoti
 
 /**
  * A superkmer (segment where every k-mer shares the same minimizer),
- * with bucket ID, sequence ID, and 1-based sequence location
+ * with bucket ID, sequence ID, and 1-based sequence location.
  *
  * @param bucket      bucket (derived from minimizer)
- * @param sequence    Sequence ID/header
- * @param location    Sequence location (1-based) if available
+ * @param sequence    Sequence ID/header that this segment came from
+ * @param location    Sequence location (1-based) if available. Location is relative to the position in the
+ *                    original sequence with the given header.
  * @param nucleotides Encoded nucleotides of this segment
  */
-final case class SplitSegment(bucket: BucketId, sequence: SeqID, location: SeqLocation, nucleotides: NTBitArray) {
+final case class LocationSegment(bucket: BucketId, sequence: SeqID, location: SeqLocation, nucleotides: NTBitArray) {
 
   /**
    * Obtain a human-readable (decoded) version of this SplitSegment
@@ -62,7 +63,8 @@ final case class Minimizer(location: Int, rank: Array[Long], length: Int)
 /**
  * @param rank encoded priority of minimizer; uniquely identifies it
  * @param nucleotides encoded super-mer
- * @param location location in sequence if available
+ * @param location location in sequence if available. The location is relative to the string that was passed to
+ *                 [[MinSplitter]] (not to the longer upstream sequence that it might have come from).
  */
 final case class Supermer(rank: Array[Long], nucleotides: NTBitArray, location: SeqLocation)
 
@@ -213,12 +215,12 @@ final case class MinSplitter[+P <: MinimizerPriorities](priorities: P, k: Int) {
    * @param sequenceIDs IDs for each sequence title, to be preserved in the result
    * @return an iterator of superkmers with sequence ID and location populated
    */
-  def splitEncodeLocation(read: InputFragment, sequenceIDs: Map[SeqTitle, SeqID]): Iterator[SplitSegment] = {
+  def splitEncodeLocation(read: InputFragment, sequenceIDs: Map[SeqTitle, SeqID]): Iterator[LocationSegment] = {
     val width = priorities.width * 2
     for {
       Supermer(rank, ntseq, location) <- splitEncode(read.nucleotides)
       shifted = rank(0) >>> (64 - width * 2)
-    } yield SplitSegment(shifted, sequenceIDs(read.header), read.location + location, ntseq)
+    } yield LocationSegment(shifted, sequenceIDs(read.header), read.location + location, ntseq)
   }
 
   /** Generate a human-readable form (nucleotide sequence) of the bucket ID. */

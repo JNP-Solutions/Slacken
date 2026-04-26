@@ -40,7 +40,8 @@ package object slacken {
 
   /**
    * A super-mer with sequence data with an ordinal from a named sequence.
-   * By tracking the ordinal and the sequence title, the original sequences can be reconstructed.
+   * By tracking the ordinal and the sequence title, the original sequences can be reconstructed by reassembling
+   * super-mers in order.
    * @param segment the super-mer
    * @param flag ambiguous flag
    * @param ordinal the relative position of this super-mer in the original sequence
@@ -50,9 +51,11 @@ package object slacken {
 
   /**
    * A super-mer with a specific minimizer, which is potentially ambiguous, but without sequence data (so just a span)
-   * By tracking the ordinal and the sequence title, the original sequences can be reconstructed.
+   * By tracking the ordinal and the sequence title, the ordering of these spans in the original
+   * sequence can be reconstructed.
    * @param minimizer minimizer
-   * @param distinct whether the minimizer was distinct from the previous valid minimizer. Also true for the first valid minimizer in a sequence.
+   * @param distinct whether the minimizer was distinct from the previous valid minimizer. Also true for the first
+   *                 valid minimizer in a sequence.
    * @param kmers number of k-mers in this span
    * @param flag ambiguous flag
    * @param ordinal the relative position of this span in the original sequence
