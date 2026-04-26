@@ -19,12 +19,12 @@ package com.jnpersson.kmers
 
 import org.apache.spark.sql.SparkSession
 
-/** Provides classes for hashing k-mers and nucleotide sequences. Hashing is done by identifying minimizers.
- * Hashing all k-mers in a sequence thus corresponds to splitting the sequence into
- * super-mers of length >= k (super k-mers) where all k-mers share the same minimizer.
+/** A module for finding minimizers and splitting nucleotide sequences into super-mers.
  */
 package object minimizer {
-  /** The type of a compacted hash (minimizer) */
+  /** The type of a bucket ID (derived from minimizer). Buckets can be used
+   * to group super-mers.
+   */
   type BucketId = Long
 
   /** For [[RandomXOR]] ordering */

@@ -42,9 +42,9 @@ final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializab
   }
 
   /**
-    * Splits reads by hash (minimizer), including an ordinal, so that the ordering inside a read can be reconstructed
+    * Splits a sequence into super-mers, including ordinals, so that the ordering inside a read can be reconstructed
     * later. Also includes ambiguous segments at the correct location.
-    * If we are processing a mate pair, a pseudo-sequence will indicate this at the correct location.
+    * If we are processing a mate pair, a pseudo-sequence will also indicate that at the correct location.
     */
   def splitFragment(sequence: InputFragment): Iterator[OrdinalSupermer] = {
     val flaggedSegments = sequence.nucleotides2 match {
@@ -119,8 +119,8 @@ final class Supermers(splitter: AnyMinSplitter, idLongs: Int) extends Serializab
           Iterator((Supermer(randomMinimizer, NTBitArray(Array(), ntseq.length), pos), AMBIGUOUS_FLAG))
         case SEQUENCE_FLAG =>
           for {
-            Supermer(hash, segment, loc) <- splitter.splitEncode(ntseq)
-          } yield (Supermer(padMinimizer(hash), segment, loc + pos), SEQUENCE_FLAG)
+            Supermer(rank, segment, loc) <- splitter.splitEncode(ntseq)
+          } yield (Supermer(padMinimizer(rank), segment, loc + pos), SEQUENCE_FLAG)
       }
     } yield sm
 
