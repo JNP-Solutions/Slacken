@@ -79,24 +79,14 @@ object NTBitArray {
    * The 2*length leftmost bits in the array will be populated.
    */
   def encode(data: NTSeq): NTBitArray = {
-    val buf = longBuffer(data.length)
-    var longIdx = 0
-    var qs = 0
-    while (longIdx < buf.length) {
-      var quadIdx = 0
-      var qshift = 56
-      var x = 0L
-      while (quadIdx < 8 && qs < data.length) {
-        val q = quadToByte(data, qs)
-        x = x | ((q.toLong & 255L) << qshift)
-        qs += 4
-        qshift -= 8
-        quadIdx += 1
-      }
-      buf(longIdx) = x
-      longIdx += 1
+    val len = data.length
+    val b = builder(len)
+    var i = 0
+    while (i < len) {
+      b += BitRepresentation.charToTwobit(data.charAt(i))
+      i += 1
     }
-    NTBitArray(buf, data.length)
+    b.result
   }
 
   /** Fill an NTBitArray with all zeroes (the nucleotide A) */

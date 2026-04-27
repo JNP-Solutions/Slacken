@@ -84,11 +84,6 @@ object BitRepresentation {
     swapNTSequence(encodedNTs) ^ complementMask
 
   /**
-   * Map a quad-string (four letters) to an encoded byte
-   */
-  def quadToByte(quad: NTSeq): Byte = quadToByte(quad, 0)
-
-  /**
    * Map a single byte to a quad-string for unpacking.
    * Precomputed lookup array.
    */
@@ -165,42 +160,6 @@ object BitRepresentation {
       case G => 'G'
       case T => 'T'
     }
-
-  /**
-   * Convert an NT quad (string of length 4) to encoded
-   * byte form. The string will be padded on the right with
-   * 'A' if it's too short.
-   */
-  def quadToByte(quad: String, offset: Int): Byte = {
-    var res = 0
-    var i = offset
-    val end = offset + 4
-    while (i < end) {
-      val c = if (i >= quad.length) 'A' else quad.charAt(i)
-      val twobit = charToTwobit(c)
-      if (i == 0) {
-        res = twobit
-      } else {
-        res = (res << 2) | twobit
-      }
-      i += 1
-    }
-    res.toByte
-  }
-
-  /*
-	 * Convert a string to an array of quads.
-	 */
-  def stringToBytes(bps: NTSeq): Array[Byte] = {
-    var i = 0
-    val rsize = (bps.size - 1) / 4
-    val r = new Array[Byte](rsize + 1)
-    while (i <= rsize) {
-      r(i) = quadToByte(bps, i * 4)
-      i += 1
-    }
-    r
-  }
 
   /**
    * Convert a byte array of quads to a string. The length of the
