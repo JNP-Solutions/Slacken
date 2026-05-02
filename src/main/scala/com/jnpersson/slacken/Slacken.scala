@@ -318,13 +318,13 @@ class SlackenConf(args: Seq[String])(implicit spark: SparkSession) extends Spark
     banner("Generate an index contents report.")
 
     val library = opt[String](descr = "Location of genome library (directory containing library/)")
-    val output = opt[String](descr = "Output location", required = true)
-    val labels = opt[String](descr = "Labels file to check for missing nodes")
+    val output = opt[String](descr = "Output location")
 
     def run(): Unit = {
       val idx = loadIndex()
+      val outputLocation = output.toOption.getOrElse(index()) //suffixes for the report .txt files will be added to this
       val genomes = library.toOption.map(lb => findGenomes(lb, idx.params.k)(idx.spark))
-      idx.report(labels.toOption, output(), genomes)
+      idx.report(outputLocation, genomes)
     }
   }
   addSubcommand(inspect)

@@ -267,12 +267,10 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
    * If genomeLib is given, we produce a new report format that describes the average total k-mer count and genome
    * sizes for each taxon.
    *
-   * @param checkLabelFile sequence label file used to build the index
    * @param output        output filename prefix
    * @param genomelib     If supplied, produce new-style k-mer count reports, otherwise produce traditional reports
    */
-  def report(checkLabelFile: Option[String],
-             output: String, genomelib: Option[GenomeLibrary] = None): Unit = {
+  def report(output: String, genomelib: Option[GenomeLibrary] = None): Unit = {
 
     //Report the contents of the index, count minimizers of taxa with distinct minimizer counts
     val allTaxa = records.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect()
@@ -292,17 +290,6 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
     HDFSUtil.usingWriter(output + "_genome_report.txt", wr =>
       new KrakenReport(taxonomy, allTaxa.map(t => (t._1, 1L))).print(wr)
     )
-
-    //Report missing genomes that were present in the input label file but are not in the index
-    for { labels <- checkLabelFile } {
-      val presentTaxa = allTaxa.iterator.map(_._1)
-      val inputTaxa = GenomeLibrary.getTaxonLabels(labels).select("_2").distinct().as[Taxon].collect()
-      //count of 1 per genome
-      val missingLeaf = (BitSet.empty ++ inputTaxa -- presentTaxa).toArray.map(t => (t, 1L))
-      HDFSUtil.usingWriter(output + "_missing_report.txt", wr =>
-        new KrakenReport(taxonomy, missingLeaf).print(wr)
-      )
-    }
   }
 
   /** K-mers or minimizers in this index (keys) sorted by taxon depth from deep to shallow */

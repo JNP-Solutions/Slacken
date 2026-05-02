@@ -333,7 +333,7 @@ class Dynamic(base: KeyValueIndex, genomes: GenomeLibrary,
       //Write genome and minimizer reports for the dynamic index
       if (dynamicReports) {
         reportDynamicIndexSupport(reads)
-        dynamicIndex.report(None, outputLocation + "_dynamic")
+        dynamicIndex.report(outputLocation + "_dynamic")
       }
 
       for {brackenLength <- dynamicBrackenReadLength} {
