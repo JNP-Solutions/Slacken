@@ -45,7 +45,7 @@ class NTBitDecoder {
    */
   def longsToString(data: Array[Long], offset: Int, size: Int): NTSeq = {
     buffer.clear()
-    while (buffer.capacity() < (size / 4 + 8)) {
+    while (buffer.capacity() < ((size >> 2) + 8)) {
       buffer = ByteBuffer.allocate(buffer.capacity() * 2)
     }
     var i = 0
@@ -484,8 +484,8 @@ final case class NTBitArray(data: Array[Long], size: Int) extends Ordered[NTBitA
    * Only the lowest two bits of the byte are valid. The others will be zeroed out.
    */
   def apply(pos: Int): Byte = {
-    val lng = pos / 32
-    val lval = data(lng)
+    val i = pos >> 5
+    val lval = data(i)
     val localOffset = pos % 32
     ((lval >>> (2 * (31 - localOffset))) & 0x3).toByte
   }
@@ -555,7 +555,7 @@ final case class NTBitArray(data: Array[Long], size: Int) extends Ordered[NTBitA
     val numLongs = longsForSize(partSize)
     val sourceLongs = data.length
     var i = 0
-    var read = offset / 32
+    var read = offset >> 5
     while (i < numLongs) {
      var x = data(read) << shiftAmt
       if (read < sourceLongs - 1 && shiftAmt > 0) {

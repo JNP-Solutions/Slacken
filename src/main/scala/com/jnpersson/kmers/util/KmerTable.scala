@@ -68,9 +68,9 @@ object KmerTable {
   /** Number of longs required to represent a k-mer of length k */
   def longsForK(k: Int): Int = {
     if (k % 32 == 0) {
-      k / 32
+      k >> 5
     } else {
-      k / 32 + 1
+      (k >> 5) + 1
     }
   }
 

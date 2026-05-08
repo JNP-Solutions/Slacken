@@ -166,7 +166,7 @@ object BitRepresentation {
    * resulting string must be supplied.
    */
   def bytesToString(bytes: Array[Byte], builder: StringBuilder, offset: Int, size: Int): NTSeq = {
-    val startByte = offset / 4
+    val startByte = offset >> 2
 
     var i = startByte
     while (i < bytes.length) {
