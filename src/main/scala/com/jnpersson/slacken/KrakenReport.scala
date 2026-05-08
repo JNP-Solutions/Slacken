@@ -33,8 +33,7 @@ class TreeAggregator(taxonomy: Taxonomy, counts: Array[(Taxon, Long)]) {
   val cladeTotals: MMap[Taxon, Long] =
     MMap.empty.withDefaultValue(0L)
 
-  for {
-    (taxid, count) <- counts } {
+  for { (taxid, count) <- counts } {
     for {p <- taxonomy.pathToRoot(taxid)} cladeTotals(p) += count
     if (taxid == NONE) cladeTotals(taxid) = count //pathToRoot doesn't include NONE
   }

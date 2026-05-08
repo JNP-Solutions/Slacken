@@ -170,10 +170,9 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
   }
 
   /**
-   * For each sample in the classified reads, write outputs.
-   * If cpar.perReadOutput is true, classified reads with hit details will be written in a separate directory for each sample,
+   * For each sample in the classified reads, write per read outputs.
+   * Classified reads with hit details will be written in a separate directory for each sample,
    * as well as a kraken-style report in kreport.txt.
-   * If cpar.perReadOutput is false, only reports will be written.
    *
    * @param reads          classified reads
    * @param outputLocation directory/prefix to write to
@@ -183,12 +182,7 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
    */
   def writePerSampleOutput(reads: Dataset[ClassifiedRead], outputLocation: String, threshold: Double,
                            cpar: ClassifyParams): Iterable[String] = {
-    val thresholds = cpar.thresholds
-    // find the maximum number of digits after the decimal point for values in the threshold list
-    // to enable proper sorting of file names with threshold values
-    val maxDecimalLength = thresholds.map(num => num.toString.split("\\.")(1).length).max
-    val thresholdStr = s"%.${maxDecimalLength}f".format(threshold)
-    val location = outputLocation + "_c" + thresholdStr
+    val location = Classifier.thresholdOutputLocation(outputLocation, threshold, cpar)
 
     val keepLines = if (cpar.withUnclassified) {
       reads
@@ -196,34 +190,19 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
       reads.where($"classified" === true)
     }
 
-    if (cpar.perReadOutput) {
-      //Write the classification of every read along with hit details
-      val outputRows = keepLines.map(r => (r.outputLine, r.sampleId)).
-        toDF("classification", "sample")
+    assert(cpar.perReadOutput)
 
-      //These tables will be relatively small. We coalesce to avoid generating a lot of small files
-      //in the case of an index with many partitions
-      outputRows.coalesce(1000).write.mode(SaveMode.Overwrite).
-        partitionBy("sample").
-        option("compression", "gzip").
-        text(location)
-      makeReportsFromClassifications(location)
-    } else {
-      //Write aggregate classification reports only
+    //Write the classification of every read along with hit details
+    val outputRows = keepLines.map(r => (r.outputLine, r.sampleId)).
+      toDF("classification", "sample")
 
-      val sampleIterator = keepLines.groupBy("sampleId", "taxon").agg(count("*").as("count"))
-        .groupBy("sampleId").agg(collect_list(struct($"taxon".as("_1"), $"count".as("_2")))).
-        as[(String, Array[(Taxon, Long)])].
-        toLocalIterator().asScala
-
-      val samples = for {
-        (sample, countByTaxon) <- sampleIterator
-        report = new KrakenReport(index.taxonomy, countByTaxon)
-        loc = Classifier.reportOutputLocation(location, sample)
-        _ = HDFSUtil.usingWriter(loc, wr => report.print(wr))
-      } yield sample
-      samples.toList
-    }
+    //These tables will be relatively small. We coalesce to avoid generating a lot of small files
+    //in the case of an index with many partitions
+    outputRows.coalesce(1000).write.mode(SaveMode.Overwrite).
+      partitionBy("sample").
+      option("compression", "gzip").
+      text(location)
+    makeReportsFromClassifications(location)
   }
 
   /** For each subdirectory (corresponding to a sample), read back written classifications
@@ -378,12 +357,7 @@ class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
    */
   def writePerSampleOutput(reads: DataFrame, outputLocation: String, threshold: Double,
                            cpar: ClassifyParams): Iterable[String] = {
-    val thresholds = cpar.thresholds
-    // find the maximum number of digits after the decimal point for values in the threshold list
-    // to enable proper sorting of file names with threshold values
-    val maxDecimalLength = thresholds.map(num => num.toString.split("\\.")(1).length).max
-    val thresholdStr = s"%.${maxDecimalLength}f".format(threshold)
-    val location = outputLocation + "_c" + thresholdStr
+    val location = Classifier.thresholdOutputLocation(outputLocation, threshold, cpar)
 
     val keepLines = if (cpar.withUnclassified) {
       reads
@@ -426,6 +400,15 @@ object Classifier {
     val part2 = reportName.split("/")(1)
     val sample = part2.substring(0, part2.length - "_kreport.txt".length)
     perReadOutputsLocation(reportName.split("/")(0), sample)
+  }
+
+  def thresholdOutputLocation(outputLocation: String, threshold: Double, cpar: ClassifyParams): String = {
+    val thresholds = cpar.thresholds
+    // find the maximum number of digits after the decimal point for values in the threshold list
+    // to enable proper sorting of file names with threshold values
+    val maxDecimalLength = thresholds.map(num => num.toString.split("\\.")(1).length).max
+    val thresholdStr = s"%.${maxDecimalLength}f".format(threshold)
+    outputLocation + "_c" + thresholdStr
   }
 
   /** Classify a read.
