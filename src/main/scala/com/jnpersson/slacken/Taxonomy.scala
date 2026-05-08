@@ -97,7 +97,7 @@ object Taxonomy {
       ranks(taxon) = rank(rankTitle).orNull
     }
 
-    val primary = Array.tabulate[Taxon](numEntries)(i => i)
+    val primary = Array.range(0, numEntries)
     for { (secId, primId) <- merged} {
       primary(secId) = primId
     }
