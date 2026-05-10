@@ -158,6 +158,7 @@ class SlackenConf(args: Seq[String])(implicit spark: SparkSession) extends Spark
       val ni2 = loadIndex()
       ni2.showIndexStats(None)
       GenomeLibrary.inputStats(genomes.labelFile, getTaxonomy(index()))
+      ni2.report(index(), None)
     }
   }
   addSubcommand(build)
