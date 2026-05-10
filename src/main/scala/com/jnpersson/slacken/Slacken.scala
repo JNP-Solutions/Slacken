@@ -141,9 +141,6 @@ class SlackenConf(args: Seq[String])(implicit spark: SparkSession) extends Spark
 
     val library = opt[String](required = true, descr = "Location of genome library (directory containing library/)")
 
-    val check = opt[Boolean](descr = "Only check input files for consistency", hidden = !showAllOpts,
-      default = Some(false))
-
     def run(): Unit = {
       val genomes = findGenomes(library(), k())
 
@@ -153,19 +150,14 @@ class SlackenConf(args: Seq[String])(implicit spark: SparkSession) extends Spark
       println(s"Splitter ${params.splitter}")
 
       val i = new KeyValueIndex(spark.emptyDataFrame, params, getTaxonomy)
+      val recs = i.makeRecords(genomes)
+      val ni = i.withRecords(recs)
+      ni.writeRecords(params.location)
+      Taxonomy.copyToLocation(taxonomy(), index() + "_taxonomy")
 
-      if (check()) {
-        i.checkInput(genomes.inputs)
-      } else { //build index
-        val recs = i.makeRecords(genomes)
-        val ni = i.withRecords(recs)
-        ni.writeRecords(params.location)
-        Taxonomy.copyToLocation(taxonomy(), index() + "_taxonomy")
-
-        val ni2 = loadIndex()
-        ni2.showIndexStats(None)
-        GenomeLibrary.inputStats(genomes.labelFile, getTaxonomy(index()))
-      }
+      val ni2 = loadIndex()
+      ni2.showIndexStats(None)
+      GenomeLibrary.inputStats(genomes.labelFile, getTaxonomy(index()))
     }
   }
   addSubcommand(build)
