@@ -72,7 +72,7 @@ trait ClassifyCommand extends RequireIndex with HasInputReader {
   )
   val unclassified = toggle(descrYes = "Output unclassified reads", default = Some(true))
   val output = opt[String](descr = "Output location", required = true)
-  val detailed = toggle(descrYes = "Output results for individual reads, in addition to reports", default = Some(true))
+  val detailed = toggle(descrYes = "Output results for individual reads, in addition to reports", default = Some(false))
   val confidence = opt[List[Double]](
     descr = "Confidence thresholds (a space-separated list with values in [0, 1])",
     default = Some(List(0.0)), short = 'c')
