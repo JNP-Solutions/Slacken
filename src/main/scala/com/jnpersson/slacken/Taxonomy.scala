@@ -160,6 +160,10 @@ final case class Taxonomy(parents: Array[Taxon], ranks: Array[Rank], scientificN
                           primary: Array[Taxon]) {
   import Taxonomy._
 
+  /** Reusable thread-local LCA calculator */
+  @transient
+  lazy val lca = ThreadLocal.withInitial(() => new LowestCommonAncestor(this))
+
   //Size of the range of this taxonomy, including unused taxa.
   //Size - 1 is the maximal taxon potentially used.
   def size: Taxon = parents.length

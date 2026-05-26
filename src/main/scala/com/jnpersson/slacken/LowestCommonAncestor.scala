@@ -27,7 +27,7 @@ import org.apache.spark.sql.expressions.Aggregator
 
 
 /**
- * Lowest common ancestor algorithm. The calculation needs a data buffer,
+ * Lowest common ancestor algorithm. The calculation needs a scratch buffer,
  * so it is recommended to create one instance of this class in each thread and reuse it.
  */
 final class LowestCommonAncestor(taxonomy: Taxonomy) {
@@ -156,7 +156,7 @@ final case class TaxonLCA(bcTaxonomy: Broadcast[Taxonomy]) extends Aggregator[Ta
   private lazy val taxonomy = bcTaxonomy.value
 
   @transient
-  private lazy val lca = new LowestCommonAncestor(taxonomy)
+  private lazy val lca = bcTaxonomy.value.lca.get()
 
   override def reduce(b: Taxon, a: Taxon): Taxon = lca(b, a)
 

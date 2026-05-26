@@ -252,7 +252,7 @@ final case class TaxonFragment(taxon: Taxon, nucleotides: NTSeq, header: String,
                           splitter: AnyMinSplitter, readLen: Int): Iterator[(Taxon, Taxon)] = {
 
     val k = splitter.k
-    val lca = new LowestCommonAncestor(taxonomy)
+    val lca = taxonomy.lca.get()
 
     val allHits = taxonHits(minimizers, lcas, splitter)
     val kmersInRead = readLen - (k - 1)

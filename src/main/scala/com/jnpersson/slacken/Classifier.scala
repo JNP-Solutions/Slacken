@@ -129,7 +129,7 @@ class Classifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     assert(cpar.perReadOutput)
 
     subjectsHits.mapPartitions(part => {
-      val lca = new LowestCommonAncestor(bcTax.value)
+      val lca = bcTax.value.lca.get()
 
       part.map { case (title, hits, distinct) =>
         //The ordering of hits is needed if we are not generating per read output
@@ -328,7 +328,7 @@ class SQLClassifier(index: KeyValueIndex)(implicit spark: SparkSession) {
     assert(!cpar.perReadOutput) //not yet supported
 
     def classifyUdfFunction(totalKmers: Int, taxa: Array[Taxon], counts: Array[Int]): (Boolean, Taxon) = {
-      val lca = new LowestCommonAncestor(bcTax.value)
+      val lca = bcTax.value.lca.get()
       val hitMap = new Int2IntArrayMap(taxa, counts)
 
       Classifier.classifySimple(lca, hitMap, totalKmers, threshold)
