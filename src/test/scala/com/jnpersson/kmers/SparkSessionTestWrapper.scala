@@ -24,13 +24,22 @@ import org.apache.spark.sql.SparkSession
 object SparkSessionTestWrapper {
   /*
    SparkSession for unit tests.
+
    We use a very small max split size, to ensure that the relatively small test files
    end up generating multiple splits, which leads to more code paths being tested.
+
+   Compression is disabled as it is not expected to be a benefit for test datasets.
+
+   The web UI is disabled as it slows down the tests.
   */
   lazy val spark: SparkSession = {
     val r = SparkSession
       .builder()
       .config("mapreduce.input.fileinputformat.split.maxsize", s"${64 * 1024}")
+      .config("spark.rdd.compress", "false")
+      .config("spark.shuffle.compress", "false")
+      .config("spark.ui.enabled", "false")
+      .config("spark.ui.showConsoleProgress", "false")
       .master("local[*]")
       .appName("Spark unit tests")
       .getOrCreate()
