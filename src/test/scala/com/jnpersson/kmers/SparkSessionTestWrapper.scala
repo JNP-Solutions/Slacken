@@ -21,12 +21,12 @@ import com.globalmentor.apache.hadoop.fs.BareLocalFileSystem
 import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.sql.SparkSession
 
-trait SparkSessionTestWrapper {
+object SparkSessionTestWrapper {
   /*
-    SparkSession for unit tests.
-    We use a very small max split size, to ensure that the relatively small test files
-    end up generating multiple splits, which leads to more code paths being tested.
-   */
+   SparkSession for unit tests.
+   We use a very small max split size, to ensure that the relatively small test files
+   end up generating multiple splits, which leads to more code paths being tested.
+  */
   lazy val spark: SparkSession = {
     val r = SparkSession
       .builder()
@@ -44,4 +44,8 @@ trait SparkSessionTestWrapper {
 
     r
   }
+}
+
+trait SparkSessionTestWrapper {
+  lazy val spark = SparkSessionTestWrapper.spark
 }
