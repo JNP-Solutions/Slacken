@@ -55,6 +55,10 @@ package object minimizer {
   final case class XORMask(mask: Long = DEFAULT_TOGGLE_MASK,
                            canonical: Boolean = false) extends MinimizerOrdering
 
+  /** A derived ordering that maps every minimizer to its canonical
+   * (forward) orientation */
+  final case class Canonical(inner: MinimizerOrdering) extends MinimizerOrdering
+
   /** Orientations of k-mers. */
   sealed trait Orientation
 

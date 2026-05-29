@@ -320,3 +320,27 @@ final case class SpacedSeed(s: Int, inner: MinimizerPriorities) extends Minimize
   override def numMinimizers: Option[Long] =
     inner.numMinimizers
 }
+
+/** Canonicalise a minimizer ordering. This maps each potential minimizer to its
+ * forward orientation (which must also be a valid minimizer).
+ * This effectively cuts the size of the minimizer set in half.
+ * */
+final case class CanonicalPriorities[+P <: MinimizerPriorities](inner: P) extends MinimizerPriorities {
+
+  /** Get the priority of the given minimizer.
+   * If not every m-mer is a minimizer, then [[NTBitArray.empty]] indicates an invalid minimizer. */
+  override def priorityOf(motif: NTBitArray): NTBitArray =
+    inner.priorityOf(motif.canonical)
+
+  /** Get the minimizer for a given priority.
+   * For canonical orderings, this is not a true inverse of priorityOf (reverse and forward
+   * minimizers would map to the same value).
+   */
+  override def motifFor(priority: NTBitArray): NTBitArray =
+    //priority is already known to come from a canonical minimizer
+    inner.motifFor(priority)
+
+  /** Minimizer width (m) */
+  override def width: Int =
+    inner.width
+}

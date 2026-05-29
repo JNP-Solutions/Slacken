@@ -17,7 +17,7 @@
 
 package com.jnpersson.kmers
 
-import com.jnpersson.kmers.minimizer.{MinimizerPriorities, SpacedSeed}
+import com.jnpersson.kmers.minimizer.{CanonicalPriorities, SpacedSeed}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.SparkSession
 
@@ -76,6 +76,7 @@ final case class IndexParams(bcSplit: Broadcast[AnyMinSplitter], buckets: Int, l
     val format =
       splitter.priorities match {
         case SpacedSeed(_, inner) => formats.getFormat(inner)
+        case CanonicalPriorities(inner) => formats.getFormat(inner)
         case _ => formats.getFormat(splitter.priorities)
       }
 
@@ -83,6 +84,9 @@ final case class IndexParams(bcSplit: Broadcast[AnyMinSplitter], buckets: Int, l
     splitter.priorities match {
       case SpacedSeed(s, inner) =>
         p.setProperty("minimizerSpaces", s.toString)
+        format.write(inner, p, newLocation)
+      case CanonicalPriorities(inner) =>
+        p.setProperty("canonical", "true")
         format.write(inner, p, newLocation)
       case _ =>
         format.write(splitter.priorities, p, newLocation)

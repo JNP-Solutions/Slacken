@@ -82,9 +82,15 @@ trait MinimizerCLIConf {
 
   protected def orderingChoices: Seq[String] = Seq("lexicographic", "random", "xor")
 
-  protected def parseOrdering: String => MinimizerOrdering = _ match {
+  protected def parseOrdering(x: String): MinimizerOrdering =
+    if (x != "xor" && x != "random" && canonicalMinimizers()) //XORMask has its own logic for canonicals
+      Canonical(parseOrderingNonCanonical(x))
+    else
+      parseOrderingNonCanonical(x)
+
+  protected def parseOrderingNonCanonical(x: String): MinimizerOrdering = x match {
     case "lexicographic" => Lexicographic
-    case "xor" | "random" => XORMask(defaultXORMask, canonicalMinimizers)
+    case "xor" | "random" => XORMask(defaultXORMask, canonicalMinimizers())
   }
 
   protected def orderingHidden: Boolean = true
@@ -101,7 +107,10 @@ trait MinimizerCLIConf {
   protected def defaultXORMask: Long = Random.nextLong()
 
   /** For some minimizer orderings, whether to use canonical orientation */
-  protected def canonicalMinimizers = false
+  protected def defaultCanonicalMinimizers = false
+
+  val canonicalMinimizers = toggle(descrYes = "Map all minimizers to their canonical orientation (forward)",
+    default = Some(defaultCanonicalMinimizers))
 
   def parseMinimizerSource: MinimizerSource =
     All

@@ -133,7 +133,7 @@ class SlackenConf(args: Seq[String])(implicit spark: SparkSession) extends Spark
 
     override def defaultXORMask: Long = DEFAULT_TOGGLE_MASK
 
-    override def canonicalMinimizers: Boolean = true
+    override def defaultCanonicalMinimizers: Boolean = true
 
     override def frequencyBySequence: Boolean = true
 
