@@ -72,7 +72,7 @@ class ClassifierTest extends AnyFunSuite with ScalaCheckPropertyChecks with Spar
   /* Note: this test is probabilistic and relies on randomly generated DNA sequences
      not having enough k-mers in common.
    */
-  def randomGenomesTest[R](makeIdx: (IndexParams, Taxonomy) => KeyValueIndex, maxM: Int): Unit = {
+  def randomGenomesTest(makeIdx: (IndexParams, Taxonomy) => KeyValueIndex, maxM: Int): Unit = {
     //Simulate very long reads to reduce the risk of misclassification by chance in random data
     val reads = simulateReads(200, 1000).toDS()
     val genomesDS = genomes.toDF("header", "nucleotides", "taxon")
