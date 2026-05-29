@@ -85,7 +85,7 @@ class MinSplitterProps extends Properties("MinSplitter") {
 
   property("Canonical priorities return the same minimizer for reverse complement") =
     forAll(ms) { m =>
-      forAll(minimizerPrioritiesCanonical(m), dnaStrings(m, m)) { (pri, x) =>
+      forAll(minimizerPriorities(m, canonical = true), dnaStrings(m, m)) { (pri, x) =>
         val enc = NTBitArray.encode(x)
         val rc = enc.reverseComplement
         pri.priorityOf(enc) == pri.priorityOf(rc)
@@ -94,7 +94,7 @@ class MinSplitterProps extends Properties("MinSplitter") {
 
   property("Super-mers are invariant under reverse complement") =
     forAll(mAndKPairs) { case (m, k) =>
-      forAll(minimizerPrioritiesCanonical(m), dnaStrings(k)) { (pri, x) =>
+      forAll(minimizerPriorities(m, canonical = true), dnaStrings(k)) { (pri, x) =>
         (k <= x.size) ==> {
           val extractor = MinSplitter(pri, k)
           val encoded = NTBitArray.encode(x)

@@ -332,6 +332,9 @@ final case class CanonicalPriorities[+P <: MinimizerPriorities](inner: P) extend
   override def priorityOf(motif: NTBitArray): NTBitArray =
     inner.priorityOf(motif.canonical)
 
+  override def writePriorityOf(motif: NTBitArray, buffer: NTBitArray): NTBitArray =
+    inner.writePriorityOf(motif.canonical, buffer)
+
   /** Get the minimizer for a given priority.
    * For canonical orderings, this is not a true inverse of priorityOf (reverse and forward
    * minimizers would map to the same value).
@@ -340,7 +343,7 @@ final case class CanonicalPriorities[+P <: MinimizerPriorities](inner: P) extend
     //priority is already known to come from a canonical minimizer
     inner.motifFor(priority)
 
-  /** Minimizer width (m) */
-  override def width: Int =
-    inner.width
+  override def width: Int = inner.width
+  override def numLargeBuckets: Long = inner.numLargeBuckets
+  override def numMinimizers: Option[BucketId] = inner.numMinimizers
 }

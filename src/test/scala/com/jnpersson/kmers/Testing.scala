@@ -89,6 +89,13 @@ object TestGenerators {
     if (spaces == 0 || spaces > p.width / 2) p else SpacedSeed(spaces, p)
 
   def minimizerPriorities(m: Int): Gen[MinimizerPriorities] = {
+    for {
+      canonical <- Gen.prob(0.5)
+      mp <- minimizerPriorities(m, canonical)
+    } yield mp
+  }
+
+  def minimizerPriorities(m: Int, canonical: Boolean = false): Gen[MinimizerPriorities] = {
     val DEFAULT_TOGGLE_MASK = 0xe37e28c4271b5a2dL
     val mp = if (m <= 10) {
       //These are expensive and large to generate so we use a lookup table
@@ -99,17 +106,8 @@ object TestGenerators {
     for {
       x <- mp
       s <- seedMaskSpaces(m)
-    } yield withSpacedSeed(x, s)
-  }
-
-  //Minimizer priorities that are invariant under reverse complement (canonicalised)
-  def minimizerPrioritiesCanonical(m: Int): Gen[MinimizerPriorities] = {
-    val DEFAULT_TOGGLE_MASK = 0xe37e28c4271b5a2dL
-    val mp = Gen.oneOf(List(RandomXOR(m, DEFAULT_TOGGLE_MASK, canonical = true)))
-    for {
-      x <- mp
-      s <- seedMaskSpaces(m)
-    } yield withSpacedSeed(x, s)
+      mp = withSpacedSeed(x, s)
+    } yield (if (canonical && !mp.isInstanceOf[RandomXOR]) CanonicalPriorities(mp) else mp)
   }
 
   //The standard Shrink[String] will shrink the characters into non-ACTG chars, which we do not want
