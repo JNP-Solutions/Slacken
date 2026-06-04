@@ -162,23 +162,28 @@ object BitRepresentation {
     }
 
   /**
-   * Convert a byte array of quads to a string. The length of the
-   * resulting string must be supplied.
+   * Convert a byte array of quads to a string.
+   * @param bytes encoded data to convert
+   * @param builder reusable StringBuilder instance
+   * @param offset offset (expressed in letters, 4 per quad) to start conversion from
+   * @param size length (expressed in letters, 4 per quad) to convert
    */
   def bytesToString(bytes: Array[Byte], builder: StringBuilder, offset: Int, size: Int): NTSeq = {
     val startByte = offset >> 2
 
     var i = startByte
-    while (i < bytes.length) {
-      if (builder.size < size) {
-        if (i == startByte) {
-          builder.append(byteToQuad(bytes(i)).substring(offset % 4, 4))
-        } else {
-          builder.append(byteToQuad(bytes(i)))
-        }
+    var converted = 0
+    while (i < bytes.length && converted < size) {
+      if (i == startByte) {
+        builder.append(byteToQuad(bytes(i)).substring(offset % 4, 4))
+        converted += (4 - (offset % 4))
+      } else {
+        builder.append(byteToQuad(bytes(i)))
+        converted += 4
       }
       i += 1
     }
+    //Necessary since the length of the string may not align with quad boundaries
     builder.substring(0, size)
   }
 }
