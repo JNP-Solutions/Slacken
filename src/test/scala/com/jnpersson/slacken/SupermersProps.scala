@@ -36,7 +36,7 @@ class SupermersProps extends Properties("Supermers") {
   } yield s
 
   property("splitByAmbiguity") =
-    forAll(mAndKPairs) { case (m, k) =>
+    forAll(mAndKPairsBalanced) { case (m, k) =>
       forAll(
         minimizerPriorities(m), dnaStrings(1, 2 * k), ambiguousSequence(1, 2 * k),
         dnaStrings(1, 2 * k), ambiguousSequence(1, 2 * k)

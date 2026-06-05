@@ -26,7 +26,7 @@ class MinSplitterProps extends Properties("MinSplitter") {
   import com.jnpersson.kmers.TestGenerators.shrinkMAndK
 
   property("splitting preserves correct data") =
-    forAll(mAndKPairs) { case (m, k) =>
+    forAll(mAndKPairsBalanced) { case (m, k) =>
       forAll(minimizerPriorities(m), dnaStrings(k)) { (pri, x) =>
         (k <= x.size) ==> {
           val extractor = MinSplitter(pri, k)
@@ -43,7 +43,7 @@ class MinSplitterProps extends Properties("MinSplitter") {
     }
 
   property("adjacent minimizers are not identical") =
-    forAll(mAndKPairs) { case (m, k) =>
+    forAll(mAndKPairsBalanced) { case (m, k) =>
       forAll(minimizerPriorities(m), dnaStrings(k)) { (pri, x) =>
         (k <= x.size) ==> {
           val extractor = MinSplitter(pri, k)
@@ -57,7 +57,7 @@ class MinSplitterProps extends Properties("MinSplitter") {
     }
 
   property("extracted minimizers are the minimal m-mers in each super-mer") =
-    forAll(mAndKPairs) { case (m, k) =>
+    forAll(mAndKPairsBalanced) { case (m, k) =>
       forAll(minimizerPriorities(m), dnaStrings(k)) { (pri, x) =>
         (k <= x.size) ==> {
           val extractor = MinSplitter(pri, k)
@@ -75,7 +75,7 @@ class MinSplitterProps extends Properties("MinSplitter") {
     }
 
   property("too short sequences have no minimizers") =
-    forAll(mAndKPairs) { case (m, k) =>
+    forAll(mAndKPairsBalanced) { case (m, k) =>
       forAll(minimizerPriorities(m), dnaStrings(0, k - 1)) { (pri, x) =>
         val extractor = MinSplitter(pri, k)
         val regions = extractor.splitEncode(x).toList
@@ -93,7 +93,7 @@ class MinSplitterProps extends Properties("MinSplitter") {
     }
 
   property("Super-mers are invariant under reverse complement") =
-    forAll(mAndKPairs) { case (m, k) =>
+    forAll(mAndKPairsBalanced) { case (m, k) =>
       forAll(minimizerPriorities(m, canonical = true), dnaStrings(k)) { (pri, x) =>
         (k <= x.size) ==> {
           val extractor = MinSplitter(pri, k)
@@ -107,7 +107,7 @@ class MinSplitterProps extends Properties("MinSplitter") {
     }
 
   property("splitRead and superkmerPositions return the same data") =
-    forAll(mAndKPairs) { case (m, k) =>
+    forAll(mAndKPairsBalanced) { case (m, k) =>
       forAll(minimizerPriorities(m), dnaStrings(k)) { (pri, x) =>
         (k <= x.size) ==> {
           val encoded = NTBitArray.encode(x)
