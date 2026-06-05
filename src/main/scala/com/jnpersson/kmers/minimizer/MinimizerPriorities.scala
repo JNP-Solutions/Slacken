@@ -321,9 +321,32 @@ final case class SpacedSeed(s: Int, inner: MinimizerPriorities) extends Minimize
     inner.numMinimizers
 }
 
+object CanonicalPriorities {
+
+  /** Create CanonicalPriorities based on the given priorities. */
+  def make(inner: MinimizerPriorities): CanonicalPriorities[MinimizerPriorities] =
+    inner match {
+      case mt: MinTable => make(mt)
+      case _ => CanonicalPriorities(inner)
+    }
+
+  /** Create CanonicalPriorities based on a MinTable.
+   * Adjusts the MinTable so that it contains all forward orientation minimizers, if it did not already.
+   * */
+  def make(inner: MinTable): CanonicalPriorities[MinTable] = {
+    //adjust inner set to ensure every canonical minimizer is present
+    val asCanonical =
+      inner.byPriority.
+        map(x => NTBitArray.fromLong(x, inner.width).canonical.toInt).
+        distinct //keeps the first occurrence
+
+    CanonicalPriorities(MinTable(asCanonical, inner.width))
+  }
+}
+
 /** Canonicalise a minimizer ordering. This maps each potential minimizer to its
  * forward orientation (which must also be a valid minimizer).
- * This effectively cuts the size of the minimizer set in half.
+ * This effectively cuts the size of the minimizer set by up to half.
  * */
 final case class CanonicalPriorities[+P <: MinimizerPriorities](inner: P) extends MinimizerPriorities {
 
