@@ -355,8 +355,14 @@ final case class CanonicalPriorities[+P <: MinimizerPriorities](inner: P) extend
   override def priorityOf(motif: NTBitArray): NTBitArray =
     inner.priorityOf(motif.canonical)
 
-  override def writePriorityOf(motif: NTBitArray, buffer: NTBitArray): NTBitArray =
-    inner.writePriorityOf(motif.canonical, buffer)
+  @transient
+  private lazy val canonicalBuffer = ThreadLocal.withInitial(() => NTBitArray.blank(width))
+
+  override def writePriorityOf(motif: NTBitArray, buffer: NTBitArray): NTBitArray = {
+    val cb = canonicalBuffer.get()
+    motif.writeCanonical(cb)
+    inner.writePriorityOf(cb, buffer)
+  }
 
   /** Get the minimizer for a given priority.
    * For canonical orderings, this is not a true inverse of priorityOf (reverse and forward
