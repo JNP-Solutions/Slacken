@@ -80,6 +80,7 @@ object KmerTable {
     width match {
       case 1 => new KmerTableBuilder1(width, tagWidth, sizeEstimate, k)
       case 2 => new KmerTableBuilder2(width, tagWidth, sizeEstimate, k)
+      case 3 => new KmerTableBuilder3(width, tagWidth, sizeEstimate, k)
       case _ => new KmerTableBuilder(width, tagWidth, sizeEstimate, k)
     }
   }
@@ -280,6 +281,23 @@ final class KmerTableBuilder2(width: Int, tagWidth: Int, sizeEstimate: Int, k: I
     finishRow()
   }
 }
+
+
+/** A KmerTableBuilder where each row is 3 Longs.
+ * This subclass optimizes addRow() to avoid a loop.
+ */
+final class KmerTableBuilder3(width: Int, tagWidth: Int, sizeEstimate: Int, k: Int)
+  extends KmerTableBuilder(width, tagWidth, sizeEstimate, k){
+
+  override def addRow(xs: Array[Long]): Unit = {
+    beginRow()
+    buffers(0)(size) = xs(0)
+    buffers(1)(size) = xs(1)
+    buffers(2)(size) = xs(2)
+    finishRow()
+  }
+}
+
 
 trait KmerVisitor {
   def visitKmer(offset: Int, count: Abundance): Unit
