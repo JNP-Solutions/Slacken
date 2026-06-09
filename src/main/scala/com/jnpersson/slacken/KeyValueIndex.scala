@@ -40,6 +40,7 @@ import scala.collection.immutable.BitSet
 final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val taxonomy: Taxonomy)
                          (implicit val spark: SparkSession) extends KmerKeyedIndex {
   import spark.implicits._
+  import KeyValueIndex._
 
   def bcSplit: Broadcast[AnyMinSplitter] = params.bcSplit
   def split: AnyMinSplitter = bcSplit.value
@@ -272,22 +273,25 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
    */
   def report(output: String, genomelib: Option[GenomeLibrary] = None): Unit = {
 
+    val minReportLoc = output + "_min_report.txt"
+    val genomeReportLoc = output + "_genome_report.txt"
+
     //Report the contents of the index, count minimizers of taxa with distinct minimizer counts
     val allTaxa = records.groupBy("taxon").agg(count("*")).as[(Taxon, Long)].collect()
     genomelib match {
       case Some(gl) =>
         val irs = new IndexStatistics(this)
         val report = irs.totalKmerCountReport(gl)
-        HDFSUtil.usingWriter(output + "_min_report.txt", wr => report.print(wr))
+        HDFSUtil.usingWriter(minReportLoc, wr => report.print(wr))
 
       case None =>
-        HDFSUtil.usingWriter(output + "_min_report.txt", wr =>
+        HDFSUtil.usingWriter(minReportLoc, wr =>
           new KrakenReport(taxonomy, allTaxa).print(wr)
         )
     }
 
     //count of 1 per genome
-    HDFSUtil.usingWriter(output + "_genome_report.txt", wr =>
+    HDFSUtil.usingWriter(genomeReportLoc, wr =>
       new KrakenReport(taxonomy, allTaxa.map(t => (t._1, 1L))).print(wr)
     )
   }
@@ -384,7 +388,7 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
 
       val outLoc = reg.replaceFirstIn(outputLocation, s"_s$s")
       idx.writeRecords(outLoc)
-      Taxonomy.copyToLocation(params.location + "_taxonomy", outLoc + "_taxonomy")
+      Taxonomy.copyToLocation(taxonomyLocation(params.location), taxonomyLocation(outLoc))
       println(s"Stats for $outLoc")
       idx.withRecords(idx.loadRecords(outLoc)).showIndexStats(None)
     }
@@ -392,9 +396,11 @@ final class KeyValueIndex(val records: DataFrame, val params: IndexParams, val t
 }
 
 object KeyValueIndex {
+  def taxonomyLocation(indexLoc: String): String = s"${indexLoc}_taxonomy"
+
   /** Get the Taxonomy from an index's default taxonomy location */
   def getTaxonomy(indexLocation: String)(implicit spark: SparkSession) =
-    Taxonomy.load(s"${indexLocation}_taxonomy")
+    Taxonomy.load(taxonomyLocation(indexLocation))
 
   /** Load a KeyValueIndex together with its taxonomy from a given location */
   def load(location: String)(implicit spark: SparkSession): KeyValueIndex = {

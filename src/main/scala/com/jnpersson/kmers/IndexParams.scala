@@ -26,9 +26,11 @@ import java.util.Properties
 object IndexParams {
   val maxVersion = 1
 
+  def propertiesLoc(indexLoc: String) = s"$indexLoc.properties"
+
   /** Read index parameters from a given location */
   def read(location: String)(implicit spark: SparkSession, formats: MinimizerFormats[_]): IndexParams = {
-    val props = HDFSUtil.readProperties(s"$location.properties")
+    val props = HDFSUtil.readProperties(propertiesLoc(location))
     println(s"Index parameters for $location: $props")
     try {
       val numBuckets = props.getProperty("buckets").toInt
@@ -52,9 +54,9 @@ object IndexParams {
  * @param buckets The number of buckets (Spark partitions) to partition the index into -
  *                NB, not the same as minimizer bins
  * @param location The location (directory/prefix name) where the index is stored
- * @param formats  The supported minimizer formats
   */
 final case class IndexParams(bcSplit: Broadcast[AnyMinSplitter], buckets: Int, location: String) {
+  import IndexParams._
 
   def splitter: AnyMinSplitter = bcSplit.value
   def k: Int = splitter.k
@@ -91,7 +93,7 @@ final case class IndexParams(bcSplit: Broadcast[AnyMinSplitter], buckets: Int, l
       case _ =>
         format.write(splitter.priorities, p, newLocation)
     }
-    HDFSUtil.writeProperties(s"$newLocation.properties", p, comment)
+    HDFSUtil.writeProperties(propertiesLoc(newLocation), p, comment)
   }
 
   override def toString: String = s"${bcSplit.value.getClass.getName},$k,$m,$buckets"

@@ -98,7 +98,7 @@ class MappingComparison(tax: Broadcast[Taxonomy],
       reference = s"$referencePrefix/sample$sample/reads_mapping.tsv"
     } yield allMetrics(s"$dir/$subdir", reference)
 
-    HDFSUtil.writeTextLines(outputPrefix + "_metrics.tsv",
+    HDFSUtil.writeTextLines(metricsLocation(outputPrefix),
       Iterator(Metrics.header) ++ allSamplesMetrics.flatMap(_.flatMap(_.toTSVString)))
   }
 
@@ -108,7 +108,7 @@ class MappingComparison(tax: Broadcast[Taxonomy],
       f <- files
       metrics <- allMetrics(f, reference)
     } yield metrics
-    HDFSUtil.writeTextLines(outputPrefix + "_metrics.tsv",
+    HDFSUtil.writeTextLines(metricsLocation(outputPrefix),
       Iterator(Metrics.header) ++ allFilesMetrics.flatMap(_.toTSVString))
   }
 
@@ -275,6 +275,8 @@ class MappingComparison(tax: Broadcast[Taxonomy],
 }
 
 object MappingComparison {
+
+  def metricsLocation(outputPrefix: String) = s"${outputPrefix}_metrics.tsv"
 
   //For an explanation of these categories see the Kraken 2 paper
   //https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1891-0#ethics
