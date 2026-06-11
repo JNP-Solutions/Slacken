@@ -26,6 +26,15 @@ import java.util.Properties
 object IndexParams {
   val maxVersion = 1
 
+  /* Keys for the properties key-value pairs */
+  final val bucketsKey = "buckets"
+  final val canonicalKey = "canonical"
+  final val splitterKey = "splitter"
+  final val spacesKey = "minimizerSpaces"
+  final val versionKey = "version"
+  final val mKey = "m"
+  final val kKey = "k"
+
   def propertiesLoc(indexLoc: String) = s"$indexLoc.properties"
 
   /** Read index parameters from a given location */
@@ -33,12 +42,12 @@ object IndexParams {
     val props = HDFSUtil.readProperties(propertiesLoc(location))
     println(s"Index parameters for $location: $props")
     try {
-      val numBuckets = props.getProperty("buckets").toInt
-      val version = props.getProperty("version").toInt
+      val numBuckets = props.getProperty(bucketsKey).toInt
+      val version = props.getProperty(versionKey).toInt
       if (version > maxVersion) {
         throw new Exception(s"A newer version of this software is needed to read $location. (Version $version, max supported version $maxVersion)")
       }
-      val formatId = Option(props.getProperty("splitter")).getOrElse("standard")
+      val formatId = Option(props.getProperty(splitterKey)).getOrElse("standard")
       val format = formats.getFormat(formatId)
       val splitter = format.readSplitter(location, props)
       IndexParams(spark.sparkContext.broadcast(splitter), numBuckets, location)
@@ -64,12 +73,12 @@ final case class IndexParams(bcSplit: Broadcast[AnyMinSplitter], buckets: Int, l
 
   def properties(format: SplitterFormat[_]): Properties = {
     val p = new Properties()
-    p.setProperty("k", k.toString)
-    p.setProperty("m", m.toString)
-    p.setProperty("buckets", buckets.toString)
+    p.setProperty(kKey, k.toString)
+    p.setProperty(mKey, m.toString)
+    p.setProperty(bucketsKey, buckets.toString)
     //Allows for future format upgrades
-    p.setProperty("version", "1")
-    p.setProperty("splitter", format.id)
+    p.setProperty(versionKey, "1")
+    p.setProperty(splitterKey, format.id)
     p
   }
 
@@ -85,10 +94,10 @@ final case class IndexParams(bcSplit: Broadcast[AnyMinSplitter], buckets: Int, l
     val p = properties(format)
     splitter.priorities match {
       case SpacedSeed(s, inner) =>
-        p.setProperty("minimizerSpaces", s.toString)
+        p.setProperty(spacesKey, s.toString)
         format.write(inner, p, newLocation)
       case CanonicalPriorities(inner) =>
-        p.setProperty("canonical", "true")
+        p.setProperty(canonicalKey, "true")
         format.write(inner, p, newLocation)
       case _ =>
         format.write(splitter.priorities, p, newLocation)
