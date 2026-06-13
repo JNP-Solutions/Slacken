@@ -24,7 +24,15 @@ import org.apache.spark.sql.SparkSession
 import java.util.Properties
 
 object IndexParams {
-  val maxVersion = 1
+  /**
+   * When we write IndexParams to a properties file, for forward compatibility, we record the current version
+   * and the max supported version of the format.
+   * Version history:
+   * 1: Initial version
+   * 2: Adds support for [[CanonicalPriorities]]
+   */
+  val maxVersion = 2
+  val currentVersion = maxVersion
 
   /* Keys for the properties key-value pairs */
   final val bucketsKey = "buckets"
@@ -77,7 +85,7 @@ final case class IndexParams(bcSplit: Broadcast[AnyMinSplitter], buckets: Int, l
     p.setProperty(mKey, m.toString)
     p.setProperty(bucketsKey, buckets.toString)
     //Allows for future format upgrades
-    p.setProperty(versionKey, "1")
+    p.setProperty(versionKey, currentVersion.toString)
     p.setProperty(splitterKey, format.id)
     p
   }
