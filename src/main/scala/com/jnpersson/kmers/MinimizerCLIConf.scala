@@ -104,7 +104,7 @@ trait MinimizerCLIConf {
   protected def frequencyBySequence: Boolean = false
 
   /** For the XOR ordering, which mask to use */
-  protected def defaultXORMask: Long = Random.nextLong()
+  protected def defaultXORMask: Long = DEFAULT_TOGGLE_MASK //Random.nextLong()
 
   /** For some minimizer orderings, whether to use canonical orientation */
   protected def defaultCanonicalMinimizers = false
