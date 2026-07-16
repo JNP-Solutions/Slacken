@@ -33,9 +33,9 @@ object SlackenMinimizerFormats extends MinimizerFormats[MinimizerCLIConf] {
     val m = config.minimizerWidth()
     val k = config.k()
     config.ordering() match {
-      case XORMask(mask, canonical) =>
+      case XORMask(mask) =>
         //computed RandomXOR for a wide m
-        val s1 = MinSplitter(RandomXOR(m, mask, canonical = canonical), k)
+        val s1 = MinSplitter(RandomXOR(m, mask, canonical = config.canonicalMinimizers()), k)
         MinSplitter(config.seedMask(s1.priorities), k)
       case _ => ???
     }
