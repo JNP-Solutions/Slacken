@@ -12,11 +12,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            java: ['17', '21']
+            java: [ '17', '21' ]
           - os: windows-latest
-            java: ['17', '21']
+            java: [ '17', '21' ]
           - os: macOS-latest
-            java: ['17', '21']
+            java: [ '17', '21' ]
     runs-on: ${{ matrix.os }}
     env:
       JAVA_OPTS: -Xms2048M -Xmx2048M -Xss6M -XX:ReservedCodeCacheSize=256M -Dfile.encoding=UTF-8
