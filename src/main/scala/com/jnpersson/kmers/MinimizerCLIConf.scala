@@ -21,8 +21,6 @@ import com.jnpersson.kmers.minimizer._
 import com.jnpersson.kmers.minimizer.{MinimizerPriorities, SpacedSeed}
 import org.rogach.scallop.{ScallopConf, ScallopOption, Subcommand}
 
-import scala.util.Random
-
 /** Runnable commands for a command-line tool */
 private[jnpersson] object Commands {
   def run(conf: ScallopConf): Unit = {
